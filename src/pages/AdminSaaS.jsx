@@ -554,7 +554,7 @@ const handleToggleFiscalSaaS = async (loja) => {
                         <p className="text-slate-400">Ligar/desligar módulos, acessos, repasses e exclusões.</p>
                     </div>
                     <div className="bg-slate-900 border border-slate-800 rounded-2xl overflow-x-auto">
-                        <table className="w-full text-left border-collapse min-w-[900px]">
+                        <table className="w-full text-left border-collapse min-w-225">
                             <thead>
                                 <tr className="bg-slate-950/50 border-b border-slate-800">
                                     <th className="p-4 text-slate-400 font-semibold text-sm">Loja & Status</th>
@@ -565,7 +565,7 @@ const handleToggleFiscalSaaS = async (loja) => {
                             <tbody>
                                 {storesList.map(loja => (
                                     <tr key={loja.id} className={`border-b border-slate-800/50 hover:bg-slate-800/20 ${loja.billingStatus === 'bloqueado' ? 'opacity-50' : ''}`}>
-                                        <td className="p-4 min-w-[200px]">
+                                        <td className="p-4 min-w-50">
                                             <p className="font-bold text-white">{loja.name || loja.velopayData?.legalName || '⚠️ [LOJA VAZIA]'}</p>
                                             <div className="mt-1">{renderBillingBadge(loja.billingStatus)}</div>
                                             <p className="text-[10px] text-slate-600 mt-2">ID: {loja.id}</p>
@@ -575,7 +575,7 @@ const handleToggleFiscalSaaS = async (loja) => {
                                             </div>
                                         </td>
                                         <td className="p-4">
-                                            <div className="flex flex-col gap-4 min-w-[280px]">
+                                            <div className="flex flex-col gap-4 min-w-70">
                                                {/* SELETOR DE PLANOS */}
                                                 <div className="flex items-center gap-3">
                                                     <span className="text-[10px] font-black uppercase text-slate-500 tracking-widest">Plano Ativo:</span>
@@ -809,7 +809,7 @@ const handleToggleFiscalSaaS = async (loja) => {
 
                 {/* --- MODAL DE REPASSE (DARK OPS) --- */}
                 {isPayoutModalOpen && selectedStoreForPayout && (
-                    <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-[200] flex items-center justify-center p-4">
+                    <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-200 flex items-center justify-center p-4">
                         <div className="bg-slate-900 border border-slate-700 w-full max-w-2xl rounded-[2.5rem] p-8 shadow-2xl relative max-h-[90vh] overflow-y-auto custom-scrollbar flex flex-col">
                             <button onClick={() => setIsPayoutModalOpen(false)} className="absolute top-6 right-6 text-slate-400 hover:text-white p-2 rounded-full hover:bg-slate-800 transition-colors"><X size={20}/></button>
                             

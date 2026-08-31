@@ -711,7 +711,7 @@ const educationalBanners = [
             bgColor: "bg-amber-50",
             borderColor: "border-amber-300",
             titleColor: "text-amber-900",
-            btnColor: "bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white shadow-lg shadow-amber-200",
+            btnColor: "bg-linear-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white shadow-lg shadow-amber-200",
             action: () => {
                 setIsMagicPromoModalOpen(true);
             }
@@ -3164,13 +3164,13 @@ const handleGenerateProductCopy = async () => {
                                 </div>
                             ) : (
                                 storeStatus.faq.map((item, index) => (
-                                    <details key={index} open={!item.question} className="group bg-slate-50 rounded-[1.5rem] border border-slate-200 overflow-hidden [&_summary::-webkit-details-marker]:hidden relative transition-all hover:border-blue-300 shadow-sm">
+                                    <details key={index} open={!item.question} className="group bg-slate-50 rounded-3xl border border-slate-200 overflow-hidden [&_summary::-webkit-details-marker]:hidden relative transition-all hover:border-blue-300 shadow-sm">
                                         <summary className="flex items-center justify-between gap-3 p-5 font-bold text-slate-800 cursor-pointer pr-16 bg-white">
                                             <div className="flex items-center gap-3 truncate">
-                                                <MessageSquare size={16} className="text-blue-500 flex-shrink-0" />
+                                                <MessageSquare size={16} className="text-blue-500 shrink-0" />
                                                 <span className="truncate text-sm font-black">{item.question || "Nova Pergunta (Clique para editar)"}</span>
                                             </div>
-                                            <span className="transition duration-300 group-open:rotate-180 text-slate-400 flex-shrink-0">
+                                            <span className="transition duration-300 group-open:rotate-180 text-slate-400 shrink-0">
                                                 <svg fill="none" height="24" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" viewBox="0 0 24 24" width="24"><path d="M6 9l6 6 6-6"></path></svg>
                                             </span>
                                         </summary>
@@ -4662,9 +4662,9 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                 </div>
 
                 {/* --- BARRA DE BUSCA GLOBAL (MENU LATERAL) --- */}
-                <div className="relative mb-6 z-[100]">
+                <div className="relative mb-6 z-100">
                     <div className={`flex items-center bg-slate-50 rounded-xl border transition-all ${isGlobalSearchFocused ? 'border-blue-500 shadow-[0_0_0_3px_rgba(59,130,246,0.1)]' : 'border-slate-200 hover:border-slate-300'}`}>
-                        <Search className={`ml-3 flex-shrink-0 ${isGlobalSearchFocused ? 'text-blue-500' : 'text-slate-400'}`} size={16} />
+                        <Search className={`ml-3 shrink-0 ${isGlobalSearchFocused ? 'text-blue-500' : 'text-slate-400'}`} size={16} />
                         <input 
                             type="text" 
                             placeholder="Buscar funcionalidade..." 
@@ -4683,7 +4683,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
 
                     {/* DROPDOWN DE RESULTADOS (FLUTUANTE) */}
                     {globalSearchText.trim() !== '' && isGlobalSearchFocused && (
-                        <div className="absolute top-full left-0 w-[280px] mt-2 bg-white rounded-2xl shadow-[0_10px_40px_-10px_rgba(0,0,0,0.15)] border border-slate-100 overflow-hidden max-h-[50vh] overflow-y-auto custom-scrollbar animate-in fade-in slide-in-from-top-2">
+                        <div className="absolute top-full left-0 w-70 mt-2 bg-white rounded-2xl shadow-[0_10px_40px_-10px_rgba(0,0,0,0.15)] border border-slate-100 overflow-hidden max-h-[50vh] overflow-y-auto custom-scrollbar animate-in fade-in slide-in-from-top-2">
                             {filteredGlobalFeatures.length > 0 ? (
                                 <div className="p-2">
                                     <p className="text-[9px] font-black uppercase text-slate-400 tracking-widest px-3 py-2">Sugestões Velo</p>
@@ -4698,7 +4698,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                             className="w-full flex items-center justify-between p-2.5 hover:bg-blue-50 rounded-xl transition-all group text-left"
                                         >
                                             <div className="flex items-center gap-3 truncate">
-                                                <div className="bg-slate-100 text-slate-500 group-hover:bg-blue-600 group-hover:text-white p-1.5 rounded-lg transition-colors flex-shrink-0">
+                                                <div className="bg-slate-100 text-slate-500 group-hover:bg-blue-600 group-hover:text-white p-1.5 rounded-lg transition-colors shrink-0">
                                                     {feat.icon}
                                                 </div>
                                                 <span className="font-bold text-xs text-slate-700 group-hover:text-blue-900 truncate">{feat.label}</span>
@@ -4752,11 +4752,11 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
             >
                 {/* Efeito Moderno Google 2026: Barra lateral multi-colorida quando ativo */}
                 {isGoogle && activeTab === item.id && (
-                    <div className="absolute top-0 left-0 w-1.5 h-full bg-gradient-to-b from-blue-500 via-red-500 to-yellow-400 rounded-l-2xl"></div>
+                    <div className="absolute top-0 left-0 w-1.5 h-full bg-linear-to-b from-blue-500 via-red-500 to-yellow-400 rounded-l-2xl"></div>
                 )}
 
                 <div className="flex items-center gap-3 text-left overflow-hidden w-full relative z-10">
-                    <div className="flex-shrink-0">
+                    <div className="shrink-0">
                         {/* Força o ícone do Google a manter a cor original mesmo quando o botão está ativo */}
                         {isGoogle ? <FaGoogle size={18} className="text-blue-500 drop-shadow-sm" /> : item.icon}
                     </div>
@@ -4764,11 +4764,11 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                 </div>
                 
                 {isLockedByPlan ? (
-                    <div className="bg-slate-200 text-slate-500 p-1.5 rounded-lg flex-shrink-0 relative z-10">
+                    <div className="bg-slate-200 text-slate-500 p-1.5 rounded-lg shrink-0 relative z-10">
                         <Lock size={14} />
                     </div>
                 ) : badgeCount > 0 ? (
-                    <span className="bg-red-500 text-white w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-black animate-pulse shadow-md flex-shrink-0 relative z-10">
+                    <span className="bg-red-500 text-white w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-black animate-pulse shadow-md shrink-0 relative z-10">
                         {badgeCount > 99 ? '99+' : badgeCount}
                     </span>
                 ) : null}
@@ -4799,7 +4799,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                     {/* IDENTIFICADOR DO USUÁRIO LOGADO */}
                     <div className="w-full flex items-center justify-between bg-white p-3 rounded-2xl border border-slate-200 mt-2 shadow-sm">
                         <div className="flex items-center gap-3 overflow-hidden">
-                            <div className="w-8 h-8 bg-slate-900 text-white rounded-full flex items-center justify-center font-black text-xs flex-shrink-0">
+                            <div className="w-8 h-8 bg-slate-900 text-white rounded-full flex items-center justify-center font-black text-xs shrink-0">
                                 {auth.currentUser?.displayName ? auth.currentUser.displayName.charAt(0).toUpperCase() : (auth.currentUser?.email ? auth.currentUser.email.charAt(0).toUpperCase() : 'U')}
                             </div>
                             <div className="flex flex-col truncate">
@@ -4811,7 +4811,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                 </span>
                             </div>
                         </div>
-                        <button onClick={handleLogout} className="p-2 text-red-500 hover:bg-red-50 hover:text-red-600 rounded-xl transition-all flex-shrink-0" title="Sair do Sistema">
+                        <button onClick={handleLogout} className="p-2 text-red-500 hover:bg-red-50 hover:text-red-600 rounded-xl transition-all shrink-0" title="Sair do Sistema">
                             <LogOut size={16} />
                         </button>
                     </div>
@@ -4910,7 +4910,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
 
                             {/* --- BANNER DE AVISO: TESTE OU FATURA --- */}
                             {trialInfo.isTrial && storeStatus.paymentStatus !== 'paid' && (
-                                <div className="bg-blue-50 border border-blue-200 p-6 rounded-[2rem] flex flex-col md:flex-row justify-between items-center gap-4 shadow-sm">
+                                <div className="bg-blue-50 border border-blue-200 p-6 rounded-4xl flex flex-col md:flex-row justify-between items-center gap-4 shadow-sm">
                                     <div>
                                         <h3 className="text-blue-800 font-black flex items-center gap-2 text-lg"><Clock size={20} /> PERÍODO DE TESTE ATIVO</h3>
                                         <p className="text-blue-600 font-bold text-sm">Você tem {trialInfo.daysLeft} dias restantes de uso gratuito. Adicione um cartão para não pausar suas vendas.</p>
@@ -4922,7 +4922,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                             )}
 
                             {isOverdue && (
-                                <div className="bg-red-50 border border-red-200 p-6 rounded-[2rem] flex flex-col md:flex-row justify-between items-center gap-4 shadow-sm animate-pulse">
+                                <div className="bg-red-50 border border-red-200 p-6 rounded-4xl flex flex-col md:flex-row justify-between items-center gap-4 shadow-sm animate-pulse">
                                     <div>
                                         <h3 className="text-red-700 font-black flex items-center gap-2 text-lg"><Server size={20} /> FATURA EM ABERTO</h3>
                                         <p className="text-red-600 font-bold text-sm">Sua fatura está vencida. Regularize o pagamento para evitar a suspensão da loja.</p>
@@ -4959,7 +4959,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
             </button>
 
             <div className="flex items-start gap-5 pr-8">
-                <div className="bg-white p-4 rounded-2xl shadow-sm flex-shrink-0 mt-1 border border-white/50">
+                <div className="bg-white p-4 rounded-2xl shadow-sm shrink-0 mt-1 border border-white/50">
                     {educationalBanners[currentEduBanner].icon}
                 </div>
                 <div>
@@ -4975,7 +4975,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                 </div>
             </div>
 
-            <div className="w-full md:w-auto flex-shrink-0 flex flex-col gap-2">
+            <div className="w-full md:w-auto shrink-0 flex flex-col gap-2">
                 <button 
                     onClick={educationalBanners[currentEduBanner].action}
                     className={`w-full ${educationalBanners[currentEduBanner].btnColor} px-8 py-4 rounded-2xl font-black text-xs uppercase tracking-widest transition-all active:scale-95 flex items-center justify-center gap-2`}
@@ -4997,7 +4997,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
 {/* ========================================================= */}
                           {/* --- AVISO DE FATURA PRÓXIMA (10 DIAS) - BLINDADO --- */}
                             {!trialInfo.isTrial && !isOverdue && storeStatus?.billingStatus !== 'gratis_vitalicio' && invoiceData.daysUntilDue <= 10 && invoiceData.daysUntilDue >= 0 && (
-                                <div className="bg-amber-50 border border-amber-200 p-6 rounded-[2rem] flex flex-col md:flex-row justify-between items-center gap-4 shadow-sm animate-in fade-in slide-in-from-top-4">
+                                <div className="bg-amber-50 border border-amber-200 p-6 rounded-4xl flex flex-col md:flex-row justify-between items-center gap-4 shadow-sm animate-in fade-in slide-in-from-top-4">
                                     <div>
                                         <h3 className="text-amber-800 font-black flex items-center gap-2 text-lg">
                                             <Clock size={20} className="text-amber-600 animate-pulse"/> FATURA PRÓXIMA DO VENCIMENTO
@@ -5028,7 +5028,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
     const displayedProducts = showAllCriticalStock ? criticalProducts : criticalProducts.slice(0, 5);
     
     return (
-        <div className="bg-red-50 border border-red-200 p-6 rounded-[2rem]">
+        <div className="bg-red-50 border border-red-200 p-6 rounded-4xl">
             <div className="flex justify-between items-center mb-3">
                 <h3 className="text-red-600 font-black flex items-center gap-2 animate-pulse"><Flame size={20} /> ALERTA: ESTOQUE CRÍTICO ({criticalProducts.length} itens)</h3>
                 {criticalProducts.length > 5 && (
@@ -5069,7 +5069,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                 if (completedCount === checks.length) return null;
 
                                 return (
-                                    <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-100 p-6 rounded-[2rem] mb-6 shadow-sm flex flex-col md:flex-row items-center justify-between gap-6">
+                                    <div className="bg-linear-to-r from-blue-50 to-indigo-50 border border-blue-100 p-6 rounded-4xl mb-6 shadow-sm flex flex-col md:flex-row items-center justify-between gap-6">
                                         <div className="flex-1 w-full">
                                             <h3 className="text-blue-800 font-black uppercase tracking-widest text-xs flex items-center gap-2 mb-2">
                                                 <Globe size={16}/> Saúde de Busca da Loja (GEO/SEO)
@@ -5131,7 +5131,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                     </div>
 
                                     {/* SUPER CARD: RECUPERAÇÃO DE CARRINHOS */}
-                                    <div className="bg-gradient-to-br from-rose-500 to-pink-600 p-6 md:p-8 rounded-[2.5rem] shadow-lg border border-rose-400 relative overflow-hidden flex flex-col justify-center hover:shadow-xl transition-all">
+                                    <div className="bg-linear-to-br from-rose-500 to-pink-600 p-6 md:p-8 rounded-[2.5rem] shadow-lg border border-rose-400 relative overflow-hidden flex flex-col justify-center hover:shadow-xl transition-all">
                                         <div className="flex justify-between items-start z-10 relative mb-1">
                                             <p className="text-rose-100 font-black text-[10px] uppercase tracking-widest flex items-center gap-1"><Ghost size={12}/> Vendas Recuperadas</p>
                                             <div className="flex flex-col items-end gap-1">
@@ -5158,7 +5158,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                     </div>
 
                                     {/* SUPER CARD: UPSELL INTELIGENTE */}
-<div className="bg-gradient-to-br from-indigo-500 to-blue-600 p-6 md:p-8 rounded-[2.5rem] shadow-lg border border-indigo-400 relative overflow-hidden flex flex-col justify-center hover:shadow-xl transition-all">
+<div className="bg-linear-to-br from-indigo-500 to-blue-600 p-6 md:p-8 rounded-[2.5rem] shadow-lg border border-indigo-400 relative overflow-hidden flex flex-col justify-center hover:shadow-xl transition-all">
     <div className="flex justify-between items-start z-10 relative mb-1">
         <p className="text-indigo-100 font-black text-[10px] uppercase tracking-widest flex items-center gap-1"><Flame size={12}/> Upsell (Compre Junto)</p>
         <div className="flex flex-col items-end gap-1">
@@ -5291,7 +5291,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                                                     }
                                                                 }
                                                             }}
-                                                            className={`min-w-[140px] flex-shrink-0 flex flex-col items-center justify-center p-5 rounded-3xl border-2 transition-all duration-300 ${
+                                                            className={`min-w-35 shrink-0 flex flex-col items-center justify-center p-5 rounded-3xl border-2 transition-all duration-300 ${
                                                                 isUnlocked 
                                                                 ? `${trophy.color} shadow-md hover:scale-105 hover:shadow-lg active:scale-95 cursor-pointer` 
                                                                 : 'bg-slate-50 border-slate-100 text-slate-300 opacity-60 cursor-not-allowed'
@@ -5461,7 +5461,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                 <button 
                                     onClick={handleGenerateInsights}
                                     disabled={isGeneratingInsights}
-                                    className="bg-gradient-to-r from-purple-600 to-indigo-600 text-white px-8 py-4 rounded-2xl font-black text-sm uppercase tracking-widest shadow-xl hover:from-purple-700 hover:to-indigo-700 transition-all flex items-center gap-2 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+                                    className="bg-linear-to-r from-purple-600 to-indigo-600 text-white px-8 py-4 rounded-2xl font-black text-sm uppercase tracking-widest shadow-xl hover:from-purple-700 hover:to-indigo-700 transition-all flex items-center gap-2 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
                                 >
                                     {isGeneratingInsights ? <Loader2 className="animate-spin" size={18}/> : <Sparkles size={18}/>}
                                     {isGeneratingInsights ? 'Analisando Dados...' : 'Gerar Consultoria IA'}
@@ -5496,7 +5496,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                         <ul className="space-y-3">
                                             {topProducts.map((p, i) => (
                                                 <li key={i} className="flex justify-between items-center bg-slate-50 p-3 rounded-xl border border-slate-100">
-                                                    <span className="font-bold text-slate-700 text-xs truncate max-w-[150px]">{p.name}</span>
+                                                    <span className="font-bold text-slate-700 text-xs truncate max-w-37.5">{p.name}</span>
                                                     <span className="text-[10px] font-black bg-blue-100 text-blue-600 px-2 py-1 rounded shadow-sm shrink-0">{p.views} cliques</span>
                                                 </li>
                                             ))}
@@ -5677,17 +5677,17 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
 
                             {/* --- NOVOS CARDS DE ENGAJAMENTO (GA4) --- */}
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
-                                <div className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm flex flex-col justify-center">
+                                <div className="bg-white p-6 rounded-4xl border border-slate-100 shadow-sm flex flex-col justify-center">
                                     <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2 flex items-center gap-2"><Clock size={14}/> Tempo de Engajamento</p>
                                     <p className="text-3xl font-black text-slate-800 italic">{ga4Metrics?.averageSessionDuration || '01m 45s'}</p>
                                     <p className="text-[9px] font-bold text-slate-400 mt-1">Média do tempo na tela do cardápio.</p>
                                 </div>
-                                <div className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm flex flex-col justify-center">
+                                <div className="bg-white p-6 rounded-4xl border border-slate-100 shadow-sm flex flex-col justify-center">
                                     <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2 flex items-center gap-2"><TrendingUp size={14}/> CTR (Taxa de Clique)</p>
                                     <p className="text-3xl font-black text-blue-600 italic">{ga4Metrics?.ctr || '8.2'}%</p>
                                     <p className="text-[9px] font-bold text-slate-400 mt-1">Cliques no botão "Comprar".</p>
                                 </div>
-                                <div className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm flex flex-col justify-center">
+                                <div className="bg-white p-6 rounded-4xl border border-slate-100 shadow-sm flex flex-col justify-center">
                                     <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2 flex items-center gap-2"><Ghost size={14}/> Taxa de Rejeição</p>
                                     <p className="text-3xl font-black text-red-500 italic">{ga4Metrics?.bounceRate || '42.1'}%</p>
                                     <p className="text-[9px] font-bold text-slate-400 mt-1">Saíram sem olhar outros produtos.</p>
@@ -5920,7 +5920,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                             </div>
                         </div>
 
-                        <div className="flex-1 bg-white rounded-[3rem] border-4 border-white shadow-2xl overflow-hidden relative min-h-[400px]">
+                        <div className="flex-1 bg-white rounded-[3rem] border-4 border-white shadow-2xl overflow-hidden relative min-h-100">
                             {isLoaded ? (
                                 <GoogleMap
                                     mapContainerStyle={{ width: '100%', height: '100%' }}
@@ -6205,7 +6205,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                             }
                                         }}
                                         disabled={isSavingFiscal}
-                                        className="w-full bg-slate-900 text-white py-5 rounded-[2rem] font-black text-sm shadow-xl uppercase tracking-widest hover:bg-slate-800 transition-all active:scale-95 flex items-center justify-center gap-2 disabled:opacity-50"
+                                        className="w-full bg-slate-900 text-white py-5 rounded-4xl font-black text-sm shadow-xl uppercase tracking-widest hover:bg-slate-800 transition-all active:scale-95 flex items-center justify-center gap-2 disabled:opacity-50"
                                     >
                                         {isSavingFiscal ? <Loader2 size={18} className="animate-spin" /> : <Save size={18} />}
                                         Salvar Configurações Fiscais
@@ -6543,7 +6543,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                     return (
                                         <>
                                             {paginatedOrdersList.map(o => (
-                                                <div key={o.id} className="bg-white p-5 md:p-6 rounded-[2rem] shadow-sm border border-slate-200 flex flex-col gap-4 hover:shadow-md transition-all">
+                                                <div key={o.id} className="bg-white p-5 md:p-6 rounded-4xl shadow-sm border border-slate-200 flex flex-col gap-4 hover:shadow-md transition-all">
                                                     
                                                     {/* BLOCO 1: CABEÇALHO (Tags, Nome e Endereço) */}
                                                     <div className="flex flex-col gap-3">
@@ -6901,7 +6901,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                     { id: 'preparing', title: storeStatus?.storeNiche === 'floricultura' ? '🎀 Montando Arranjo' : '👨‍🍳 Em Preparo', color: 'bg-orange-100 text-orange-800 border-orange-200', next: 'delivery', nextLabel: 'Despachar (Rota)' },
                                     { id: 'delivery', title: '🏍️ Em Rota / Retirada', color: 'bg-blue-100 text-blue-800 border-blue-200', next: 'completed', nextLabel: 'Finalizar' }
                                 ].map(col => (
-                                    <div key={col.id} className="w-[340px] flex-shrink-0 bg-slate-100/50 p-4 rounded-[2rem] border border-slate-200 h-full flex flex-col shadow-inner">
+                                    <div key={col.id} className="w-85 shrink-0 bg-slate-100/50 p-4 rounded-4xl border border-slate-200 h-full flex flex-col shadow-inner">
                                         <h3 className={`font-black text-xs uppercase tracking-widest p-4 rounded-xl border mb-4 flex justify-between items-center shadow-sm ${col.color}`}>
                                             {col.title}
                                             <span className="bg-white/60 px-2.5 py-1 rounded-md shadow-sm">{orders.filter(o => o.status === col.id).length}</span>
@@ -7029,7 +7029,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                                             {o.tipo === 'local' ? (
                                                                 <span className="text-purple-600 flex items-center gap-1"><Utensils size={12}/> Mesa {o.mesa}</span>
                                                             ) : (
-                                                                <span className="flex items-start gap-1"><MapPin size={12} className="mt-0.5 flex-shrink-0"/> {o.customerAddress?.street || o.customerAddress || 'Retirada no Balcão'}</span>
+                                                                <span className="flex items-start gap-1"><MapPin size={12} className="mt-0.5 shrink-0"/> {o.customerAddress?.street || o.customerAddress || 'Retirada no Balcão'}</span>
                                                             )}
                                                         </div>
 
@@ -7152,7 +7152,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                         </div>
 
                         {/* --- INÍCIO: BANNER IA DE PREVISÃO DE ESTOQUE --- */}
-                        <div className="bg-gradient-to-r from-purple-50 to-indigo-50 border border-purple-200 p-6 md:p-8 rounded-[2rem] shadow-sm">
+                        <div className="bg-linear-to-r from-purple-50 to-indigo-50 border border-purple-200 p-6 md:p-8 rounded-4xl shadow-sm">
                             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-4">
                                 <div>
                                     <h3 className="text-xl font-black uppercase text-purple-800 flex items-center gap-2"><Sparkles size={24}/> Velo Predict (IA)</h3>
@@ -7195,7 +7195,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                             {ingredients.length === 0 && <p className="text-slate-400 font-bold col-span-full bg-slate-50 p-8 rounded-3xl text-center border-2 border-dashed border-slate-200">Nenhum insumo cadastrado ainda.</p>}
                             {ingredients.map(ing => (
-                                <div key={ing.id} className="bg-white p-6 rounded-[2rem] border border-slate-100 flex justify-between items-center shadow-sm">
+                                <div key={ing.id} className="bg-white p-6 rounded-4xl border border-slate-100 flex justify-between items-center shadow-sm">
                                     <div className="flex flex-col">
                                         <span className="font-black text-slate-800 text-lg leading-tight uppercase">{ing.name}</span>
                                         <span className={`text-sm font-bold mt-1 ${ing.stock <= 10 ? 'text-red-500' : 'text-slate-400'}`}>
@@ -7220,7 +7220,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                         </div>
                         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                             {categories.map(c => (
-                                <div key={c.id} className="bg-white p-6 rounded-[2rem] border border-slate-100 flex justify-between items-center shadow-sm">
+                                <div key={c.id} className="bg-white p-6 rounded-4xl border border-slate-100 flex justify-between items-center shadow-sm">
                                     <div className="flex flex-col">
                                         <div className="flex items-center gap-2">
     <span className={`font-bold text-lg leading-tight ${c.isActive === false ? 'text-slate-400 line-through' : 'text-slate-800'}`}>{c.name}</span>
@@ -7459,22 +7459,22 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                 <>
                                     {/* CARDS DE RESUMO DE ESTOQUE */}
                                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
-                                        <div className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm flex flex-col justify-center">
+                                        <div className="bg-white p-6 rounded-4xl border border-slate-100 shadow-sm flex flex-col justify-center">
                                             <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2 flex items-center gap-2"><Package size={14}/> Total de Unidades</p>
                                             <p className="text-3xl font-black text-slate-800 italic">{summaryTotalUnits}</p>
                                             <p className="text-[9px] font-bold text-slate-400 mt-1">Soma baseada no filtro atual.</p>
                                         </div>
-                                        <div className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm flex flex-col justify-center">
+                                        <div className="bg-white p-6 rounded-4xl border border-slate-100 shadow-sm flex flex-col justify-center">
                                             <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2 flex items-center gap-2"><TrendingUp size={14}/> Custo Imobilizado</p>
                                             <p className="text-3xl font-black text-slate-800 italic">R$ {summaryTotalCost.toFixed(2)}</p>
                                             <p className="text-[9px] font-bold text-slate-400 mt-1">Capital no estoque filtrado.</p>
                                         </div>
-                                        <div className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm flex flex-col justify-center">
+                                        <div className="bg-white p-6 rounded-4xl border border-slate-100 shadow-sm flex flex-col justify-center">
                                             <p className="text-[10px] font-black uppercase tracking-widest text-red-500 mb-2 flex items-center gap-2"><Clock size={14}/> Capital Parado {'>'}30d</p>
                                             <p className="text-3xl font-black text-red-500 italic">R$ {capitalParado.toFixed(2)}</p>
                                             <p className="text-[9px] font-bold text-red-400 mt-1">Custo de itens sem venda recente.</p>
                                         </div>
-                                        <div className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm flex flex-col justify-center">
+                                        <div className="bg-white p-6 rounded-4xl border border-slate-100 shadow-sm flex flex-col justify-center">
                                             <p className="text-[10px] font-black uppercase tracking-widest text-green-600 mb-2 flex items-center gap-2"><Landmark size={14}/> Venda Bruta Prev.</p>
                                             <p className="text-3xl font-black text-green-500 italic">R$ {summaryTotalSales.toFixed(2)}</p>
                                             <p className="text-[9px] font-bold text-green-600/70 mt-1">Se todo o estoque for vendido.</p>
@@ -7524,7 +7524,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                                     <div key={p.id} className={`bg-white p-5 md:p-6 rounded-[2.5rem] border-2 flex items-stretch gap-4 shadow-sm group hover:shadow-md transition-all relative overflow-hidden ${selectedProductIds.includes(p.id) ? 'border-blue-400 bg-blue-50/20' : 'border-slate-100'}`}>
                                     
                                                     {/* COLUNA 1: Checkbox + Foto (Tamanho Fixo para não amassar) */}
-                                                    <div className="flex flex-col items-center gap-3 flex-shrink-0 w-16 md:w-20">
+                                                    <div className="flex flex-col items-center gap-3 shrink-0 w-16 md:w-20">
                                                         <input 
                                                             type="checkbox" 
                                                             checked={selectedProductIds.includes(p.id)}
@@ -7613,7 +7613,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                                     </div>
 
                                                     {/* COLUNA 3: Botões de Ação (Tamanho Fixo à direita, nunca são esmagados) */}
-                                                    <div className="flex flex-col justify-center gap-2 flex-shrink-0 relative z-10 w-10">
+                                                    <div className="flex flex-col justify-center gap-2 shrink-0 relative z-10 w-10">
 
                                                         <button onClick={() => handleQuickToggleProduct(p)} className={`p-2.5 rounded-xl transition-all shadow-sm ${p.isActive === false ? 'bg-red-50 text-red-600 border border-red-100 hover:bg-red-100' : 'bg-green-50 text-green-600 border border-green-100 hover:bg-green-100'}`} title={p.isActive === false ? 'Oculto (Clique para Ativar)' : 'Ativo (Clique para Ocultar)'}>
                                                             {p.isActive === false ? <EyeOff size={18} className="mx-auto" /> : <Eye size={18} className="mx-auto" />}
@@ -7765,7 +7765,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                         </h2>
                                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                             {influencerStats.slice(0, 4).map((inf, i) => (
-                                                <div key={inf.id} className="bg-white p-5 rounded-[2rem] shadow-sm border border-slate-100 flex items-center gap-4 hover:shadow-md transition-all relative overflow-hidden">
+                                                <div key={inf.id} className="bg-white p-5 rounded-4xl shadow-sm border border-slate-100 flex items-center gap-4 hover:shadow-md transition-all relative overflow-hidden">
                                                     {i === 0 && <div className="absolute top-0 right-0 bg-yellow-400 text-white text-[9px] font-black uppercase px-2 py-1 rounded-bl-lg shadow-sm">1º Lugar</div>}
                                                     <img src={inf.imageUrl || "https://cdn-icons-png.flaticon.com/512/8405/8405626.png"} alt={inf.name} className="w-14 h-14 rounded-2xl object-cover bg-slate-50 border border-slate-200" />
                                                     <div className="flex-1">
@@ -7832,7 +7832,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                             </div>
                                         </div>
                                     </div>
-                                    <div className="w-full md:w-auto md:min-w-[250px] text-right">
+                                    <div className="w-full md:w-auto md:min-w-62.5 text-right">
                                         {settings.loyaltyActive ? (
                                             <>
                                                 <div className="flex justify-end items-baseline gap-2 mb-2">
@@ -7840,7 +7840,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                                     <span className="text-[10px] font-black text-slate-300 uppercase leading-none">PONTOS</span>
                                                 </div>
                                                 <div className="w-full bg-slate-100 rounded-full h-2.5 relative">
-                                                    <div className="bg-gradient-to-r from-purple-400 to-purple-600 h-2.5 rounded-full transition-all duration-500" style={{ width: `${progressPercentage}%` }}></div>
+                                                    <div className="bg-linear-to-r from-purple-400 to-purple-600 h-2.5 rounded-full transition-all duration-500" style={{ width: `${progressPercentage}%` }}></div>
                                                 </div>
                                                 <p className="text-[10px] text-slate-400 font-bold mt-1">Meta: {c.points} / {c.loyaltyGoal}</p>
                                                 
@@ -8383,7 +8383,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                             <div className="lg:hidden absolute bottom-4 left-4 right-4 z-30 animate-in slide-in-from-bottom-4">
                                 <button 
                                     onClick={() => setIsMobileCartOpen(true)}
-                                    className={`w-full p-4 rounded-[1.5rem] font-black text-sm uppercase tracking-widest transition-all flex justify-between items-center border-2 ${manualCart.length > 0 ? 'bg-green-500 text-white shadow-[0_10px_30px_rgba(34,197,94,0.4)] hover:bg-green-600 border-green-400 active:scale-95' : 'bg-slate-900 text-white border-slate-800 shadow-xl'}`}
+                                    className={`w-full p-4 rounded-3xl font-black text-sm uppercase tracking-widest transition-all flex justify-between items-center border-2 ${manualCart.length > 0 ? 'bg-green-500 text-white shadow-[0_10px_30px_rgba(34,197,94,0.4)] hover:bg-green-600 border-green-400 active:scale-95' : 'bg-slate-900 text-white border-slate-800 shadow-xl'}`}
                                 >
                                     <div className="flex items-center gap-2">
                                         <ShoppingBag size={20} />
@@ -8395,7 +8395,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                         )}
 
                         {/* COLUNA DIREITA: O TICKET / COMANDA (CARRINHO) */}
-                        <div className={`${isMobileCartOpen ? 'fixed inset-0 z-[100] m-4 mb-24 flex' : 'hidden lg:flex'} w-auto lg:w-[400px] xl:w-[450px] lg:static flex-col bg-white rounded-[3rem] shadow-2xl lg:shadow-xl border border-slate-100 overflow-hidden flex-shrink-0`}>
+                        <div className={`${isMobileCartOpen ? 'fixed inset-0 z-100 m-4 mb-24 flex' : 'hidden lg:flex'} w-auto lg:w-100 xl:w-112.5 lg:static flex-col bg-white rounded-[3rem] shadow-2xl lg:shadow-xl border border-slate-100 overflow-hidden shrink-0`}>
                             {/* Topo do Ticket */}
                             <div className="p-6 border-b border-slate-100 bg-slate-900 text-white relative">
                                 
@@ -8569,7 +8569,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                             </div>
 
                             {/* Área de Cliente e Totais (Agora no fluxo da rolagem) */}
-                            <div className="p-6 border-t-2 border-slate-200 bg-white mt-auto flex-shrink-0">
+                            <div className="p-6 border-t-2 border-slate-200 bg-white mt-auto shrink-0">
                                 {/* Acordeão de Cliente/Entrega (Só aparece se tiver item) */}
                                 {manualCart.length > 0 && (
                                     <div className="mb-6 space-y-3">
@@ -8666,7 +8666,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                         type="number"
                         step="0.01"
                         placeholder="R$ 0.00"
-                        className="flex-1 min-w-[70px] p-3 bg-white rounded-xl font-black text-xs outline-none focus:ring-2 ring-blue-500 text-center border border-slate-200 shadow-sm"
+                        className="flex-1 min-w-17.5 p-3 bg-white rounded-xl font-black text-xs outline-none focus:ring-2 ring-blue-500 text-center border border-slate-200 shadow-sm"
                         value={pag.amount || ''}
                         onChange={e => {
                             const newSplit = [...manualCustomer.splitPayments];
@@ -9139,7 +9139,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                         )}
                                     </div>
 
-                                    <button onClick={async () => { const s = !settings.promoActive; await setDoc(doc(db, "settings", storeId), { promoActive: s }, { merge: true }); }} className={`w-full py-5 lg:py-6 rounded-2xl lg:rounded-[2rem] font-black uppercase tracking-widest text-lg shadow-xl ${settings.promoActive ? 'bg-slate-900 text-white hover:bg-slate-800' : 'bg-orange-600 text-white hover:bg-orange-700'} transition-all active:scale-95`}>
+                                    <button onClick={async () => { const s = !settings.promoActive; await setDoc(doc(db, "settings", storeId), { promoActive: s }, { merge: true }); }} className={`w-full py-5 lg:py-6 rounded-2xl lg:rounded-4xl font-black uppercase tracking-widest text-lg shadow-xl ${settings.promoActive ? 'bg-slate-900 text-white hover:bg-slate-800' : 'bg-orange-600 text-white hover:bg-orange-700'} transition-all active:scale-95`}>
                                         {settings.promoActive ? 'Desativar Visibilidade (Ocultar Todas)' : 'Ativar Visibilidade (Ligar Tarjas)'}
                                     </button>
                                     
@@ -9617,7 +9617,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                                         <p className="text-[10px] text-slate-400 font-bold mt-1">Cliente usa saldo acumulado na compra.</p>
                                                     </div>
                                                 </div>
-                                                <input type="checkbox" className="w-5 h-5 accent-green-500 cursor-pointer flex-shrink-0 mt-1" checked={settings.gamification?.cashback || false} onChange={async (e) => await setDoc(doc(db, "settings", storeId), { gamification: { ...settings.gamification, cashback: e.target.checked } }, { merge: true })} />
+                                                <input type="checkbox" className="w-5 h-5 accent-green-500 cursor-pointer shrink-0 mt-1" checked={settings.gamification?.cashback || false} onChange={async (e) => await setDoc(doc(db, "settings", storeId), { gamification: { ...settings.gamification, cashback: e.target.checked } }, { merge: true })} />
                                             </div>
 
                                             {settings.gamification?.cashback && (
@@ -9683,7 +9683,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                                         <p className="text-[10px] text-slate-400 font-bold mt-1">Link único para o cliente convidar amigos.</p>
                                                     </div>
                                                 </div>
-                                                <input type="checkbox" className="w-5 h-5 accent-blue-500 cursor-pointer flex-shrink-0 mt-1" checked={settings.gamification?.referral || false} onChange={async (e) => await setDoc(doc(db, "settings", storeId), { gamification: { ...settings.gamification, referral: e.target.checked } }, { merge: true })} />
+                                                <input type="checkbox" className="w-5 h-5 accent-blue-500 cursor-pointer shrink-0 mt-1" checked={settings.gamification?.referral || false} onChange={async (e) => await setDoc(doc(db, "settings", storeId), { gamification: { ...settings.gamification, referral: e.target.checked } }, { merge: true })} />
                                             </div>
                                             
                                             {/* Configurações da Indicação (Só aparece se estiver ativo) */}
@@ -9741,7 +9741,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                         </div>
 
 {/* --- INÍCIO: PAGUE COM SEGUIDORES (TIERS) --- */}
-                                            <div className="mt-6 bg-gradient-to-r from-fuchsia-600/20 to-indigo-600/20 p-5 rounded-2xl border border-fuchsia-500/30 shadow-[0_0_15px_rgba(217,70,239,0.1)] animate-in fade-in hover:border-fuchsia-400/50 transition-all">
+                                            <div className="mt-6 bg-linear-to-r from-fuchsia-600/20 to-indigo-600/20 p-5 rounded-2xl border border-fuchsia-500/30 shadow-[0_0_15px_rgba(217,70,239,0.1)] animate-in fade-in hover:border-fuchsia-400/50 transition-all">
                                                 <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4 mb-4">
                                                     <div>
                                                         <h4 className="text-sm font-black uppercase text-fuchsia-400 flex items-center gap-2 drop-shadow-sm">
@@ -9836,7 +9836,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                                 </div>
                                                 <input 
                                                     type="checkbox" 
-                                                    className="w-5 h-5 accent-pink-500 cursor-pointer flex-shrink-0 mt-1" 
+                                                    className="w-5 h-5 accent-pink-500 cursor-pointer shrink-0 mt-1" 
                                                     checked={settings.gamification?.instaFun?.active || false} 
                                                     onChange={async (e) => {
                                                         const isChecked = e.target.checked;
@@ -10024,7 +10024,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                                 <div className="flex flex-col items-end gap-2">
                                                     <input 
                                                         type="checkbox" 
-                                                        className="w-5 h-5 accent-red-500 cursor-pointer flex-shrink-0 mt-1" 
+                                                        className="w-5 h-5 accent-red-500 cursor-pointer shrink-0 mt-1" 
                                                         checked={settings.gamification?.flashDeals?.active || false} 
                                                         onChange={async (e) => {
                                                             await setDoc(doc(db, "settings", storeId), { gamification: { ...settings.gamification, flashDeals: { ...settings.gamification?.flashDeals, active: e.target.checked } } }, { merge: true });
@@ -10118,7 +10118,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                 <h2 className="text-2xl lg:text-4xl font-black italic tracking-tighter uppercase">Cupons</h2>
                                <button onClick={() => { setEditingCouponId(null); setCouponForm({ code: '', type: 'percentage', value: 0, minimumOrderValue: 0, usageLimit: null, userUsageLimit: null, expirationDate: '', firstPurchaseOnly: false, active: true, recurringDay: 'all', recurringStart: '', recurringEnd: '' }); setIsCouponModalOpen(true); }} className="bg-blue-600 text-white px-6 py-3 rounded-xl font-black shadow-xl shadow-blue-100 active:scale-95 transition-all text-sm">+ NOVO CUPOM</button>
                             </div>
-                            <div className="space-y-3 max-h-[400px] overflow-y-auto custom-scrollbar pr-2">
+                            <div className="space-y-3 max-h-100 overflow-y-auto custom-scrollbar pr-2">
                                 {coupons.map(c => (
                                     <div key={c.id} className="bg-slate-50 p-4 rounded-2xl border border-slate-100 flex justify-between items-center hover:bg-slate-100 transition-colors">
                                         <div>
@@ -10166,7 +10166,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                 </div>
                             ) : (
                                 teamMembers.map(member => (
-                                    <div key={member.id} className="bg-white p-6 rounded-[2rem] border border-slate-100 flex flex-col justify-between shadow-sm hover:shadow-md transition-all group">
+                                    <div key={member.id} className="bg-white p-6 rounded-4xl border border-slate-100 flex flex-col justify-between shadow-sm hover:shadow-md transition-all group">
                                         <div>
                                             <div className="flex items-center gap-3 mb-4">
                                                 <div className="w-12 h-12 bg-blue-50 text-blue-600 rounded-full flex items-center justify-center font-black text-xl shadow-inner">
@@ -10214,7 +10214,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                             </h2>
                             <p className="text-slate-400 font-bold mb-6 text-sm">Monitore a que horas seus funcionários abriram e fecharam o sistema.</p>
                             
-                            <div className="bg-white rounded-[2rem] border border-slate-100 shadow-sm overflow-hidden max-h-96 overflow-y-auto custom-scrollbar p-2">
+                            <div className="bg-white rounded-4xl border border-slate-100 shadow-sm overflow-hidden max-h-96 overflow-y-auto custom-scrollbar p-2">
                                 {posLogs.length === 0 ? (
                                     <p className="text-center text-slate-400 font-bold p-8">Nenhum registro de caixa encontrado.</p>
                                 ) : (
@@ -10292,7 +10292,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
 
                         {/* 🧠 ÁREA SECRETA DO SUPER ADMIN (Apenas donos da Velo veem isso) */}
                         {isSuperAdmin && (
-                            <div className="bg-slate-900 border-4 border-fuchsia-500/50 p-6 rounded-[2rem] shadow-2xl relative overflow-hidden animate-in zoom-in mb-8">
+                            <div className="bg-slate-900 border-4 border-fuchsia-500/50 p-6 rounded-4xl shadow-2xl relative overflow-hidden animate-in zoom-in mb-8">
                                 <div className="absolute top-0 right-0 p-4 opacity-20 pointer-events-none"><Crown size={120} className="text-fuchsia-500"/></div>
                                 <h3 className="text-2xl font-black uppercase italic text-white flex items-center gap-2 mb-2 relative z-10">
                                     <Sparkles className="text-fuchsia-400"/> Velo Master Control
@@ -10358,7 +10358,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                             customFeatures: {} 
                                         });
                                         alert("🔄 Overrides limpos! O sistema voltou a ler o plano oficial da loja.");
-                                    }} className="bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-500 hover:to-rose-500 text-white py-4 px-2 rounded-xl font-black text-[10px] uppercase tracking-widest shadow-lg shadow-red-900/50 transition-all active:scale-95 flex items-center justify-center gap-2">
+                                    }} className="bg-linear-to-r from-red-600 to-rose-600 hover:from-red-500 hover:to-rose-500 text-white py-4 px-2 rounded-xl font-black text-[10px] uppercase tracking-widest shadow-lg shadow-red-900/50 transition-all active:scale-95 flex items-center justify-center gap-2">
                                         <RefreshCw size={14}/> Limpar Liberações Manuais
                                     </button>
                                 </div>
@@ -10367,7 +10367,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                         {/* FIM DA ÁREA SECRETA */}
 
                         {/* --- DESTAQUE: VELOPAY NATIVO --- */}
-                        <div className="bg-gradient-to-br from-slate-900 to-slate-800 p-8 rounded-[3rem] shadow-2xl border-4 border-blue-500/30 flex flex-col justify-between mb-8 relative overflow-hidden">
+                        <div className="bg-linear-to-br from-slate-900 to-slate-800 p-8 rounded-[3rem] shadow-2xl border-4 border-blue-500/30 flex flex-col justify-between mb-8 relative overflow-hidden">
                             <div className="absolute -top-24 -right-24 bg-blue-500 w-64 h-64 rounded-full blur-[80px] opacity-40 pointer-events-none"></div>
                             
                             <div className="flex items-center justify-between mb-6 relative z-10">
@@ -10384,8 +10384,8 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                             </div>
 
                             {!storeStatus?.velopayStatus || storeStatus?.velopayStatus === 'unconfigured' ? (
-                                <div className="relative z-10 bg-white/5 border border-white/10 p-6 md:p-8 rounded-[2rem] backdrop-blur-md">
-                                    <div className="mb-10 bg-slate-900/50 rounded-[2rem] border border-white/10 p-6 shadow-inner animate-in fade-in zoom-in">
+                                <div className="relative z-10 bg-white/5 border border-white/10 p-6 md:p-8 rounded-4xl backdrop-blur-md">
+                                    <div className="mb-10 bg-slate-900/50 rounded-4xl border border-white/10 p-6 shadow-inner animate-in fade-in zoom-in">
                                         <h3 className="text-white font-black uppercase text-xs tracking-widest mb-5 flex items-center gap-2">
                                             <Wallet size={16} className="text-blue-400"/> Taxas e Condições do VeloPay
                                         </h3>
@@ -10444,7 +10444,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                                                 await updateDoc(doc(db, "stores", storeId), { velopayCreditStatus: newVal });
                                                             }}
                                                         />
-                                                        <div className="w-9 h-5 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-slate-300 after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-500"></div>
+                                                        <div className="w-9 h-5 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:bg-slate-300 after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-500"></div>
                                                     </label>
                                                 </div>
                                                 
@@ -11111,11 +11111,11 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                         </div>
                                         
                                         <ul className="space-y-3 text-xs font-bold text-slate-600 mb-8">
-                                            <li className="flex items-start gap-2"><CheckCircle2 size={16} className="text-green-500 flex-shrink-0 mt-0.5"/> 0% de Comissão nas Vendas</li>
-                                            <li className="flex items-start gap-2"><CheckCircle2 size={16} className="text-green-500 flex-shrink-0 mt-0.5"/> Cardápio Digital Responsivo</li>
-                                            <li className="flex items-start gap-2"><CheckCircle2 size={16} className="text-green-500 flex-shrink-0 mt-0.5"/> Pagamentos Online (Pix/Cartão)</li>
-                                            <li className="flex items-start gap-2"><CheckCircle2 size={16} className="text-green-500 flex-shrink-0 mt-0.5"/> Frente de Caixa (PDV Balcão)</li>
-                                            <li className="flex items-start gap-2"><CheckCircle2 size={16} className="text-green-500 flex-shrink-0 mt-0.5"/> Gestão de Estoque e Categorias</li>
+                                            <li className="flex items-start gap-2"><CheckCircle2 size={16} className="text-green-500 shrink-0 mt-0.5"/> 0% de Comissão nas Vendas</li>
+                                            <li className="flex items-start gap-2"><CheckCircle2 size={16} className="text-green-500 shrink-0 mt-0.5"/> Cardápio Digital Responsivo</li>
+                                            <li className="flex items-start gap-2"><CheckCircle2 size={16} className="text-green-500 shrink-0 mt-0.5"/> Pagamentos Online (Pix/Cartão)</li>
+                                            <li className="flex items-start gap-2"><CheckCircle2 size={16} className="text-green-500 shrink-0 mt-0.5"/> Frente de Caixa (PDV Balcão)</li>
+                                            <li className="flex items-start gap-2"><CheckCircle2 size={16} className="text-green-500 shrink-0 mt-0.5"/> Gestão de Estoque e Categorias</li>
                                         </ul>
                                     </div>
                                     <button 
@@ -11149,10 +11149,10 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
 
                                         <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-3">Tudo do Essencial, mais:</p>
                                         <ul className="space-y-3 text-xs font-bold text-slate-600 mb-8">
-                                            <li className="flex items-start gap-2"><CheckCircle2 size={16} className="text-orange-500 flex-shrink-0 mt-0.5"/> Sincronização Google Meu Negócio</li>
-                                            <li className="flex items-start gap-2"><CheckCircle2 size={16} className="text-orange-500 flex-shrink-0 mt-0.5"/> Domínio Próprio (Site Personalizado)</li>
-                                            <li className="flex items-start gap-2"><CheckCircle2 size={16} className="text-orange-500 flex-shrink-0 mt-0.5"/> Painel Kanban, Chat e Garçom</li>
-                                            <li className="flex items-start gap-2"><CheckCircle2 size={16} className="text-orange-500 flex-shrink-0 mt-0.5"/> Automação de WhatsApp e Carrinhos</li>
+                                            <li className="flex items-start gap-2"><CheckCircle2 size={16} className="text-orange-500 shrink-0 mt-0.5"/> Sincronização Google Meu Negócio</li>
+                                            <li className="flex items-start gap-2"><CheckCircle2 size={16} className="text-orange-500 shrink-0 mt-0.5"/> Domínio Próprio (Site Personalizado)</li>
+                                            <li className="flex items-start gap-2"><CheckCircle2 size={16} className="text-orange-500 shrink-0 mt-0.5"/> Painel Kanban, Chat e Garçom</li>
+                                            <li className="flex items-start gap-2"><CheckCircle2 size={16} className="text-orange-500 shrink-0 mt-0.5"/> Automação de WhatsApp e Carrinhos</li>
                                         </ul>
                                     </div>
                                     <button 
@@ -11181,11 +11181,11 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
 
                                         <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-3">Tudo do Crescimento, mais:</p>
                                         <ul className="space-y-3 text-xs font-bold text-slate-300 mb-4">
-                                            <li className="flex items-start gap-2"><CheckCircle2 size={16} className="text-blue-500 flex-shrink-0 mt-0.5"/> Gamificação (Roleta e Cashback)</li>
-                                            <li className="flex items-start gap-2"><CheckCircle2 size={16} className="text-blue-500 flex-shrink-0 mt-0.5"/> Velo Insights (Consultoria IA)</li>
-                                            <li className="flex items-start gap-2"><CheckCircle2 size={16} className="text-blue-500 flex-shrink-0 mt-0.5"/> Ficha Técnica e Controle de Insumos</li>
-                                            <li className="flex items-start gap-2"><CheckCircle2 size={16} className="text-blue-500 flex-shrink-0 mt-0.5"/> Hub Parceiros (Afiliados/Influencers)</li>
-                                            <li className="flex items-start gap-2"><CheckCircle2 size={16} className="text-blue-500 flex-shrink-0 mt-0.5"/> Radar GPS e Previsão IA</li>
+                                            <li className="flex items-start gap-2"><CheckCircle2 size={16} className="text-blue-500 shrink-0 mt-0.5"/> Gamificação (Roleta e Cashback)</li>
+                                            <li className="flex items-start gap-2"><CheckCircle2 size={16} className="text-blue-500 shrink-0 mt-0.5"/> Velo Insights (Consultoria IA)</li>
+                                            <li className="flex items-start gap-2"><CheckCircle2 size={16} className="text-blue-500 shrink-0 mt-0.5"/> Ficha Técnica e Controle de Insumos</li>
+                                            <li className="flex items-start gap-2"><CheckCircle2 size={16} className="text-blue-500 shrink-0 mt-0.5"/> Hub Parceiros (Afiliados/Influencers)</li>
+                                            <li className="flex items-start gap-2"><CheckCircle2 size={16} className="text-blue-500 shrink-0 mt-0.5"/> Radar GPS e Previsão IA</li>
                                         </ul>
                                         
                                         {/* Informativo do Add-on Fiscal */}
@@ -11670,13 +11670,13 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                 </div>
                             ) : (
                                 storeStatus.faq.map((item, index) => (
-                                    <details key={index} open={!item.question ? true : undefined} className="group bg-slate-50 rounded-[1.5rem] border border-slate-200 overflow-hidden [&_summary::-webkit-details-marker]:hidden relative transition-all hover:border-blue-300 shadow-sm mb-4">
+                                    <details key={index} open={!item.question ? true : undefined} className="group bg-slate-50 rounded-3xl border border-slate-200 overflow-hidden [&_summary::-webkit-details-marker]:hidden relative transition-all hover:border-blue-300 shadow-sm mb-4">
                                         <summary className="flex items-center justify-between gap-3 p-5 font-bold text-slate-800 cursor-pointer pr-16 bg-white">
                                             <div className="flex items-center gap-3 truncate">
-                                                <MessageSquare size={16} className="text-blue-500 flex-shrink-0" />
+                                                <MessageSquare size={16} className="text-blue-500 shrink-0" />
                                                 <span className="truncate text-sm font-black">{item.question || "Nova Pergunta (Clique para editar)"}</span>
                                             </div>
-                                            <span className="transition duration-300 group-open:rotate-180 text-slate-400 flex-shrink-0">
+                                            <span className="transition duration-300 group-open:rotate-180 text-slate-400 shrink-0">
                                                 <svg fill="none" height="24" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" viewBox="0 0 24 24" width="24"><path d="M6 9l6 6 6-6"></path></svg>
                                             </span>
                                         </summary>
@@ -11751,7 +11751,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                         placeholder="Ex: Fundada em 2018, somos especialistas em carnes nobres e gelo em Bombinhas. Nossa missão é..." 
                                         value={storeStatus.aboutText || ''} 
                                         onChange={e => setStoreStatus(prev => ({ ...prev, aboutText: e.target.value }))}
-                                        className="w-full p-5 bg-slate-50 rounded-[2rem] font-medium text-sm text-slate-700 outline-none border border-slate-100 focus:ring-2 ring-purple-500 transition-all resize-none"
+                                        className="w-full p-5 bg-slate-50 rounded-4xl font-medium text-sm text-slate-700 outline-none border border-slate-100 focus:ring-2 ring-purple-500 transition-all resize-none"
                                     ></textarea>
                                 </div>
 
@@ -11762,7 +11762,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                         placeholder="Cole os links separados por vírgula" 
                                         value={storeStatus.authorityLinks || ''} 
                                         onChange={e => setStoreStatus(prev => ({ ...prev, authorityLinks: e.target.value }))}
-                                        className="w-full p-5 bg-slate-50 rounded-[2rem] font-bold text-xs text-blue-600 outline-none border border-slate-100 focus:ring-2 ring-blue-500"
+                                        className="w-full p-5 bg-slate-50 rounded-4xl font-bold text-xs text-blue-600 outline-none border border-slate-100 focus:ring-2 ring-blue-500"
                                     ></textarea>
                                 </div>
 
@@ -12045,10 +12045,10 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                     <p className="text-[10px] text-slate-400 font-bold mt-1 ml-2">Exibido no rodapé da sua loja para maior transparência e credibilidade.</p>
                                 </div>
                                 <div>
-                                    <label className="block text-xs font-bold text-slate-500 mb-2 ml-2 flex items-center gap-2"><MessageSquare size={14}/> Mensagem / Aviso (Aparece no Topo)</label>
+                                    <label className="text-xs font-bold text-slate-500 mb-2 ml-2 flex items-center gap-2"><MessageSquare size={14}/> Mensagem / Aviso (Aparece no Topo)</label>
                                     <input type="text" placeholder="Ex: Voltamos em 15min / Promoção de Carnaval" value={storeStatus.message || ''} onChange={(e) => updateDoc(doc(db, "stores", storeId), { message: e.target.value }, { merge: true })} className="w-full p-5 bg-blue-50 text-blue-700 rounded-2xl font-bold border-none placeholder-blue-300" />
                             <div className="mt-4">
-                                <label className="block text-xs font-bold text-slate-500 mb-2 ml-2 flex items-center gap-2">
+                                <label className="text-xs font-bold text-slate-500 mb-2 ml-2 flex items-center gap-2">
                                     <Tags size={14}/> Slogan / Descrição
                                 </label>
                                 <input 
@@ -12060,7 +12060,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                 />
                             </div>
                                <div className="mt-4">
-                                    <label className="block text-xs font-bold text-slate-500 mb-2 ml-2 flex items-center gap-2">
+                                    <label className="text-xs font-bold text-slate-500 mb-2 ml-2 flex items-center gap-2">
                                         <MessageCircle size={14}/> WhatsApp para Receber Pedidos
                                     </label>
                                     <input 
@@ -12075,7 +12075,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
 
                                 {/* NOVO CAMPO: CHAVE PIX INDEPENDENTE (COBRANÇAS) */}
                                 <div className="mt-4">
-                                    <label className="block text-xs font-bold text-slate-500 mb-2 ml-2 flex items-center gap-2">
+                                    <label className="text-xs font-bold text-slate-500 mb-2 ml-2 flex items-center gap-2">
                                         <QrCode size={14} className="text-blue-500"/> Chave PIX da Loja (Para Cobranças)
                                     </label>
                                     <input 
@@ -12090,7 +12090,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
 
                                 {/* NOVO CAMPO: LINK DO GOOGLE MEU NEGÓCIO */}
                                 <div className="mt-4">
-                                    <label className="block text-xs font-bold text-slate-500 mb-2 ml-2 flex items-center gap-2">
+                                    <label className="text-xs font-bold text-slate-500 mb-2 ml-2 flex items-center gap-2">
                                         <Star size={14} className="text-yellow-500"/> Link de Avaliação (Google Meu Negócio)
                                     </label>
                                     <input 
@@ -12164,7 +12164,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                             </div>
                         </div>
                         {/* --- NOVO: DOMÍNIO PRÓPRIO (WHITE-LABEL) --- */}
-                                <div className="bg-gradient-to-br from-slate-900 to-slate-800 p-8 rounded-[3rem] shadow-xl border border-slate-700 space-y-6 mt-6 relative overflow-hidden">
+                                <div className="bg-linear-to-br from-slate-900 to-slate-800 p-8 rounded-[3rem] shadow-xl border border-slate-700 space-y-6 mt-6 relative overflow-hidden">
                                     <div className="absolute top-0 right-0 p-8 opacity-10 pointer-events-none"><Globe size={150}/></div>
                                     <div className="relative z-10">
                                         <h2 className="text-2xl font-black text-white uppercase mb-2 flex items-center gap-3">
@@ -12362,7 +12362,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                                     <span className={`font-black uppercase tracking-tight text-xs ${storeStatus.autoPrintPosOrders ? 'text-slate-800' : 'text-slate-500'}`}>🖨️ Auto-imprimir Lançamentos Manuais</span>
                                                     <p className="text-[9px] font-bold text-slate-500 mt-1">Se ativado, pedidos feitos pelo painel do PDV ou Chat WhatsApp serão impressos automaticamente na mesma regra do App.</p>
                                                 </div>
-                                                <input type="checkbox" checked={storeStatus.autoPrintPosOrders || false} onChange={(e) => updateDoc(doc(db, "stores", storeId), { autoPrintPosOrders: e.target.checked }, { merge: true })} className="w-5 h-5 rounded-md accent-slate-600 cursor-pointer flex-shrink-0" />
+                                                <input type="checkbox" checked={storeStatus.autoPrintPosOrders || false} onChange={(e) => updateDoc(doc(db, "stores", storeId), { autoPrintPosOrders: e.target.checked }, { merge: true })} className="w-5 h-5 rounded-md accent-slate-600 cursor-pointer shrink-0" />
                                             </label>
 
                                             {/* NOVO: AUTOMAÇÃO DE IMPRESSÃO E VIAS */}
@@ -12424,7 +12424,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
 
                                 {/* --- MODO GARÇOM --- */}
                                 <div className="pt-4 border-t border-slate-100">
-                                    <label className="block text-xs font-bold text-slate-500 mb-2 ml-2 flex items-center gap-2">
+                                    <label className="text-xs font-bold text-slate-500 mb-2 ml-2 flex items-center gap-2">
                                         <Utensils size={14} className="text-purple-500"/> PIN do Modo Garçom (Salão)
                                     </label>
                                     <input 
@@ -12439,7 +12439,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
 
                                 {/* --- GERADOR DE QR CODES (MESA) --- */}
                                 <div className="pt-4 border-t border-slate-100 mt-4 mb-4">
-                                    <label className="block text-xs font-bold text-slate-500 mb-2 ml-2 flex items-center gap-2">
+                                    <label className="text-xs font-bold text-slate-500 mb-2 ml-2 flex items-center gap-2">
                                         <QrCode size={14} className="text-blue-500"/> Placas de Autoatendimento (QR Code)
                                     </label>
                                     <div className="bg-blue-50 border border-blue-100 p-5 rounded-2xl flex flex-col md:flex-row items-center justify-between gap-4">
@@ -12508,7 +12508,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
 
                                {/* --- VALOR MÍNIMO DO PEDIDO --- */}
                                 <div className="pt-4 border-t border-slate-100 mt-4 mb-4">
-                                    <label className="block text-xs font-bold text-slate-500 mb-2 ml-2 flex items-center gap-2">
+                                    <label className="text-xs font-bold text-slate-500 mb-2 ml-2 flex items-center gap-2">
                                         <Banknote size={14} className="text-green-500"/> Valor Mínimo do Pedido (R$)
                                     </label>
                                     <input 
@@ -12523,7 +12523,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
 
                                 {/* 2. Meta de Frete Grátis (Para a Barra de Progresso) */}
                                 <div className="pt-4 border-t border-slate-100 mt-4">
-                                    <label className="block text-xs font-bold text-slate-500 mb-2 ml-2 flex items-center gap-2">
+                                    <label className="text-xs font-bold text-slate-500 mb-2 ml-2 flex items-center gap-2">
                                         <Trophy size={14} className="text-yellow-500"/> Meta para Frete Grátis (R$)
                                     </label>
                                     <input 
@@ -12721,7 +12721,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                                         {/* Botão de Adicionar/Remover 2º Turno */}
                                                         <button 
                                                             onClick={() => handleScheduleChange(day.id, 'splitShift', !dayConfig.splitShift)} 
-                                                            className={`p-3 rounded-xl transition-all flex items-center justify-center flex-shrink-0 ${dayConfig.splitShift ? 'bg-red-50 text-red-500 hover:bg-red-100' : 'bg-blue-50 text-blue-600 hover:bg-blue-100'}`} 
+                                                            className={`p-3 rounded-xl transition-all flex items-center justify-center shrink-0 ${dayConfig.splitShift ? 'bg-red-50 text-red-500 hover:bg-red-100' : 'bg-blue-50 text-blue-600 hover:bg-blue-100'}`} 
                                                             title={dayConfig.splitShift ? "Remover 2º Turno" : "Adicionar 2º Turno (Ex: Almoço e Janta)"}
                                                         >
                                                             {dayConfig.splitShift ? <MinusSquare size={18}/> : <PlusSquare size={18}/>}
@@ -12745,7 +12745,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                                                 onChange={(e) => handleScheduleChange(day.id, 'end2', e.target.value)}
                                                                 className="p-3 bg-orange-50 text-orange-700 rounded-xl font-bold text-sm w-full outline-none focus:ring-2 ring-orange-200"
                                                             />
-                                                            <div className="w-[42px] flex-shrink-0"></div> {/* Espaçador para manter alinhamento simétrico */}
+                                                            <div className="w-10.5 shrink-0"></div> {/* Espaçador para manter alinhamento simétrico */}
                                                         </div>
                                                     )}
                                                 </div>
@@ -12803,7 +12803,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                         </div>
 
                                         {/* O MAPA EM SI */}
-                                        <div className="w-full h-[400px] rounded-[2rem] overflow-hidden border-4 border-slate-100 shadow-inner relative">
+                                        <div className="w-full h-100 rounded-4xl overflow-hidden border-4 border-slate-100 shadow-inner relative">
                                             <GoogleMap
                                                 mapContainerStyle={{ width: '100%', height: '100%' }}
                                                 center={{ 
@@ -12847,7 +12847,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                         </div>
                                     </div>
                                 ) : (
-                                    <div className="w-full h-[400px] rounded-[2rem] bg-slate-50 flex items-center justify-center font-bold text-slate-400 mb-6 border-2 border-dashed border-slate-200 animate-pulse">
+                                    <div className="w-full h-100 rounded-4xl bg-slate-50 flex items-center justify-center font-bold text-slate-400 mb-6 border-2 border-dashed border-slate-200 animate-pulse">
                                         Conectando ao Google Maps...
                                     </div>
                                 )}
@@ -12988,7 +12988,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
 
                                     return (
                                         <div key={app.id} className="bg-white p-8 rounded-[3rem] shadow-sm border border-slate-100 flex flex-col justify-between hover:shadow-lg transition-all group relative overflow-hidden">
-                                            {isConnected && <div className="absolute top-0 right-0 w-16 h-16 bg-green-50 rounded-bl-[3rem] -z-0"></div>}
+                                            {isConnected && <div className="absolute top-0 right-0 w-16 h-16 bg-green-50 rounded-bl-[3rem] z-0"></div>}
                                             
                                             <div className="flex justify-between items-start mb-6 relative z-10">
                                                 <div className="p-4 bg-slate-50 rounded-2xl group-hover:scale-110 transition-transform">
@@ -13025,7 +13025,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                                 <div className="flex gap-2">
                                                     <button 
                                                         onClick={() => setActiveTab('meta_ads')}
-                                                        className="flex-1 py-4 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-lg hover:from-blue-700 hover:to-indigo-700 transition-all active:scale-95 flex items-center justify-center gap-2"
+                                                        className="flex-1 py-4 bg-linear-to-r from-blue-600 to-indigo-600 text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-lg hover:from-blue-700 hover:to-indigo-700 transition-all active:scale-95 flex items-center justify-center gap-2"
                                                     >
                                                         🚀 Abrir Painel
                                                     </button>
@@ -13185,7 +13185,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                             animate={{ opacity: 1 }} 
                             exit={{ opacity: 0 }} 
                             onClick={() => setIsMobileMenuOpen(false)}
-                            className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[45] lg:hidden"
+                            className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-45 lg:hidden"
                         />
 
                         {/* Painel que sobe */}
@@ -13194,7 +13194,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                             animate={{ y: 0 }} 
                             exit={{ y: '100%' }}
                             transition={{ type: "spring", damping: 25, stiffness: 200 }}
-                            className="fixed bottom-0 left-0 right-0 bg-white rounded-t-[2.5rem] z-[50] lg:hidden max-h-[85vh] flex flex-col shadow-[0_-20px_40px_rgba(0,0,0,0.15)] pb-safe"
+                            className="fixed bottom-0 left-0 right-0 bg-white rounded-t-[2.5rem] z-50 lg:hidden max-h-[85vh] flex flex-col shadow-[0_-20px_40px_rgba(0,0,0,0.15)] pb-safe"
                         >
                             {/* Puxador (Tracejadinho no topo) */}
                             <div className="w-full flex justify-center pt-4 pb-2" onTouchStart={() => setIsMobileMenuOpen(false)}>
@@ -13292,7 +13292,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
             {/* MODAIS (CÓDIGO MANTIDO IGUAL AO SEU) */}
            <AnimatePresence>
                 {isIngredientModalOpen && (
-                    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-slate-900/70 backdrop-blur-md z-[200] flex items-center justify-center p-4">
+                    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-slate-900/70 backdrop-blur-md z-200 flex items-center justify-center p-4">
                         <motion.div initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} className="bg-white w-full max-w-md rounded-[3rem] p-10 relative shadow-2xl">
                             <button onClick={() => setIsIngredientModalOpen(false)} className="absolute top-8 right-8 p-2 bg-slate-50 rounded-full hover:bg-red-50 hover:text-red-500 text-slate-400 transition-colors"><X size={20}/></button>
                             <h2 className="text-3xl font-black italic uppercase text-slate-900 mb-6">{editingIngredientId ? 'Editar' : 'Novo'} Insumo</h2>
@@ -13322,7 +13322,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                         <input type="text" placeholder="Ex: un" className="w-full p-4 bg-slate-50 rounded-2xl font-bold border-none outline-none focus:ring-2 focus:ring-blue-500" value={ingredientForm.unit} onChange={e => setIngredientForm({ ...ingredientForm, unit: e.target.value })} required />
                                     </div>
                                 </div>
-                                <button type="submit" className="w-full bg-blue-600 text-white py-5 rounded-[2rem] font-black text-sm uppercase tracking-widest shadow-xl mt-4 hover:bg-blue-700 active:scale-95 transition-all">Salvar Insumo</button>
+                                <button type="submit" className="w-full bg-blue-600 text-white py-5 rounded-4xl font-black text-sm uppercase tracking-widest shadow-xl mt-4 hover:bg-blue-700 active:scale-95 transition-all">Salvar Insumo</button>
                             </form>
                         </motion.div>
                     </motion.div>
@@ -13331,7 +13331,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
 
             <AnimatePresence>
                 {isCatModalOpen && (
-                    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-slate-900/70 backdrop-blur-md z-[100] flex items-center justify-center p-4">
+                    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-slate-900/70 backdrop-blur-md z-100 flex items-center justify-center p-4">
                         <motion.div initial={{ scale: 0.9 }} animate={{ scale: 1 }} className="bg-white w-full max-w-md rounded-[3rem] p-10 relative">
                             <button onClick={() => setIsCatModalOpen(false)} className="absolute top-8 right-8 text-slate-400 hover:text-red-500"><X /></button>
                             <h2 className="text-2xl font-black uppercase mb-6">{editingCatId ? 'Editar' : 'Nova'} Categoria</h2>
@@ -13374,7 +13374,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
         className="w-6 h-6 accent-green-600 cursor-pointer"
     />
 </label>
-                                <button type="submit" className="w-full bg-blue-600 text-white py-5 rounded-[2rem] font-black text-sm uppercase tracking-widest shadow-xl mt-4 hover:bg-blue-700 active:scale-95 transition-all">
+                                <button type="submit" className="w-full bg-blue-600 text-white py-5 rounded-4xl font-black text-sm uppercase tracking-widest shadow-xl mt-4 hover:bg-blue-700 active:scale-95 transition-all">
                                     Salvar Categoria
                                 </button>
                             </form>
@@ -13385,7 +13385,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
 
             <AnimatePresence>
                 {isBannerModalOpen && (
-                    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-slate-900/80 backdrop-blur-md z-[200] flex items-center justify-center p-4">
+                    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-slate-900/80 backdrop-blur-md z-200 flex items-center justify-center p-4">
                         <motion.div initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} className="bg-white w-full max-w-2xl rounded-[3rem] p-8 md:p-12 shadow-2xl relative max-h-[90vh] overflow-y-auto custom-scrollbar flex flex-col">
                             <button onClick={() => setIsBannerModalOpen(false)} className="absolute top-6 right-6 p-2 bg-slate-50 rounded-full hover:bg-slate-200 text-slate-400 transition-colors z-20"><X size={20}/></button>
                             
@@ -13455,7 +13455,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                     </div>
                                 </div>
                                 
-                                <button type="submit" className="w-full bg-slate-900 text-white py-6 rounded-[2rem] font-black text-sm uppercase tracking-widest shadow-xl mt-4 hover:bg-slate-800 active:scale-95 transition-all flex items-center justify-center gap-2">
+                                <button type="submit" className="w-full bg-slate-900 text-white py-6 rounded-4xl font-black text-sm uppercase tracking-widest shadow-xl mt-4 hover:bg-slate-800 active:scale-95 transition-all flex items-center justify-center gap-2">
                                     <Save size={18}/> Salvar Banner Oficial
                                 </button>
                             </form>
@@ -13466,7 +13466,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
 
             <AnimatePresence>
                 {isModalOpen && (
-                    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-slate-900/70 backdrop-blur-md z-[100] flex items-center justify-center p-4">
+                    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-slate-900/70 backdrop-blur-md z-100 flex items-center justify-center p-4">
                         <motion.div initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} className="bg-white w-full max-w-xl rounded-[3.5rem] p-12 shadow-2xl relative max-h-[90vh] overflow-y-auto">
                             <button onClick={() => setIsModalOpen(false)} className="absolute top-10 right-10 p-2 bg-slate-50 rounded-full hover:bg-slate-100 text-slate-400"><X /></button>
                             <h2 className="text-4xl font-black italic mb-10 uppercase text-slate-900 tracking-tighter leading-none">{editingId ? 'Editar' : 'Novo'} Item</h2>
@@ -13550,7 +13550,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                             <Search size={12} /> O nome exato que o seu cliente digitaria na busca do Google.
                                         </p>
                                         {/* --- GERADOR DE IA --- */}
-<div className="bg-gradient-to-r from-purple-50 to-indigo-50 p-5 rounded-3xl border border-purple-100 mb-4 flex flex-col md:flex-row items-center gap-4 shadow-sm">
+<div className="bg-linear-to-r from-purple-50 to-indigo-50 p-5 rounded-3xl border border-purple-100 mb-4 flex flex-col md:flex-row items-center gap-4 shadow-sm">
     <div className="flex-1 w-full">
         <label className="text-[10px] font-black text-purple-600 uppercase tracking-widest mb-2 flex items-center gap-1">
             ✨ Assistente de Vendas IA
@@ -13567,7 +13567,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
         type="button" 
         onClick={handleGenerateProductCopy}
         disabled={isGeneratingCopy}
-        className="w-full md:w-auto mt-2 md:mt-0 px-8 py-4 bg-purple-600 hover:bg-purple-700 text-white font-black text-xs uppercase tracking-widest rounded-2xl shadow-lg shadow-purple-200 transition-all disabled:opacity-50 active:scale-95 flex-shrink-0"
+        className="w-full md:w-auto mt-2 md:mt-0 px-8 py-4 bg-purple-600 hover:bg-purple-700 text-white font-black text-xs uppercase tracking-widest rounded-2xl shadow-lg shadow-purple-200 transition-all disabled:opacity-50 active:scale-95 shrink-0"
     >
         {isGeneratingCopy ? 'Mágica...' : 'Gerar IA'}
     </button>
@@ -13626,7 +13626,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                     </div>
 
                                     {/* BOX DE EXEMPLO PERFEITO DE SEO */}
-                                    <div className="bg-gradient-to-r from-blue-50 to-indigo-50 p-5 rounded-3xl border border-blue-100 shadow-sm mt-2">
+                                    <div className="bg-linear-to-r from-blue-50 to-indigo-50 p-5 rounded-3xl border border-blue-100 shadow-sm mt-2">
                                         <h4 className="text-xs font-black text-blue-800 uppercase tracking-widest mb-3 flex items-center gap-2">
                                             <Flame size={14} className="text-orange-500" /> O que mais vende no Google
                                         </h4>
@@ -13718,7 +13718,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                         // Se encontrar qualquer uma das palavras acima, retorna TRUE e mostra o botão
                                         return drinkKeywords.some(kw => textToSearch.includes(kw));
                                     })() && (
-                                        <label className="flex items-center gap-3 p-6 bg-cyan-50 rounded-3xl cursor-pointer border border-cyan-100 hover:bg-cyan-100 transition-all h-[72px] animate-in fade-in zoom-in">
+                                        <label className="flex items-center gap-3 p-6 bg-cyan-50 rounded-3xl cursor-pointer border border-cyan-100 hover:bg-cyan-100 transition-all h-18 animate-in fade-in zoom-in">
                                             <input type="checkbox" checked={form.isChilled || false} onChange={e => setForm({ ...form, isChilled: e.target.checked })} className="w-6 h-6 accent-cyan-600 cursor-pointer" />
                                             <span className="font-black text-cyan-800 uppercase tracking-widest text-sm">❄️ Entregar Gelada</span>
                                         </label>
@@ -14250,7 +14250,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
             {/* --- NOVO: MODAL DE COPIAR COMPLEMENTOS PARA OUTROS PRODUTOS --- */}
             <AnimatePresence>
                 {isCopyComplementModalOpen && complementToCopy && (
-                    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-slate-900/80 backdrop-blur-md z-[200] flex items-center justify-center p-4">
+                    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-slate-900/80 backdrop-blur-md z-200 flex items-center justify-center p-4">
                         <motion.div initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} className="bg-white w-full max-w-lg rounded-[3rem] p-10 shadow-2xl relative max-h-[80vh] flex flex-col">
                             <button onClick={() => setIsCopyComplementModalOpen(false)} className="absolute top-8 right-8 p-2 bg-slate-50 rounded-full hover:bg-red-50 hover:text-red-500 text-slate-400 transition-colors"><X size={20}/></button>
                             
@@ -14272,7 +14272,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                                     if(e.target.checked) setProductsToApplyComplement([...productsToApplyComplement, p.id]);
                                                     else setProductsToApplyComplement(productsToApplyComplement.filter(id => id !== p.id));
                                                 }} 
-                                                className="w-5 h-5 accent-blue-600 rounded-md cursor-pointer flex-shrink-0"
+                                                className="w-5 h-5 accent-blue-600 rounded-md cursor-pointer shrink-0"
                                             />
                                             {p.imageUrl && <img src={p.imageUrl} className="w-8 h-8 object-cover rounded-lg bg-white" />}
                                             <span className="font-bold text-slate-700 text-sm truncate flex-1">{p.name}</span>
@@ -14302,7 +14302,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                         alert("Erro ao copiar complemento.");
                                     }
                                 }}
-                                className="w-full bg-blue-600 text-white py-5 rounded-[2rem] font-black uppercase tracking-widest active:scale-95 transition-all shadow-xl"
+                                className="w-full bg-blue-600 text-white py-5 rounded-4xl font-black uppercase tracking-widest active:scale-95 transition-all shadow-xl"
                             >
                                 Confirmar e Salvar Cópias
                             </button>
@@ -14314,7 +14314,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
             {/* ✅ MODAL DE TAXAS CORRIGIDO */}
             <AnimatePresence>
                 {isRateModalOpen && (
-                    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-slate-900/70 backdrop-blur-md z-[100] flex items-center justify-center p-4">
+                    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-slate-900/70 backdrop-blur-md z-100 flex items-center justify-center p-4">
                         <motion.div initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} className="bg-white w-full max-w-md rounded-[3.5rem] p-12 shadow-2xl relative">
                             <button onClick={() => setIsRateModalOpen(false)} className="absolute top-10 right-10 p-2 bg-slate-50 rounded-full hover:bg-slate-100 text-slate-400"><X /></button>
                             <h2 className="text-3xl font-black italic mb-8 uppercase text-slate-900">{editingRateId ? 'Editar' : 'Nova'} Taxa</h2>
@@ -14370,7 +14370,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                     <input type="number" step="0.01" placeholder="0.00" className="w-full p-5 bg-slate-50 rounded-2xl font-bold text-blue-600 text-xl" value={rateForm.fee} onChange={e => setRateForm({ ...rateForm, fee: e.target.value })} required />
                                 </div>
 
-                                <button type="submit" className="w-full bg-blue-600 text-white py-6 rounded-[2rem] font-black text-lg shadow-xl mt-6 uppercase hover:bg-blue-700 transition-all">Salvar Regra de Frete</button>
+                                <button type="submit" className="w-full bg-blue-600 text-white py-6 rounded-4xl font-black text-lg shadow-xl mt-6 uppercase hover:bg-blue-700 transition-all">Salvar Regra de Frete</button>
                             </form>
                         </motion.div>
                     </motion.div>
@@ -14379,7 +14379,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
 
             <AnimatePresence>
                 {isCouponModalOpen && (
-                    <motion.div initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}} className="fixed inset-0 bg-slate-900/70 backdrop-blur-md z-[100] flex items-center justify-center p-4">
+                    <motion.div initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}} className="fixed inset-0 bg-slate-900/70 backdrop-blur-md z-100 flex items-center justify-center p-4">
                         <motion.div initial={{scale:0.9, y:20}} animate={{scale:1, y:0}} className="bg-white w-full max-w-2xl rounded-[3.5rem] p-10 shadow-2xl relative max-h-[90vh] overflow-y-auto custom-scrollbar">
                             <button onClick={() => setIsCouponModalOpen(false)} className="absolute top-8 right-8 p-2 bg-slate-50 rounded-full hover:bg-slate-100 text-slate-400"><X/></button>
                             
@@ -14562,7 +14562,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                     </label>
                                 </div>
 
-                                <button type="submit" className="w-full bg-blue-600 text-white py-6 rounded-[2rem] font-black text-lg shadow-xl mt-4 uppercase hover:bg-blue-700 transition-all">
+                                <button type="submit" className="w-full bg-blue-600 text-white py-6 rounded-4xl font-black text-lg shadow-xl mt-4 uppercase hover:bg-blue-700 transition-all">
                                     Salvar Configurações
                                 </button>
                             </form>
@@ -14574,7 +14574,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
             {/* --- INÍCIO: MODAL DE RASTREIO DO MOTOBOY (RADAR) --- */}
             <AnimatePresence>
                 {isTrackingModalOpen && trackingOrder && (
-                    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-[200] flex items-center justify-center p-4">
+                    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-200 flex items-center justify-center p-4">
                         <motion.div initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} className="bg-white w-full max-w-2xl rounded-[3rem] p-8 shadow-2xl relative overflow-hidden flex flex-col">
                             <button 
                                 onClick={() => {
@@ -14594,7 +14594,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                 Acompanhando o pedido <strong className="text-blue-600">#{trackingOrder.id.slice(-5).toUpperCase()}</strong> do cliente <strong className="text-slate-800">{trackingOrder.customerName}</strong>.
                             </p>
 
-                            <div className="w-full h-[400px] rounded-[2rem] overflow-hidden border-4 border-slate-100 shadow-inner relative bg-slate-50 flex flex-col items-center justify-center">
+                            <div className="w-full h-100 rounded-4xl overflow-hidden border-4 border-slate-100 shadow-inner relative bg-slate-50 flex flex-col items-center justify-center">
                                 {!isLoaded ? (
                                     <div className="flex flex-col items-center gap-2 text-slate-400">
                                         <Loader2 className="animate-spin" size={32} />
@@ -14636,7 +14636,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
 
             <AnimatePresence>
                 {isOrderEditModalOpen && editingOrderData && (
-                    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-slate-900/70 backdrop-blur-md z-[100] flex items-center justify-center p-4">
+                    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-slate-900/70 backdrop-blur-md z-100 flex items-center justify-center p-4">
                         <motion.div initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} className="bg-white w-full max-w-3xl rounded-[3.5rem] p-10 shadow-2xl relative max-h-[90vh] overflow-y-auto custom-scrollbar">
                             <button onClick={() => setIsOrderEditModalOpen(false)} className="absolute top-8 right-8 p-2 bg-slate-50 rounded-full hover:bg-slate-100 text-slate-400"><X /></button>
 
@@ -14839,7 +14839,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                         />
                                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16}/>
                                     </div>
-                                    <div className="space-y-2 max-h-[200px] overflow-y-auto pr-2 custom-scrollbar border p-2 rounded-xl">
+                                    <div className="space-y-2 max-h-50 overflow-y-auto pr-2 custom-scrollbar border p-2 rounded-xl">
                                         {products.filter(p => p.name.toLowerCase().includes(editOrderProductSearch.toLowerCase())).map(p => (
                                             <button 
                                                 key={p.id} 
@@ -14858,7 +14858,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                     Total Pedido: R$ {(editingOrderData.items?.reduce((sum, item) => sum + (item.price * item.quantity), 0) + Number(editingOrderData.shippingFee || 0)).toFixed(2)}
                                 </div>
 
-                                <button type="submit" className="w-full bg-blue-600 text-white py-6 rounded-[2rem] font-black text-lg shadow-xl mt-4 uppercase hover:bg-blue-700 transition-all">
+                                <button type="submit" className="w-full bg-blue-600 text-white py-6 rounded-4xl font-black text-lg shadow-xl mt-4 uppercase hover:bg-blue-700 transition-all">
                                     Salvar Alterações
                                 </button>
                             </form>
@@ -14870,7 +14870,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
             {/* MODAL DE CONFIGURAÇÃO DA ROLETA (LOJISTA) */}
             <AnimatePresence>
                 {isRouletteModalOpen && (
-                    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-slate-900/90 backdrop-blur-sm z-[200] flex items-center justify-center p-4">
+                    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-slate-900/90 backdrop-blur-sm z-200 flex items-center justify-center p-4">
                         <motion.div initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} className="bg-slate-900 w-full max-w-4xl rounded-[3rem] p-8 shadow-2xl relative max-h-[90vh] overflow-y-auto border border-slate-700 custom-scrollbar">
                             <button onClick={() => setIsRouletteModalOpen(false)} className="absolute top-6 right-6 text-slate-400 hover:text-white"><X size={24}/></button>
                             
@@ -14891,7 +14891,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                 {rouletteSlices.map((slice, index) => (
                                     <div key={slice.id} className="grid grid-cols-12 gap-2 items-center bg-slate-900 p-2 rounded-2xl mb-2 border border-slate-700">
                                         <div className="col-span-3 flex items-center gap-2">
-                                            <div className="w-4 h-4 rounded-full flex-shrink-0" style={{ backgroundColor: slice.color }}></div>
+                                            <div className="w-4 h-4 rounded-full shrink-0" style={{ backgroundColor: slice.color }}></div>
                                             <input type="text" value={slice.label} onChange={(e) => {
                                                 const newSlices = [...rouletteSlices]; newSlices[index].label = e.target.value; setRouletteSlices(newSlices);
                                             }} className="w-full bg-slate-800 text-white text-xs font-bold p-2 rounded-lg outline-none" />
@@ -14914,12 +14914,12 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                         <div className="col-span-2">
                                             <input type="number" value={slice.stock} onChange={(e) => {
                                                 const newSlices = [...rouletteSlices]; newSlices[index].stock = Number(e.target.value); setRouletteSlices(newSlices);
-                                            }} className="w-full bg-slate-800 text-white text-xs font-bold p-2 rounded-lg outline-none text-center" />
+                                            }} className="w-full bg-slate-800 text-pink-400 text-xs font-bold p-2 rounded-lg outline-none text-center" />
                                         </div>
                                         <div className="col-span-2">
                                             <input type="number" value={slice.probability} onChange={(e) => {
                                                 const newSlices = [...rouletteSlices]; newSlices[index].probability = Number(e.target.value); setRouletteSlices(newSlices);
-                                            }} className="w-full bg-slate-800 text-white text-xs font-bold p-2 rounded-lg outline-none text-center text-pink-400" />
+                                            }} className="w-full bg-slate-800 text-white text-xs font-bold p-2 rounded-lg outline-none text-center" />
                                         </div>
                                     </div>
                                 ))}
@@ -14953,7 +14953,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
 {/* MODAL DE PAGAMENTO PIX DINÂMICO (SAAS) */}
             <AnimatePresence>
                {showPixModal && (
-                    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-slate-900/90 backdrop-blur-md z-[500] flex items-center justify-center p-4">
+                    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-slate-900/90 backdrop-blur-md z-500 flex items-center justify-center p-4">
                         <motion.div initial={{ scale: 0.9 }} animate={{ scale: 1 }} className="bg-white w-full max-w-md rounded-[3rem] p-10 relative text-center shadow-2xl flex flex-col items-center">
                             <button onClick={() => setShowPixModal(false)} className="absolute top-8 right-8 text-slate-400 hover:text-red-500"><X size={24}/></button>
                             
@@ -14997,7 +14997,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
             {/* --- FLUXO DE BLOQUEIOS (ONBOARDING E FATURA) --- */}
             {/* 1. SE A FATURA ESTIVER VENCIDA E OS TERMOS JÁ TIVEREM SIDO ACEITOS */}
             {isOverdue && storeStatus?.termsAccepted && (
-                <div className="fixed inset-0 z-[200] bg-slate-900/95 backdrop-blur-xl flex items-center justify-center p-6">
+                <div className="fixed inset-0 z-200 bg-slate-900/95 backdrop-blur-xl flex items-center justify-center p-6">
                     <div className="bg-white w-full max-w-lg rounded-[3rem] p-10 text-center shadow-2xl relative overflow-hidden border-4 border-red-500">
                         <div className="absolute top-0 left-0 w-full h-4 bg-red-500 animate-pulse"></div>
                         <div className="bg-red-100 w-24 h-24 rounded-full flex items-center justify-center mx-auto mb-6">
@@ -15014,7 +15014,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                     R$ {invoiceData.total.toFixed(2)}
                                 </p>
                             ) : (
-                                <div className="h-[60px] flex items-center justify-center">
+                                <div className="h-15 flex items-center justify-center">
                                     <Loader2 className="animate-spin text-blue-600" size={32} />
                                 </div>
                             )}
@@ -15033,7 +15033,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
 
             {/* 2. SE OS TERMOS AINDA NÃO FORAM ACEITOS (MESMO NO PERÍODO DE TESTE) */}
             {!storeStatus?.termsAccepted && (
-                <div className="fixed inset-0 z-[300] bg-slate-900/95 backdrop-blur-md flex items-center justify-center p-4">
+                <div className="fixed inset-0 z-300 bg-slate-900/95 backdrop-blur-md flex items-center justify-center p-4">
                     <div className="bg-white w-full max-w-2xl rounded-[2.5rem] shadow-2xl relative overflow-hidden flex flex-col max-h-[85vh]">
                         <div className="bg-slate-900 p-8 text-white">
                             <h2 className="text-2xl font-black italic uppercase flex items-center gap-3">
@@ -15091,7 +15091,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
             {/* MODAL DE INTEGRAÇÕES */}
             <AnimatePresence>
                 {isIntegrationModalOpen && selectedIntegration && (
-                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-[150] flex items-center justify-center p-4">
+                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-150 flex items-center justify-center p-4">
                     {/* AQUI ESTÁ A CORREÇÃO: Adicionado max-h-[90vh], overflow-y-auto e ajustado o padding */}
                     <motion.div initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} className="bg-white w-full max-w-md rounded-[2.5rem] p-6 md:p-8 shadow-2xl relative max-h-[90vh] overflow-y-auto custom-scrollbar">
                         <button onClick={() => setIsIntegrationModalOpen(false)} className="absolute top-6 right-6 p-2 bg-slate-50 rounded-full hover:bg-red-50 hover:text-red-500 text-slate-400 transition-colors z-50"><X size={20}/></button>
@@ -15187,7 +15187,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                     // BLINDAGEM MESTRA: Se for o Token do Google, troca o Input por um Botão de Login!
                                     if (selectedIntegration.id === 'google_my_business' && field.key === 'accessToken') {
                                         return (
-                                            <div key={field.key} className="space-y-3 mt-4 p-5 bg-blue-50 border border-blue-100 rounded-[2rem]">
+                                            <div key={field.key} className="space-y-3 mt-4 p-5 bg-blue-50 border border-blue-100 rounded-4xl">
                                                 <label className="text-xs font-black uppercase tracking-widest text-blue-800 flex items-center gap-2">
                                                     <FaGoogle size={16}/> Autenticação Segura
                                                 </label>
@@ -15241,7 +15241,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                     // BLINDAGEM MESTRA: Botão Seguro e Automático para Autenticação na Meta
                                     else if (selectedIntegration.id === 'meta' && field.key === 'marketingToken') {
                                         return (
-                                            <div key={field.key} className="space-y-3 mt-4 p-5 bg-blue-50 border border-blue-100 rounded-[2rem]">
+                                            <div key={field.key} className="space-y-3 mt-4 p-5 bg-blue-50 border border-blue-100 rounded-4xl">
                                                 <label className="text-xs font-black uppercase tracking-widest text-blue-800 flex items-center gap-2">
                                                     <FaFacebook size={16}/> Central de Anúncios
                                                 </label>
@@ -15360,7 +15360,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                     <div className="pt-4 border-t border-slate-100 space-y-4 mt-4 animate-in fade-in slide-in-from-top-2">
                                         {(!integrationForm.phoneNumberId || !integrationForm.apiToken) ? (
                                             <div className="bg-orange-50 border border-orange-200 p-4 rounded-2xl flex items-start gap-3">
-                                                <ShieldCheck className="text-orange-500 mt-1 flex-shrink-0" size={20} />
+                                                <ShieldCheck className="text-orange-500 mt-1 shrink-0" size={20} />
                                                 <div>
                                                     <p className="text-sm font-black text-orange-800 uppercase">Conexão Pendente</p>
                                                     <p className="text-xs text-orange-700 font-medium mt-1">
@@ -15383,7 +15383,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                                             <p className="text-[11px] font-black text-slate-700 uppercase flex items-center gap-1"><FaStore className="text-blue-500"/> Alerta de Novo Pedido (Loja)</p>
                                                             <p className="text-[9px] text-slate-500 leading-tight mt-1">Seu WhatsApp apita ao receber pedidos.</p>
                                                         </div>
-                                                        <input type="checkbox" className="w-5 h-5 accent-green-500 flex-shrink-0 cursor-pointer" checked={integrationForm.autoOwnerAlert || false} onChange={e => setIntegrationForm({...integrationForm, autoOwnerAlert: e.target.checked})} />
+                                                        <input type="checkbox" className="w-5 h-5 accent-green-500 shrink-0 cursor-pointer" checked={integrationForm.autoOwnerAlert || false} onChange={e => setIntegrationForm({...integrationForm, autoOwnerAlert: e.target.checked})} />
                                                     </label>
 
                                                     {/* Status Pedido */}
@@ -15392,7 +15392,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                                             <p className="text-[11px] font-black text-slate-700 uppercase flex items-center gap-1"><FaBoxOpen className="text-orange-500"/> Status do Pedido (Cliente)</p>
                                                             <p className="text-[9px] text-slate-500 leading-tight mt-1">Avisa quando sai para entrega.</p>
                                                         </div>
-                                                        <input type="checkbox" className="w-5 h-5 accent-green-500 flex-shrink-0 cursor-pointer" checked={integrationForm.autoOrderStatus || false} onChange={e => setIntegrationForm({...integrationForm, autoOrderStatus: e.target.checked})} />
+                                                        <input type="checkbox" className="w-5 h-5 accent-green-500 shrink-0 cursor-pointer" checked={integrationForm.autoOrderStatus || false} onChange={e => setIntegrationForm({...integrationForm, autoOrderStatus: e.target.checked})} />
                                                     </label>
 
                                                     {/* Carrinho Abandonado */}
@@ -15401,7 +15401,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                                             <p className="text-[11px] font-black text-slate-700 uppercase flex items-center gap-1"><ShoppingCart size={12} className="text-red-500"/> Carrinho Abandonado</p>
                                                             <p className="text-[9px] text-slate-500 leading-tight mt-1">Dispara resgate 1h após inatividade.</p>
                                                         </div>
-                                                        <input type="checkbox" className="w-5 h-5 accent-green-500 flex-shrink-0 cursor-pointer" checked={integrationForm.autoAbandonedCart || false} onChange={e => setIntegrationForm({...integrationForm, autoAbandonedCart: e.target.checked})} />
+                                                        <input type="checkbox" className="w-5 h-5 accent-green-500 shrink-0 cursor-pointer" checked={integrationForm.autoAbandonedCart || false} onChange={e => setIntegrationForm({...integrationForm, autoAbandonedCart: e.target.checked})} />
                                                     </label>
 
                                                     {/* NPS */}
@@ -15410,7 +15410,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                                             <p className="text-[11px] font-black text-slate-700 uppercase flex items-center gap-1"><FaStar className="text-yellow-400"/> Avaliação (Pós-Entrega)</p>
                                                             <p className="text-[9px] text-slate-500 leading-tight mt-1">Pede nota ao cliente horas depois.</p>
                                                         </div>
-                                                        <input type="checkbox" className="w-5 h-5 accent-green-500 flex-shrink-0 cursor-pointer" checked={integrationForm.autoNps || false} onChange={e => setIntegrationForm({...integrationForm, autoNps: e.target.checked})} />
+                                                        <input type="checkbox" className="w-5 h-5 accent-green-500 shrink-0 cursor-pointer" checked={integrationForm.autoNps || false} onChange={e => setIntegrationForm({...integrationForm, autoNps: e.target.checked})} />
                                                     </label>
 
                                                     {/* Clube VIP */}
@@ -15419,7 +15419,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                                             <p className="text-[11px] font-black text-slate-700 uppercase flex items-center gap-1"><Crown size={12} className="text-purple-500"/> Notificação Clube VIP</p>
                                                             <p className="text-[9px] text-slate-500 leading-tight mt-1">Informa pontos ganhos após compra.</p>
                                                         </div>
-                                                        <input type="checkbox" className="w-5 h-5 accent-green-500 flex-shrink-0 cursor-pointer" checked={integrationForm.autoLoyalty || false} onChange={e => setIntegrationForm({...integrationForm, autoLoyalty: e.target.checked})} />
+                                                        <input type="checkbox" className="w-5 h-5 accent-green-500 shrink-0 cursor-pointer" checked={integrationForm.autoLoyalty || false} onChange={e => setIntegrationForm({...integrationForm, autoLoyalty: e.target.checked})} />
                                                     </label>
 
                                                     {/* Mensagem de Ausência */}
@@ -15428,7 +15428,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                                             <p className="text-[11px] font-black text-slate-700 uppercase flex items-center gap-1"><Clock size={12} className="text-orange-500"/> Mensagem de Ausência</p>
                                                             <p className="text-[9px] text-slate-500 leading-tight mt-1">Responde sozinho quando a loja está fechada.</p>
                                                         </div>
-                                                        <input type="checkbox" className="w-5 h-5 accent-green-500 flex-shrink-0 cursor-pointer" checked={integrationForm.autoAwayMessage || false} onChange={e => setIntegrationForm({...integrationForm, autoAwayMessage: e.target.checked})} />
+                                                        <input type="checkbox" className="w-5 h-5 accent-green-500 shrink-0 cursor-pointer" checked={integrationForm.autoAwayMessage || false} onChange={e => setIntegrationForm({...integrationForm, autoAwayMessage: e.target.checked})} />
                                                     </label>
 
                                                     {integrationForm.autoAwayMessage && (
@@ -15451,7 +15451,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                                             <p className="text-xs font-black text-slate-700 uppercase">Ativar Menu Automático</p>
                                                             <p className="text-[10px] text-slate-500 leading-tight mt-1">Envia opções com botões interativos para o cliente.</p>
                                                         </div>
-                                                        <input type="checkbox" className="w-5 h-5 accent-blue-600 flex-shrink-0 cursor-pointer" checked={integrationForm.botEnabled || false} onChange={e => setIntegrationForm({...integrationForm, botEnabled: e.target.checked})} />
+                                                        <input type="checkbox" className="w-5 h-5 accent-blue-600 shrink-0 cursor-pointer" checked={integrationForm.botEnabled || false} onChange={e => setIntegrationForm({...integrationForm, botEnabled: e.target.checked})} />
                                                     </label>
 
                                                     {integrationForm.botEnabled && (
@@ -15507,7 +15507,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                 )}
 
                                 <div className="pt-6 mt-2">
-                                    <button type="submit" className="w-full bg-slate-900 text-white py-5 rounded-[2rem] font-black text-sm shadow-xl uppercase tracking-widest hover:bg-slate-800 transition-all active:scale-95 flex items-center justify-center gap-2">
+                                    <button type="submit" className="w-full bg-slate-900 text-white py-5 rounded-4xl font-black text-sm shadow-xl uppercase tracking-widest hover:bg-slate-800 transition-all active:scale-95 flex items-center justify-center gap-2">
                                         <Save size={18}/> Salvar e Ativar
                                     </button>
                                 </div>
@@ -15520,7 +15520,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
             {/* MODAL DE ATUALIZAÇÃO E CACHE */}
             <AnimatePresence>
                 {isUpdateModalOpen && (
-                    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-[200] flex items-center justify-center p-4">
+                    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-200 flex items-center justify-center p-4">
                         <motion.div initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} className="bg-white w-full max-w-md rounded-[3rem] p-8 md:p-10 shadow-2xl relative">
                             <button onClick={() => setIsUpdateModalOpen(false)} className="absolute top-8 right-8 p-2 bg-slate-50 rounded-full hover:bg-red-50 hover:text-red-500 text-slate-400 transition-colors"><X size={20}/></button>
                             
@@ -15545,7 +15545,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
 
                             <button 
                                 onClick={handleUpdateAndClearCache}
-                                className="w-full bg-blue-600 text-white py-5 rounded-[2rem] font-black text-sm shadow-xl uppercase tracking-widest hover:bg-blue-700 transition-all active:scale-95 flex items-center justify-center gap-2"
+                                className="w-full bg-blue-600 text-white py-5 rounded-4xl font-black text-sm shadow-xl uppercase tracking-widest hover:bg-blue-700 transition-all active:scale-95 flex items-center justify-center gap-2"
                             >
                                 <RefreshCw size={18} /> Aplicar Atualização
                             </button>
@@ -15557,13 +15557,13 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
             {/* MODAL DE EQUIPE (USUÁRIOS) */}
             <AnimatePresence>
                 {isTeamModalOpen && (
-                    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-[200] flex items-center justify-center p-4">
+                    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-200 flex items-center justify-center p-4">
                         {/* 🚨 CORREÇÃO DE LAYOUT AQUI: max-h-[90vh] overflow-y-auto custom-scrollbar 🚨 */}
                         <motion.div initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} className="bg-white w-full max-w-md rounded-[3rem] p-8 md:p-10 shadow-2xl relative max-h-[90vh] overflow-y-auto custom-scrollbar flex flex-col">
                             
                             <div className="flex justify-between items-start mb-6">
                                 <h2 className="text-3xl font-black italic uppercase text-slate-900 leading-none">{editingTeamId ? 'Editar' : 'Novo'} Usuário</h2>
-                                <button onClick={() => setIsTeamModalOpen(false)} className="p-2 bg-slate-50 rounded-full hover:bg-red-50 hover:text-red-500 text-slate-400 transition-colors flex-shrink-0">
+                                <button onClick={() => setIsTeamModalOpen(false)} className="p-2 bg-slate-50 rounded-full hover:bg-red-50 hover:text-red-500 text-slate-400 transition-colors shrink-0">
                                     <X size={20}/>
                                 </button>
                             </div>
@@ -15654,7 +15654,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                                     type="checkbox" 
                                                     checked={teamForm.permissions[perm.key] || false}
                                                     onChange={() => setTeamForm(prev => ({ ...prev, permissions: { ...prev.permissions, [perm.key]: !prev.permissions[perm.key] } }))}
-                                                    className="w-5 h-5 accent-blue-600 rounded-md cursor-pointer flex-shrink-0"
+                                                    className="w-5 h-5 accent-blue-600 rounded-md cursor-pointer shrink-0"
                                                 />
                                                 <div>
                                                     <p className="text-sm font-black text-slate-700 leading-none">{perm.label}</p>
@@ -15666,7 +15666,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                 </div>
 
                                 <div className="pt-4 mt-2 sticky bottom-0 bg-white pb-2">
-                                    <button type="submit" className="w-full bg-slate-900 text-white py-5 rounded-[2rem] font-black text-sm shadow-xl uppercase tracking-widest hover:bg-slate-800 transition-all active:scale-95 flex items-center justify-center gap-2">
+                                    <button type="submit" className="w-full bg-slate-900 text-white py-5 rounded-4xl font-black text-sm shadow-xl uppercase tracking-widest hover:bg-slate-800 transition-all active:scale-95 flex items-center justify-center gap-2">
                                         <Save size={18}/> Salvar Usuário
                                     </button>
                                 </div>
@@ -15679,7 +15679,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
             <AnimatePresence>
                 {/* 1. SE NÃO TIVER PERMISSÃO, MOSTRA TELA DE BLOQUEIO */}
                 {isReportModalOpen && !hasPermission('finance') && (
-                    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-[200] flex items-center justify-center p-4">
+                    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-200 flex items-center justify-center p-4">
                         <motion.div initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} className="bg-white w-full max-w-md rounded-[3rem] p-10 text-center shadow-2xl relative">
                             <button onClick={() => setIsReportModalOpen(false)} className="absolute top-6 right-6 p-2 bg-slate-50 rounded-full hover:bg-red-50 hover:text-red-500 text-slate-400 transition-colors"><X size={20}/></button>
                             <ShieldCheck size={64} className="text-red-500 mx-auto mb-4" />
@@ -15691,7 +15691,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
 
                 {/* 2. SE TIVER PERMISSÃO, MOSTRA O RELATÓRIO NORMALMENTE */}
                 {isReportModalOpen && hasPermission('finance') && (
-                    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-[200] flex items-center justify-center p-4">
+                    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-200 flex items-center justify-center p-4">
                         <motion.div initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} className="bg-white w-full max-w-2xl rounded-[3rem] p-8 md:p-12 shadow-2xl relative max-h-[90vh] overflow-y-auto custom-scrollbar">
                             <button onClick={() => setIsReportModalOpen(false)} className="absolute top-8 right-8 p-2 bg-slate-50 rounded-full hover:bg-red-50 hover:text-red-500 text-slate-400 transition-colors"><X size={20}/></button>
                             
@@ -15813,7 +15813,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                     {/* BOTÃO PARA GERAR O RELATÓRIO NA TELA */}
                                     <button 
                                         onClick={() => setShowReportResults(true)}
-                                        className="w-full bg-slate-900 text-white py-5 rounded-[2rem] font-black text-sm shadow-xl uppercase tracking-widest hover:bg-slate-800 transition-all active:scale-95 flex items-center justify-center gap-2 mb-8"
+                                        className="w-full bg-slate-900 text-white py-5 rounded-4xl font-black text-sm shadow-xl uppercase tracking-widest hover:bg-slate-800 transition-all active:scale-95 flex items-center justify-center gap-2 mb-8"
                                     >
                                         <Printer size={18}/> Gerar Relatório
                                     </button>
@@ -15902,7 +15902,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                                                         <tr key={o.id} className="border-b border-slate-100 hover:bg-white">
                                                                             <td className="p-2 text-blue-600">#{o.id.slice(-5).toUpperCase()}</td>
                                                                             <td className="p-2">{o.createdAt?.toDate ? o.createdAt.toDate().toLocaleTimeString('pt-BR', {hour: '2-digit', minute:'2-digit'}) : '--:--'}</td>
-                                                                            <td className="p-2 truncate max-w-[100px]">{o.customerName}</td>
+                                                                            <td className="p-2 truncate max-w-25">{o.customerName}</td>
                                                                             <td className="p-2 text-[9px] uppercase">{o.paymentMethod}</td>
                                                                             <td className="p-2 text-right text-green-600">R$ {Number(o.total || 0).toFixed(2)}</td>
                                                                         </tr>
@@ -15926,7 +15926,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
             {/* --- MODAL DA FATURA DETALHADA --- */}
             <AnimatePresence>
                 {selectedInvoice && (
-                    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-[200] flex items-center justify-center p-4">
+                    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-200 flex items-center justify-center p-4">
                         <motion.div initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} className="bg-white w-full max-w-md rounded-[3rem] p-8 md:p-10 shadow-2xl relative">
                             <button onClick={() => setSelectedInvoice(null)} className="absolute top-6 right-6 p-2 bg-slate-50 rounded-full hover:bg-red-50 hover:text-red-500 text-slate-400 transition-colors"><X size={20}/></button>
                             
@@ -15969,7 +15969,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                     <button onClick={() => handleGeneratePixInvoice(selectedInvoice.id)} className="flex-1 bg-emerald-500 text-white py-4 rounded-2xl font-black uppercase tracking-widest shadow-lg hover:bg-emerald-600 transition-all flex items-center justify-center gap-2 disabled:opacity-50">
                                         <QrCode size={18} /> PIX
                                     </button>
-                                    <button onClick={() => handlePayOverdueInvoice(selectedInvoice.id)} className="flex-[2] bg-blue-600 text-white py-4 rounded-2xl font-black uppercase tracking-widest shadow-lg hover:bg-blue-700 transition-all flex items-center justify-center gap-2 disabled:opacity-50">
+                                    <button onClick={() => handlePayOverdueInvoice(selectedInvoice.id)} className="flex-2 bg-blue-600 text-white py-4 rounded-2xl font-black uppercase tracking-widest shadow-lg hover:bg-blue-700 transition-all flex items-center justify-center gap-2 disabled:opacity-50">
                                         <CreditCard size={18} /> Cartão de Crédito
                                     </button>
                                 </div>
@@ -15981,7 +15981,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
            {/* --- INÍCIO: MODAL DE IA PARA COPY DE PROMOÇÕES --- */}
             <AnimatePresence>
                 {isPromoCopyModalOpen && (
-                    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-[300] flex items-center justify-center p-4">
+                    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-300 flex items-center justify-center p-4">
                         <motion.div initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} className="bg-white w-full max-w-2xl rounded-[3rem] p-8 md:p-10 shadow-2xl relative max-h-[90vh] overflow-y-auto custom-scrollbar flex flex-col">
                             <button 
                                 onClick={() => setIsPromoCopyModalOpen(false)} 
@@ -16063,7 +16063,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                     </button>
 
                                    {/* --- GOOGLE MEU NEGÓCIO COPY E POSTAGEM --- */}
-                                            <div className="bg-gradient-to-br from-blue-50 to-indigo-50 border-2 border-blue-200 rounded-2xl p-6 mt-6 shadow-md relative overflow-hidden">
+                                            <div className="bg-linear-to-br from-blue-50 to-indigo-50 border-2 border-blue-200 rounded-2xl p-6 mt-6 shadow-md relative overflow-hidden">
                                                 <div className="absolute top-0 right-0 bg-blue-500 text-white text-[9px] font-black px-3 py-1 rounded-bl-xl uppercase tracking-widest shadow-sm">
                                                     Recomendado para Vendas
                                                 </div>
@@ -16198,7 +16198,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
             {/* --- INÍCIO: MODAL DE GESTÃO VIP (CADERNETA/FIADO) --- */}
             <AnimatePresence>
                 {isVipModalOpen && editingVip && (
-                    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-[300] flex items-center justify-center p-4">
+                    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-300 flex items-center justify-center p-4">
                         <motion.div initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} className="bg-white w-full max-w-md rounded-[3rem] p-8 md:p-10 shadow-2xl relative">
                             <button onClick={() => setIsVipModalOpen(false)} className="absolute top-6 right-6 p-2 bg-slate-100 rounded-full hover:bg-red-50 hover:text-red-500 text-slate-500 transition-colors z-10"><X size={20}/></button>
                             
@@ -16264,7 +16264,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                                 type="checkbox" 
                                                 checked={editingVip.fiadoEnabled || false} 
                                                 onChange={(e) => setEditingVip({ ...editingVip, fiadoEnabled: e.target.checked })} 
-                                                className="w-5 h-5 rounded-md accent-orange-600 cursor-pointer flex-shrink-0" 
+                                                className="w-5 h-5 rounded-md accent-orange-600 cursor-pointer shrink-0" 
                                             />
                                         </label>
 
@@ -16437,7 +16437,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                     </div>
                                 )}
 
-                                <button type="submit" className="w-full bg-blue-600 text-white py-5 rounded-[2rem] font-black text-sm uppercase tracking-widest hover:bg-blue-700 transition-all active:scale-95 shadow-xl">
+                                <button type="submit" className="w-full bg-blue-600 text-white py-5 rounded-4xl font-black text-sm uppercase tracking-widest hover:bg-blue-700 transition-all active:scale-95 shadow-xl">
                                     Salvar Ajustes
                                 </button>
                             </form>
@@ -16450,7 +16450,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
             {/* --- INÍCIO: MODAL MÁGICO DE OFERTAS GOOGLE (SEO) --- */}
             <AnimatePresence>
                 {isMagicPromoModalOpen && (
-                    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-slate-900/90 backdrop-blur-sm z-[500] flex items-center justify-center p-4">
+                    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-slate-900/90 backdrop-blur-sm z-500 flex items-center justify-center p-4">
                         <motion.div initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} className="bg-white w-full max-w-2xl rounded-[3rem] p-8 md:p-10 shadow-2xl relative overflow-hidden flex flex-col max-h-[90vh] custom-scrollbar overflow-y-auto">
                             
                             {/* Background Elements */}
@@ -16579,7 +16579,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                     alert("Interface preparada! O próximo passo é injetar a criação da categoria e do produto no banco.");
                                     setIsMagicPromoModalOpen(false);
                                 }} 
-                                className="w-full relative z-10 bg-gradient-to-r from-purple-600 to-indigo-600 text-white py-5 rounded-[2rem] font-black uppercase tracking-widest shadow-xl shadow-purple-200 hover:from-purple-700 hover:to-indigo-700 transition-all active:scale-95 flex items-center justify-center gap-2"
+                                className="w-full relative z-10 bg-linear-to-r from-purple-600 to-indigo-600 text-white py-5 rounded-4xl font-black uppercase tracking-widest shadow-xl shadow-purple-200 hover:from-purple-700 hover:to-indigo-700 transition-all active:scale-95 flex items-center justify-center gap-2"
                             >
                                 <FaGoogle size={18}/> Continuar e Preparar Oferta
                             </button>
@@ -16596,7 +16596,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
 {/* --- INÍCIO: MODAL DE MOVIMENTAÇÃO DE ESTOQUE --- */}
             <AnimatePresence>
                 {isStockModalOpen && stockMovementProduct && (
-                    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-slate-900/90 backdrop-blur-sm z-[500] flex items-center justify-center p-4">
+                    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-slate-900/90 backdrop-blur-sm z-500 flex items-center justify-center p-4">
                         <motion.div initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} className="bg-white w-full max-w-lg rounded-[3rem] p-8 md:p-10 shadow-2xl relative flex flex-col">
                             <button 
                                 onClick={() => setIsStockModalOpen(false)} 
@@ -16673,7 +16673,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                 <button 
                                     type="submit" 
                                     disabled={isSavingStock || !stockMovementQuantity}
-                                    className={`w-full py-5 rounded-[2rem] font-black text-sm uppercase tracking-widest text-white shadow-xl transition-all active:scale-95 flex items-center justify-center gap-2 disabled:opacity-50 ${
+                                    className={`w-full py-5 rounded-4xl font-black text-sm uppercase tracking-widest text-white shadow-xl transition-all active:scale-95 flex items-center justify-center gap-2 disabled:opacity-50 ${
                                         stockMovementType === 'add' ? 'bg-green-600 hover:bg-green-700 shadow-green-200' :
                                         stockMovementType === 'remove' ? 'bg-red-600 hover:bg-red-700 shadow-red-200' :
                                         'bg-indigo-600 hover:bg-indigo-700 shadow-indigo-200'
@@ -16692,7 +16692,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
             {/* --- INÍCIO: MODAL DE EDIÇÃO EM MASSA (EXCEL-LIKE) --- */}
                         <AnimatePresence>
                 {isBulkEditModalOpen && (
-                    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-slate-900/90 backdrop-blur-sm z-[500] flex items-center justify-center p-4">
+                    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-slate-900/90 backdrop-blur-sm z-500 flex items-center justify-center p-4">
                         <motion.div initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} className="bg-white w-full max-w-6xl rounded-[3rem] p-8 md:p-10 shadow-2xl relative flex flex-col max-h-[90vh]">
                             <button 
                                 onClick={() => setIsBulkEditModalOpen(false)} 
@@ -16711,7 +16711,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                             </div>
 
                             <div className="flex-1 overflow-x-auto overflow-y-auto custom-scrollbar bg-slate-50 border border-slate-200 rounded-3xl relative z-10">
-                                <table className="w-full text-left min-w-[1150px]">
+                                <table className="w-full text-left min-w-287.5">
                                     <thead className="sticky top-0 bg-slate-100 z-10 shadow-sm">
                                         <tr className="text-[10px] text-slate-500 uppercase tracking-widest">
                                             <th className="p-4 font-black">Produto</th>
@@ -16734,10 +16734,10 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                                 <tr key={id} className="hover:bg-white transition-colors">
                                                     <td className="p-3">
                                                         <div className="flex items-center gap-3">
-                                                            <div className="w-8 h-8 rounded-lg bg-white border border-slate-200 overflow-hidden flex-shrink-0">
+                                                            <div className="w-8 h-8 rounded-lg bg-white border border-slate-200 overflow-hidden shrink-0">
                                                                 <img src={prod?.imageUrl || "https://cdn-icons-png.flaticon.com/512/8636/8636813.png"} className="w-full h-full object-cover" alt="Thumb"/>
                                                             </div>
-                                                            <span className="truncate max-w-[150px] md:max-w-[200px]" title={prod?.name}>{prod?.name}</span>
+                                                            <span className="truncate max-w-37.5 md:max-w-50" title={prod?.name}>{prod?.name}</span>
                                                         </div>
                                                     </td>
                                                     <td className="p-3">
@@ -16851,7 +16851,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
             {/* --- INÍCIO: MODAL DE FECHAMENTO DE CAIXA --- */}
             <AnimatePresence>
                 {isCloseRegisterModalOpen && (
-                    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-slate-900/90 backdrop-blur-md z-[500] flex items-center justify-center p-4">
+                    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-slate-900/90 backdrop-blur-md z-500 flex items-center justify-center p-4">
                         <motion.div initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} className="bg-white w-full max-w-md rounded-[3rem] p-8 md:p-10 shadow-2xl relative flex flex-col overflow-hidden">
                             <button 
                                 onClick={() => !isClosingRegister && setIsCloseRegisterModalOpen(false)} 
@@ -16911,7 +16911,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                 <button 
                                     type="submit" 
                                     disabled={isClosingRegister}
-                                    className="w-full py-5 rounded-[2rem] font-black text-sm uppercase tracking-widest text-white shadow-xl transition-all active:scale-95 flex items-center justify-center gap-2 disabled:opacity-50 bg-slate-900 hover:bg-slate-800 shadow-slate-900/30"
+                                    className="w-full py-5 rounded-4xl font-black text-sm uppercase tracking-widest text-white shadow-xl transition-all active:scale-95 flex items-center justify-center gap-2 disabled:opacity-50 bg-slate-900 hover:bg-slate-800 shadow-slate-900/30"
                                 >
                                     {isClosingRegister ? <Loader2 size={18} className="animate-spin"/> : <Printer size={18}/>}
                                     {isClosingRegister ? 'Encerrando...' : 'Confirmar e Imprimir'}
@@ -16926,7 +16926,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
             {/* ========================================================= */}
             <AnimatePresence>
                 {showMilestoneModal && activeMilestone && (
-                    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[1000] flex items-center justify-center p-4 bg-slate-900/95 backdrop-blur-xl">
+                    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-1000 flex items-center justify-center p-4 bg-slate-900/95 backdrop-blur-xl">
                         
                         {/* Chuva de Confetes */}
                         <Confetti 
@@ -16949,7 +16949,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
     {activeMilestone.type === 'orders' && (
         <div 
             ref={milestoneCardRef} 
-            className="w-[360px] h-[640px] bg-gradient-to-b from-blue-900 via-indigo-900 to-purple-900 rounded-[3rem] p-6 flex flex-col items-center justify-between text-center relative overflow-hidden shadow-2xl"
+            className="w-90 h-160 bg-linear-to-b from-blue-900 via-indigo-900 to-purple-900 rounded-[3rem] p-6 flex flex-col items-center justify-between text-center relative overflow-hidden shadow-2xl"
         >
             <div className="absolute top-0 right-0 w-48 h-48 bg-blue-500/20 rounded-full blur-3xl"></div>
             <div className="absolute bottom-0 left-0 w-48 h-48 bg-purple-500/30 rounded-full blur-3xl"></div>
@@ -16962,7 +16962,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                 <span className="text-white/80 font-black tracking-widest uppercase text-[10px] mb-2">{activeMilestone.title}</span>
                 <div className="relative">
                     <span className="absolute -top-6 -left-6 text-5xl animate-bounce drop-shadow-[0_0_15px_rgba(255,255,255,0.5)]">{activeMilestone.icon}</span>
-                    <h2 className="text-7xl font-black italic text-transparent bg-clip-text bg-gradient-to-br from-yellow-200 via-yellow-400 to-yellow-600 drop-shadow-xl leading-none">
+                    <h2 className="text-7xl font-black italic text-transparent bg-clip-text bg-linear-to-br from-yellow-200 via-yellow-400 to-yellow-600 drop-shadow-xl leading-none">
                         +{activeMilestone.value}
                     </h2>
                 </div>
@@ -16971,7 +16971,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
 
             <div className="w-full bg-black/20 backdrop-blur-sm border border-white/10 rounded-3xl p-5 relative z-10 mb-8">
                 <div className="relative h-1.5 bg-white/10 rounded-full mb-3">
-                    <div className="absolute top-0 left-0 h-full w-[75%] bg-gradient-to-r from-blue-400 to-purple-500 rounded-full shadow-[0_0_10px_rgba(168,85,247,0.8)]"></div>
+                    <div className="absolute top-0 left-0 h-full w-[75%] bg-linear-to-r from-blue-400 to-purple-500 rounded-full shadow-[0_0_10px_rgba(168,85,247,0.8)]"></div>
                     <div className="absolute -top-1.5 left-[10%] w-4 h-4 bg-purple-500 rounded-full border-2 border-white"></div>
                     <div className="absolute -top-1.5 left-[40%] w-4 h-4 bg-purple-500 rounded-full border-2 border-white"></div>
                     <div className="absolute -top-2.5 left-[75%] w-6 h-6 bg-yellow-400 rounded-full border-2 border-white shadow-[0_0_15px_rgba(250,204,21,0.8)] flex items-center justify-center text-[10px]">⭐</div>
@@ -16997,10 +16997,10 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
     {activeMilestone.type === 'vips' && (
         <div 
             ref={milestoneCardRef} 
-            className="w-[360px] h-[640px] bg-slate-900 rounded-[3rem] p-6 flex flex-col items-center justify-between text-center relative overflow-hidden shadow-2xl border border-slate-800"
+            className="w-90 h-160 bg-slate-900 rounded-[3rem] p-6 flex flex-col items-center justify-between text-center relative overflow-hidden shadow-2xl border border-slate-800"
         >
             <div className="absolute inset-0 opacity-10" style={{ backgroundImage: 'radial-gradient(circle at 2px 2px, white 1px, transparent 0)', backgroundSize: '24px 24px' }}></div>
-            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[400px] h-[400px] bg-yellow-500/20 rounded-full blur-[80px]"></div>
+            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-100 h-100 bg-yellow-500/20 rounded-full blur-[80px]"></div>
 
             <img src={storeStatus.storeLogoUrl} crossOrigin="anonymous" className="w-16 h-16 rounded-full border-2 border-white/20 shadow-xl mt-6 relative z-10 object-cover" />
 
@@ -17009,12 +17009,12 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                 <h2 className="text-6xl font-black italic text-white drop-shadow-lg leading-none tracking-tighter">
                     +{activeMilestone.value}
                 </h2>
-                <div className="bg-gradient-to-r from-transparent via-yellow-500 to-transparent h-px w-48 my-3"></div>
+                <div className="bg-linear-to-r from-transparent via-yellow-500 to-transparent h-px w-48 my-3"></div>
                 <h3 className="text-yellow-400 font-black uppercase text-lg tracking-widest leading-tight">Membros<br/>No Clube VIP!</h3>
                 <p className="text-white/70 font-medium text-xs mt-2">Nossa comunidade não para de crescer!</p>
             </div>
 
-            <div className="relative z-10 w-full bg-gradient-to-br from-white/10 to-white/5 border border-white/20 backdrop-blur-md rounded-3xl p-5 mb-8">
+            <div className="relative z-10 w-full bg-linear-to-br from-white/10 to-white/5 border border-white/20 backdrop-blur-md rounded-3xl p-5 mb-8">
                 <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-yellow-500 text-slate-900 px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest shadow-lg whitespace-nowrap">
                     Responda Abaixo 👇
                 </div>
@@ -17033,9 +17033,9 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
     {activeMilestone.type === 'daily' && (
         <div 
             ref={milestoneCardRef} 
-            className="w-[360px] h-[640px] bg-gradient-to-br from-[#020617] via-[#0f172a] to-[#1e1b4b] rounded-[3rem] p-8 flex flex-col items-center justify-center text-center relative overflow-hidden shadow-2xl"
+            className="w-90 h-160 bg-linear-to-br from-[#020617] via-[#0f172a] to-[#1e1b4b] rounded-[3rem] p-8 flex flex-col items-center justify-center text-center relative overflow-hidden shadow-2xl"
         >
-            <div className="absolute inset-4 border border-white/10 rounded-[2rem] pointer-events-none"></div>
+            <div className="absolute inset-4 border border-white/10 rounded-4xl pointer-events-none"></div>
             <div className="absolute top-0 right-0 w-64 h-64 bg-blue-500/10 rounded-full blur-[100px]"></div>
 
             <div className="relative z-10 flex flex-col items-center justify-center h-full">
@@ -17044,13 +17044,13 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                 <p className="text-blue-400 font-bold tracking-[0.3em] uppercase text-[8px] mb-4">Edição Limitada</p>
                 
                 <div className="relative mb-6">
-                    <h2 className="text-8xl font-black text-transparent bg-clip-text bg-gradient-to-b from-white via-slate-300 to-slate-500 drop-shadow-[0_10px_20px_rgba(255,255,255,0.1)] tracking-tighter">
+                    <h2 className="text-8xl font-black text-transparent bg-clip-text bg-linear-to-b from-white via-slate-300 to-slate-500 drop-shadow-[0_10px_20px_rgba(255,255,255,0.1)] tracking-tighter">
                         {activeMilestone.value}
                     </h2>
                     <div className="absolute -bottom-2 -right-4 text-3xl opacity-80 mix-blend-screen">{activeMilestone.icon}</div>
                 </div>
 
-                <div className="w-12 h-0.5 bg-gradient-to-r from-transparent via-blue-500 to-transparent mb-6"></div>
+                <div className="w-12 h-0.5 bg-linear-to-r from-transparent via-blue-500 to-transparent mb-6"></div>
 
                 <h3 className="text-white font-medium uppercase text-xs tracking-[0.2em] leading-relaxed">
                     Pedidos em um <br/>único dia!<br/>
@@ -17096,7 +17096,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
             <button 
                 onClick={handleShareMilestoneCard}
                 disabled={isGeneratingMilestone}
-                className={`w-full text-white py-5 rounded-2xl font-black uppercase tracking-widest shadow-xl transition-all active:scale-95 flex items-center justify-center gap-2 disabled:opacity-50 ${isMobileDevice ? 'bg-gradient-to-r from-blue-600 to-indigo-600 shadow-indigo-600/30 hover:from-blue-700 hover:to-indigo-700' : 'bg-slate-900 shadow-slate-900/20 hover:bg-slate-800'}`}
+                className={`w-full text-white py-5 rounded-2xl font-black uppercase tracking-widest shadow-xl transition-all active:scale-95 flex items-center justify-center gap-2 disabled:opacity-50 ${isMobileDevice ? 'bg-linear-to-r from-blue-600 to-indigo-600 shadow-indigo-600/30 hover:from-blue-700 hover:to-indigo-700' : 'bg-slate-900 shadow-slate-900/20 hover:bg-slate-800'}`}
             >
                 {isGeneratingMilestone ? (
                     <Loader2 size={18} className="animate-spin" />
@@ -17133,7 +17133,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                         {/* --- INÍCIO: MODAL DA CÂMERA MOBILE (CÓDIGO DE BARRAS) --- */}
             <AnimatePresence>
                 {isCameraScannerOpen && (
-                    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-slate-900/95 backdrop-blur-md z-[600] flex flex-col p-4 pb-10">
+                    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-slate-900/95 backdrop-blur-md z-600 flex flex-col p-4 pb-10">
                         <div className="flex justify-between items-center mb-6 pt-4 px-2">
                             <div>
                                 <h2 className="text-xl font-black italic uppercase text-white flex items-center gap-2">
