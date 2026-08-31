@@ -28,33 +28,49 @@ export default function Reviews({ storeId }) {
             }
 
             try {
-                // 1. Busca configs do Firebase
+                // 1. Busca configs do Firebase (CACHE RÁPIDO SWR)
                 const storeRef = doc(db, 'stores', finalStoreId);
                 const storeSnap = await getDoc(storeRef);
+                
                 if (storeSnap.exists()) {
-                    setStoreInfo(storeSnap.data());
+                    const data = storeSnap.data();
+                    setStoreInfo(data);
+                    
+                    // 🚀 HIDRATAÇÃO IMEDIATA: Puxa as chaves exatas do Firestore (rating_aggregate e rating_count)
+                    const cachedRating = data.rating_aggregate || data.googleRatingValue || data.googleData?.averageRating;
+                    const cachedCount = data.rating_count || data.googleReviewCount || data.googleData?.totalReviewCount;
+                    const cachedReviews = data.googleReviews || data.googleData?.reviews || [];
+
+                    if (cachedRating || cachedCount) {
+                        setGlobalGoogleMetrics({ rating: cachedRating, count: cachedCount });
+                    }
+                    
+                    if (cachedReviews && Array.isArray(cachedReviews) && cachedReviews.length > 0) {
+                        const validCached = cachedReviews.filter(r => r.comment && r.comment !== '').slice(0, 10);
+                        setReviews(validCached);
+                    }
                 }
 
-                // 2. Busca da API do Google
+                // 2. Busca da API do Google (TENTA REVALIDAR DADOS FRESCOS EM SEGUNDO PLANO)
                 const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
                 const apiUrl = isLocal 
                     ? `https://app.velodelivery.com.br/api/google-gmb?action=getReviews&storeId=${finalStoreId}`
                     : `/api/google-gmb?action=getReviews&storeId=${finalStoreId}`;
 
                 const res = await fetch(apiUrl);
+                if (!res.ok) throw new Error('API retornou erro HTTP - Caiu no Catch Seguro');
                 const data = await res.json();
                 
                 if (data.success && data.reviews) {
-                    
-                    // 🚨 A MÁGICA AQUI: Pega a nota TOTAL direto da raiz da API (se o backend enviar)
+                    // 🚨 A MÁGICA AQUI: Atualiza as notas apenas se vierem maiores/melhores da API
                     if (data.reviews.averageRating || data.reviews.totalReviewCount) {
-                        setGlobalGoogleMetrics({
-                            rating: data.reviews.averageRating,
-                            count: data.reviews.totalReviewCount
-                        });
+                        setGlobalGoogleMetrics(prev => ({
+                            rating: data.reviews.averageRating || prev.rating,
+                            count: data.reviews.totalReviewCount || prev.count
+                        }));
                     }
 
-                    if (data.reviews.reviews) {
+                    if (data.reviews.reviews && data.reviews.reviews.length > 0) {
                         const formattedReviews = data.reviews.reviews.map(r => {
                             let cleanComment = r.comment || '';
                             cleanComment = cleanComment.split('(Translated by Google)')[0];
@@ -71,15 +87,13 @@ export default function Reviews({ storeId }) {
                             };
                         });
                         
-                        // Filtra para exibir na tela apenas quem escreveu texto (para não ficar feio)
                         const filteredReviews = formattedReviews.filter(r => r.comment && r.comment !== '');
                         filteredReviews.sort((a, b) => b.createdAt - a.createdAt);
-                        
                         setReviews(filteredReviews.slice(0, 10)); 
                     }
                 }
             } catch (error) {
-                console.error("Erro na API do Google Meu Negócio:", error);
+                console.warn("API GMB lenta ou bloqueada por Adblock/CORS. Utilizando cache seguro do Firebase.");
             } finally {
                 setLoading(false);
             }
@@ -88,7 +102,6 @@ export default function Reviews({ storeId }) {
         fetchGoogleReviews();
     }, [storeId]);
 
-    // Oculta o componente inteiro se a loja não tiver reviews
     if (!loading && reviews.length === 0 && !storeInfo?.googleReviewUrl) {
         return null;
     }
@@ -96,19 +109,15 @@ export default function Reviews({ storeId }) {
     // =========================================================================
     // 🧮 LÓGICA BLINDADA DO CONTADOR E DA NOTA
     // =========================================================================
-    // 1º Tenta pegar a nota que veio direto da API oficial do Google.
-    // 2º Tenta pegar a nota salva no painel Admin (storeInfo).
-    // 3º Falha segura: Calcula a média do que apareceu na tela.
     const averageRating = globalGoogleMetrics.rating 
         ? Number(globalGoogleMetrics.rating).toFixed(1)
-        : storeInfo?.googleRatingValue 
-            ? Number(storeInfo.googleRatingValue).toFixed(1) 
+        : storeInfo?.rating_aggregate 
+            ? Number(storeInfo.rating_aggregate).toFixed(1) 
             : "5.0";
 
-    // 1º Tenta pegar o total real de 62 da API.
-    // 2º Tenta pegar do Firebase.
-    // 3º Mostra a quantidade das caixinhas.
-    const totalReviews = globalGoogleMetrics.count || storeInfo?.googleReviewCount || reviews.length;
+    const totalReviews = globalGoogleMetrics.count 
+        || storeInfo?.rating_count 
+        || reviews.length;
 
     return (
         <div className="bg-white p-6 md:p-8 rounded-[2.5rem] shadow-sm border border-slate-100 mt-8 mb-4 relative">

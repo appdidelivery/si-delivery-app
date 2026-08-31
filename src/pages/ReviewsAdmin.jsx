@@ -179,7 +179,7 @@ export default function ReviewsAdmin({ storeId = 'csi' }) {
                                 <div className="flex flex-col xl:flex-row gap-2 mt-1">
                                     <input 
                                         type="text" 
-                                        placeholder={isGoogle ? "Escreva uma resposta pública para o Google Maps..." : "Escreva uma resposta visível no app..."} 
+                                        placeholder={review.googleReviewName ? "Escreva uma resposta pública para o Google Maps..." : "Escreva uma resposta visível no app..."} 
                                         className="flex-1 p-3 bg-white border border-slate-200 rounded-xl outline-none text-xs font-bold focus:ring-2 ring-blue-500"
                                         value={replyText[review.id] || ''}
                                         onChange={(e) => setReplyText({...replyText, [review.id]: e.target.value})}
@@ -191,7 +191,7 @@ export default function ReviewsAdmin({ storeId = 'csi' }) {
                                             setSubmittingReply(true);
                                             
                                             // BLINDAGEM: Se for um review do Google, manda pro backend (API)
-                                            if (isGoogle) {
+                                            if (review.googleReviewName) {
                                                 try {
                                                     const res = await authenticatedFetch('/api/reply-google-review', {
                                                         method: 'POST',
