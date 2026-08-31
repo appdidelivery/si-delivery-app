@@ -60,7 +60,7 @@ export default function Reviews({ storeId }) {
                     }
                 }
 
-                // 2. BUSCA AS AVALIAÇÕES INTERNAS NO BANCO (GERADAS PELO SEU LINK)
+                // 2. BUSCA AS AVALIAÇÕES INTERNAS NO BANCO (MÁGICA DO AGGREGATOR)
                 try {
                     const internalReviewsQuery = query(
                         collection(db, 'reviews'),
@@ -133,7 +133,6 @@ export default function Reviews({ storeId }) {
                 // 4. MISTURA TUDO E APLICA A IA PARA COMENTÁRIOS VAZIOS
                 const processedReviews = finalReviewsArray.map(r => ({
                     ...r,
-                    // Se não tiver comentário, a IA inventa um baseado no nome da loja!
                     comment: r.comment && r.comment.length > 3 ? r.comment : generateSmartReviewText(r, storeNameFallback)
                 }));
 
@@ -221,7 +220,7 @@ export default function Reviews({ storeId }) {
                                     <img src={r.photoUrl} alt={r.customerName} className="w-10 h-10 rounded-full shadow-sm" />
                                 ) : (
                                     <div className="w-10 h-10 bg-white border border-slate-200 text-blue-600 rounded-full flex items-center justify-center font-black text-sm uppercase shrink-0 shadow-sm">
-                                        {(r.customerName || "G")[0]}
+                                        {(r.customerName || "C")[0]}
                                     </div>
                                 )}
                                 
