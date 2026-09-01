@@ -62,15 +62,14 @@ export default function Reviews({ storeId }) {
 
                 // 2. BUSCA AS AVALIAÇÕES INTERNAS NO BANCO (MÁGICA DO AGGREGATOR)
                 try {
+                    // Removemos o orderBy e o limit do Firebase para evitar o erro de Index
                     const internalReviewsQuery = query(
                         collection(db, 'reviews'),
-                        where('storeId', '==', finalStoreId),
-                        orderBy('createdAt', 'desc'),
-                        limit(10)
+                        where('storeId', '==', finalStoreId)
                     );
                     const internalSnap = await getDocs(internalReviewsQuery);
                     
-                    const internalReviews = internalSnap.docs.map(d => {
+                    let internalReviews = internalSnap.docs.map(d => {
                         const data = d.data();
                         return {
                             id: d.id,
@@ -82,8 +81,13 @@ export default function Reviews({ storeId }) {
                             source: 'app'
                         };
                     });
+
+                    // Ordena do mais novo pro mais velho via JavaScript (Igual ao Agregador)
+                    internalReviews.sort((a, b) => b.createdAt - a.createdAt);
                     
-                    finalReviewsArray = [...internalReviews];
+                    // Pega apenas as 10 mais recentes
+                    finalReviewsArray = [...internalReviews.slice(0, 10)];
+
                 } catch (internalErr) {
                     console.warn("Erro ao buscar avaliações internas:", internalErr);
                 }
