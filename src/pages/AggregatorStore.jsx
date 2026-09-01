@@ -70,16 +70,33 @@ export default function AggregatorStore() {
         const fetchAllData = async () => {
             if (!slug) return;
             try {
-                const qStore = query(collection(db, 'stores'), where('slug', '==', slug), limit(1));
-                const snapStore = await getDocs(qStore);
-                
-                if (snapStore.empty) {
+                let storeInfo = null;
+                let storeId = null;
+
+                // 1. TENTA BUSCAR DIRETO PELO ID DO DOCUMENTO (Mais rápido e à prova de falhas)
+                const docRef = doc(db, 'stores', slug);
+                const docSnap = await getDoc(docRef);
+
+                if (docSnap.exists()) {
+                    storeInfo = docSnap.data();
+                    storeId = docSnap.id;
+                } else {
+                    // 2. FALLBACK: Tenta buscar pelo campo 'slug' caso o ID não bata
+                    const qStore = query(collection(db, 'stores'), where('slug', '==', slug), limit(1));
+                    const snapStore = await getDocs(qStore);
+                    
+                    if (!snapStore.empty) {
+                        storeInfo = snapStore.docs[0].data();
+                        storeId = snapStore.docs[0].id;
+                    }
+                }
+
+                // Se passou pelos 2 testes e não achou, a loja realmente não existe
+                if (!storeInfo) {
                     setLoading(false);
                     return;
                 }
                 
-                const storeInfo = snapStore.docs[0].data();
-                const storeId = snapStore.docs[0].id;
                 setStoreData(storeInfo);
 
                 try {
