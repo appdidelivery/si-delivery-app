@@ -1369,6 +1369,11 @@ const educationalBanners = [
     // Estado da Busca e Filtros de Produtos
     const [productSearch, setProductSearch] = useState('');
     const [productsPerPage, setProductsPerPage] = useState(25);
+    
+    // --- NOVO: ESTADOS DO MONTADOR DE COMBO ---
+    const [isComboAssemblerOpen, setIsComboAssemblerOpen] = useState(false);
+    const [comboItems, setComboItems] = useState([]);
+    const [comboSearch, setComboSearch] = useState('');
     const [currentProductPage, setCurrentProductPage] = useState(1);
     const [productFilterCategory, setProductFilterCategory] = useState('all');
     const [productFilterStatus, setProductFilterStatus] = useState('all');
@@ -7343,8 +7348,21 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                 </button>
 
                                 {/* PASSO 1 (continuação): Resetar os novos campos ao criar item novo */}
-                               <button onClick={() => { setEditingId(null); setForm({ name: '', description: '', price: '', costPrice: '', promotionalPrice: '', originalPrice: '', category: '', imageUrl: '', tag: '', stock: 0, hasDiscount: false, discountPercentage: null, isFeatured: false, isBestSeller: false, quantityDiscounts:[], recommendedIds:[], complements:[], isChilled: false, gtin: '', brand: '', prepTime: '', deliveryLeadTime: '', calories: '', suitableForDiet:[], variations: '', removables: '', ratingValue: '', reviewCount: '', isActive: true }); setIsModalOpen(true); }} className="bg-blue-600 text-white px-6 py-3 rounded-xl font-black shadow-lg shadow-blue-100 uppercase tracking-widest text-[10px] md:text-xs flex items-center gap-1">
+                               <button onClick={() => { setEditingId(null); setForm({ name: '', description: '', price: '', costPrice: '', promotionalPrice: '', originalPrice: '', category: '', imageUrl: '', tag: '', stock: 0, hasDiscount: false, discountPercentage: null, isFeatured: false, isBestSeller: false, quantityDiscounts:[], recommendedIds:[], complements:[], isChilled: false, gtin: '', brand: '', prepTime: '', deliveryLeadTime: '', calories: '', suitableForDiet:[], variations: '', removables: '', ratingValue: '', reviewCount: '', isActive: true }); setIsModalOpen(true); }} className="bg-blue-600 text-white px-6 py-3 rounded-xl font-black shadow-lg shadow-blue-100 uppercase tracking-widest text-[10px] md:text-xs flex items-center gap-1 active:scale-95 transition-all">
                                    <Plus size={16} className="hidden md:block"/> Novo Item
+                               </button>
+
+                               {/* NOVO: BOTÃO CRIAR COMBO RAPIDO */}
+                               <button 
+                                   onClick={() => {
+                                       setComboItems([]);
+                                       setComboSearch('');
+                                       setIsComboAssemblerOpen(true);
+                                   }} 
+                                   className="bg-purple-600 text-white px-6 py-3 rounded-xl font-black shadow-lg shadow-purple-200 uppercase tracking-widest text-[10px] md:text-xs flex items-center gap-2 hover:bg-purple-700 active:scale-95 transition-all"
+                                   title="Junte produtos do estoque para criar um combo"
+                               >
+                                   <Package size={16} className="hidden md:block"/> Criar Combo
                                </button>
 
                                {/* NOVO: BOTÃO DO LEITOR MOBILE */}
@@ -14255,6 +14273,141 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                 
                                 <button type="submit" className="w-full bg-blue-600 text-white py-8 rounded-[2.5rem] font-black text-xl shadow-xl mt-8 uppercase tracking-widest active:scale-95 transition-all">Salvar Item</button>
                            </form>
+                        </motion.div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
+
+            {/* --- INÍCIO: MODAL MONTADOR DE COMBOS --- */}
+            <AnimatePresence>
+                {isComboAssemblerOpen && (
+                    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-slate-900/80 backdrop-blur-md z-200 flex items-center justify-center p-4">
+                        <motion.div initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} className="bg-white w-full max-w-4xl rounded-[3rem] p-8 md:p-10 shadow-2xl relative flex flex-col max-h-[90vh]">
+                            <button onClick={() => setIsComboAssemblerOpen(false)} className="absolute top-8 right-8 p-2 bg-slate-50 rounded-full hover:bg-red-50 hover:text-red-500 text-slate-400 transition-colors z-10"><X size={20}/></button>
+                            
+                            <h2 className="text-3xl font-black italic uppercase text-slate-900 mb-2 flex items-center gap-3">
+                                <Package className="text-purple-600" size={32}/> Montador de Combo
+                            </h2>
+                            <p className="text-sm font-bold text-slate-500 mb-6">Selecione os itens do estoque. O sistema calculará os custos e a IA fará a descrição.</p>
+
+                            <div className="flex flex-col lg:flex-row gap-6 flex-1 min-h-0 overflow-hidden">
+                                
+                                {/* LADO ESQUERDO: BUSCA E ESTOQUE */}
+                                <div className="flex-1 flex flex-col bg-slate-50 p-4 rounded-3xl border border-slate-200 overflow-hidden">
+                                    <div className="relative mb-4">
+                                        <input 
+                                            type="text" 
+                                            placeholder="🔍 Buscar produto..." 
+                                            className="w-full p-3 pl-10 bg-white rounded-xl font-bold text-sm border border-slate-200 outline-none focus:ring-2 ring-purple-400"
+                                            value={comboSearch}
+                                            onChange={(e) => setComboSearch(e.target.value)}
+                                        />
+                                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16}/>
+                                    </div>
+                                    <div className="flex-1 overflow-y-auto custom-scrollbar pr-2 space-y-2">
+                                        {products.filter(p => p.name.toLowerCase().includes(comboSearch.toLowerCase())).map(p => (
+                                            <div key={p.id} className="flex justify-between items-center bg-white p-3 rounded-2xl border border-slate-100 hover:border-purple-200 transition-colors shadow-sm">
+                                                <div className="flex items-center gap-3 overflow-hidden">
+                                                    {p.imageUrl ? <img src={p.imageUrl} className="w-10 h-10 rounded-lg object-cover bg-slate-100 shrink-0" /> : <div className="w-10 h-10 bg-slate-100 rounded-lg shrink-0 flex items-center justify-center text-slate-300"><Package size={16}/></div>}
+                                                    <div className="flex flex-col truncate">
+                                                        <span className="font-bold text-slate-700 text-xs truncate">{p.name}</span>
+                                                        <span className="text-[10px] font-black text-blue-600">R$ {Number(p.price).toFixed(2)}</span>
+                                                    </div>
+                                                </div>
+                                                <button 
+                                                    onClick={() => {
+                                                        const existing = comboItems.find(i => i.id === p.id);
+                                                        if (existing) {
+                                                            setComboItems(comboItems.map(i => i.id === p.id ? { ...i, qty: i.qty + 1 } : i));
+                                                        } else {
+                                                            setComboItems([...comboItems, { ...p, qty: 1 }]);
+                                                        }
+                                                    }}
+                                                    className="w-8 h-8 flex items-center justify-center bg-purple-50 text-purple-600 rounded-xl hover:bg-purple-600 hover:text-white transition-all font-black shrink-0"
+                                                >
+                                                    +
+                                                </button>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+
+                                {/* LADO DIREITO: ITENS DO COMBO E RESUMO */}
+                                <div className="flex-1 flex flex-col bg-white border border-purple-200 rounded-3xl p-4 shadow-sm overflow-hidden">
+                                    <h3 className="text-[10px] font-black uppercase text-purple-800 tracking-widest mb-3 border-b border-purple-100 pb-2">📦 Itens Selecionados</h3>
+                                    
+                                    <div className="flex-1 overflow-y-auto custom-scrollbar pr-2 space-y-2">
+                                        {comboItems.length === 0 ? (
+                                            <div className="flex flex-col items-center justify-center h-full text-slate-300 opacity-50 space-y-2">
+                                                <Package size={48} />
+                                                <span className="text-xs font-bold uppercase tracking-widest text-center">Nenhum item adicionado</span>
+                                            </div>
+                                        ) : (
+                                            comboItems.map(item => (
+                                                <div key={item.id} className="flex justify-between items-center bg-slate-50 p-2 rounded-xl border border-slate-100">
+                                                    <span className="font-bold text-slate-700 text-xs flex-1 truncate pr-2"><span className="text-purple-600 mr-1">{item.qty}x</span>{item.name}</span>
+                                                    <div className="flex items-center gap-2 shrink-0">
+                                                        <span className="font-black text-slate-500 text-xs">R$ {(Number(item.price) * item.qty).toFixed(2)}</span>
+                                                        <button 
+                                                            onClick={() => {
+                                                                if(item.qty > 1) setComboItems(comboItems.map(i => i.id === item.id ? { ...i, qty: i.qty - 1 } : i));
+                                                                else setComboItems(comboItems.filter(i => i.id !== item.id));
+                                                            }} 
+                                                            className="p-1.5 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                                                        >
+                                                            <Trash2 size={14}/>
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            ))
+                                        )}
+                                    </div>
+
+                                    {/* FOOTER DO MONTADOR */}
+                                    {comboItems.length > 0 && (
+                                        <div className="mt-4 pt-4 border-t border-purple-100 flex flex-col gap-3 shrink-0">
+                                            <div className="flex justify-between items-center text-xs">
+                                                <span className="font-bold text-slate-500 uppercase">Soma de Custo:</span>
+                                                <span className="font-black text-slate-400">R$ {comboItems.reduce((acc, i) => acc + ((Number(i.costPrice) || 0) * i.qty), 0).toFixed(2)}</span>
+                                            </div>
+                                            <div className="flex justify-between items-center">
+                                                <span className="font-black text-purple-800 uppercase tracking-widest text-xs">Soma Preço Avulso:</span>
+                                                <span className="font-black text-purple-600 text-xl italic">R$ {comboItems.reduce((acc, i) => acc + (Number(i.price) * i.qty), 0).toFixed(2)}</span>
+                                            </div>
+                                            
+                                            <button 
+                                                onClick={() => {
+                                                    const somaVenda = comboItems.reduce((acc, i) => acc + (Number(i.price) * i.qty), 0);
+                                                    const somaCusto = comboItems.reduce((acc, i) => acc + ((Number(i.costPrice) || 0) * i.qty), 0);
+                                                    
+                                                    // Injeta os dados no Form Principal
+                                                    setEditingId(null);
+                                                    setForm({ 
+                                                        name: `Combo: ${comboItems.map(i => `${i.qty}x ${i.name.split(' ')[0]}`).join(' + ')}`, 
+                                                        description: '', 
+                                                        price: somaVenda.toFixed(2), // Lojista deve abaixar isso pra dar desconto
+                                                        costPrice: somaCusto.toFixed(2), 
+                                                        promotionalPrice: '', 
+                                                        originalPrice: '', 
+                                                        category: 'Combos', // Auto Categoriza
+                                                        categories: ['Combos'],
+                                                        imageUrl: '', tag: '', stock: 0, hasDiscount: false, discountPercentage: null, isFeatured: false, isBestSeller: false, quantityDiscounts:[], recommendedIds:[], complements:[], isChilled: false, gtin: '', brand: '', prepTime: '', deliveryLeadTime: '', calories: '', suitableForDiet:[], variations: '', removables: '', ratingValue: '', reviewCount: '', isActive: true 
+                                                    });
+
+                                                    // Injeta o prompt na IA
+                                                    setTermoIA(`Crie uma descrição apetitosa focada em conversão para um combo contendo exatamente: ${comboItems.map(i => `${i.qty}x ${i.name}`).join(', ')}. Enfatize que é uma ótima escolha para economizar.`);
+
+                                                    setIsComboAssemblerOpen(false);
+                                                    setIsModalOpen(true);
+                                                }}
+                                                className="w-full bg-purple-600 hover:bg-purple-700 text-white py-4 rounded-2xl font-black uppercase tracking-widest text-sm shadow-xl transition-all active:scale-95 flex items-center justify-center gap-2"
+                                            >
+                                                Gerar Cadastro e Copy IA <Sparkles size={16}/>
+                                            </button>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
                         </motion.div>
                     </motion.div>
                 )}
