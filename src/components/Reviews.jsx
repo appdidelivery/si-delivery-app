@@ -137,7 +137,8 @@ export default function Reviews({ storeId }) {
                 // 4. MISTURA TUDO E APLICA A IA PARA COMENTÁRIOS VAZIOS
                 const processedReviews = finalReviewsArray.map(r => ({
                     ...r,
-                    comment: r.comment && r.comment.length > 3 ? r.comment : generateSmartReviewText(r, storeNameFallback)
+                    // Deixa a função da IA fazer o filtro completo sozinha
+                    comment: generateSmartReviewText(r, storeNameFallback)
                 }));
 
                 processedReviews.sort((a, b) => b.createdAt - a.createdAt);
@@ -245,12 +246,24 @@ export default function Reviews({ storeId }) {
                                 {[...Array(5)].map((_, i) => (
                                     <Star key={i} size={12} fill={i < r.rating ? "currentColor" : "none"} className={i < r.rating ? "text-yellow-400" : "text-yellow-200"}/>
                                 ))}
-                            </div>
+                           </div>
                         </div>
                         <p className="text-sm text-slate-600 font-medium leading-relaxed italic">"{r.comment}"</p>
                     </div>
                 ))}
             </div>
+
+            {/* --- NOVO: BOTÃO PARA O PORTAL AGREGADOR DA VELO --- */}
+            {totalReviews > 3 && (
+                <a 
+                    href={`https://app.velodelivery.com.br/loja/${storeId === 'loja-teste' ? 'csi' : storeId}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="mt-5 mb-6 flex items-center justify-center gap-1 text-[10px] font-black text-blue-600 uppercase tracking-widest hover:underline bg-blue-50/50 py-3 w-full rounded-xl border border-blue-100/50 transition-colors"
+                >
+                    Ler todas as {totalReviews} avaliações <ExternalLink size={12} className="ml-1"/>
+                </a>
+            )}
 
             {storeInfo?.googleReviewUrl && (
                 <div className="pt-6 border-t border-slate-100 text-center animate-in fade-in">
