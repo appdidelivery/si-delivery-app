@@ -7560,9 +7560,9 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                                                     {abcData[p.id]}
                                                                 </span>
                                                             )}
-                                                            <h3 className={`font-black text-sm md:text-base leading-tight truncate ${p.isActive === false ? 'text-slate-400 line-through' : 'text-slate-800'}`} title={p.name}>
-                                                                {p.name}
-                                                            </h3>
+                                                            <h3 className={`font-black text-sm md:text-base leading-tight ${p.isActive === false ? 'text-slate-400 line-through' : 'text-slate-800'}`} title={p.name}>
+    {p.name}
+</h3>
                                                             {p.isActive === false && (
                                                                 <span className="bg-slate-100 text-slate-500 px-2 py-0.5 rounded-lg text-[9px] font-black uppercase tracking-widest border border-slate-200 shrink-0">
                                                                     Pausado
