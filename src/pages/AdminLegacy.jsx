@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { db, auth } from '../../src/services/firebase';
 import {
     collection, onSnapshot, doc, updateDoc, deleteDoc,
-    addDoc, query, orderBy, serverTimestamp, setDoc, getDoc, where, increment
+    addDoc, query, orderBy, serverTimestamp, setDoc, getDoc, where, increment, writeBatch
 } from 'firebase/firestore';
 import {
     Store, ShoppingCart, LayoutDashboard, Clock, ShoppingBag, Package, Users, Plus, Trash2, Edit3,
