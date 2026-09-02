@@ -13485,17 +13485,22 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                     
                                     <input type="file" accept="image/*" onChange={(e) => setBannerImageFile(e.target.files[0])} className="hidden" id="banner-general-image-upload" />
                                     
-                                    <div className="flex gap-2">
-                                        <label htmlFor="banner-general-image-upload" className="flex-1 p-4 bg-slate-50 hover:bg-slate-100 rounded-2xl flex items-center justify-center gap-2 font-bold text-slate-600 cursor-pointer border-2 border-dashed border-slate-200 transition-all text-xs uppercase tracking-widest text-center">
-                                            {bannerImageFile ? bannerImageFile.name : 'Selecionar do PC'} <UploadCloud size={16} />
-                                        </label>
-                                        
-                                        {/* O botão de Upload só aparece se a pessoa escolheu um arquivo físico do PC */}
-                                        {bannerImageFile && (
-                                            <button type="button" onClick={handleGeneralBannerImageUpload} disabled={uploadingBannerImage} className={`px-6 py-4 rounded-2xl font-black text-xs uppercase tracking-widest text-white transition-all shadow-md active:scale-95 ${uploadingBannerImage ? 'bg-blue-400' : 'bg-blue-600 hover:bg-blue-700'}`}>
-                                                {uploadingBannerImage ? <Loader2 size={16} className="animate-spin mx-auto"/> : 'Enviar PC'}
-                                            </button>
-                                        )}
+                                    <div className="flex flex-col gap-2">
+                                        <div className="flex gap-2">
+                                            <label htmlFor="banner-general-image-upload" className="flex-1 p-4 bg-slate-50 hover:bg-slate-100 rounded-2xl flex items-center justify-center gap-2 font-bold text-slate-600 cursor-pointer border-2 border-dashed border-slate-200 transition-all text-xs uppercase tracking-widest text-center">
+                                                {bannerImageFile ? bannerImageFile.name : 'Selecionar do PC'} <UploadCloud size={16} />
+                                            </label>
+                                            
+                                            {/* O botão de Upload só aparece se a pessoa escolheu um arquivo físico do PC */}
+                                            {bannerImageFile && (
+                                                <button type="button" onClick={handleGeneralBannerImageUpload} disabled={uploadingBannerImage} className={`px-6 py-4 rounded-2xl font-black text-xs uppercase tracking-widest text-white transition-all shadow-md active:scale-95 ${uploadingBannerImage ? 'bg-blue-400' : 'bg-blue-600 hover:bg-blue-700'}`}>
+                                                    {uploadingBannerImage ? <Loader2 size={16} className="animate-spin mx-auto"/> : 'Enviar PC'}
+                                                </button>
+                                            )}
+                                        </div>
+                                        <p className="text-[10px] text-slate-500 font-bold text-center mt-1">
+                                            💡 <strong className="text-blue-500">Tamanho Recomendado:</strong> 800x400 pixels (Formato Horizontal). Imagens quadradas ou verticais serão cortadas pelo aplicativo.
+                                        </p>
                                     </div>
                                 </div>
                                 
