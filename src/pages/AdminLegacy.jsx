@@ -2410,7 +2410,7 @@ const [vipMissions, setVipMissions] = useState([]);
                         }
                     }
 
-                    // 2. GATILHO DE IMPRESSÃO (BLINDADO MULTI-CANAL)
+                    // 2. GATILHO DE IMPRESSÃO (BLINDADO MULTI-CANAL E MULTI-TERMINAL)
                     let shouldPrint = false;
 
                     if (!isPosOrder) {
@@ -2419,22 +2419,35 @@ const [vipMissions, setVipMissions] = useState([]);
                         const isPaymentBlocking = isOnlinePayment && !isPaid;
                         const matchesAppTrigger = autoPrintTrigger !== 'none' && autoPrintTrigger === newOrderData.status;
                         
-                        if (matchesAppTrigger && !isPaymentBlocking) {
+                        // Trava Global: Verifica se o pedido já foi impresso por algum outro terminal na rede
+                        if (matchesAppTrigger && !isPaymentBlocking && !newOrderData.globalPrintLock) {
                             shouldPrint = true;
                         }
                     } else {
                         // REGRAS PARA PDV / WHATSAPP:
                         // Como esses pedidos já nascem "Preparando" ou "Concluídos", eles ignoram a regra de status do App.
                         // Só precisam que a flag "Auto-imprimir Lançamentos Manuais" esteja ligada e que seja um pedido NOVO (added).
-                        if (autoPrintPosOrders && change.type === 'added') {
+                        
+                        // BLOQUEIO DE TERMINAL: Garante que apenas o usuário que lançou o pedido fará a impressão
+                        const currentUserEmail = auth.currentUser?.email || 'owner';
+                        const isMyOrder = newOrderData.sellerEmail === currentUserEmail;
+
+                        if (autoPrintPosOrders && change.type === 'added' && isMyOrder) {
                             shouldPrint = true;
                         }
                     }
 
                     if (shouldPrint) {
-                        // Verifica no cache da sessão se esse ticket já foi impresso para não gastar bobina infinita
+                        // Verifica no cache da sessão se esse ticket já foi impresso na máquina atual
                         if (!sessionStorage.getItem(`printed_${newOrderData.id}`)) {
                             sessionStorage.setItem(`printed_${newOrderData.id}`, 'true');
+                            
+                            // Cria a trava global no banco para avisar as outras máquinas que este pedido já foi impresso
+                            // Fazemos isso sem 'await' para não travar o loop de renderização do Snapshot
+                            if (!isPosOrder) {
+                                updateDoc(doc(db, "orders", newOrderData.id), { globalPrintLock: true }).catch(err => console.warn("Erro ao travar impressão global:", err));
+                            }
+                            
                             printLabel(newOrderData);
                         }
                     }
