@@ -3270,19 +3270,19 @@ alert("Pagamento recusado pelo Mercado Pago. Tente outro cartão ou entre em con
 
    <header className="bg-white px-6 py-4 shadow-sm flex items-center justify-between sticky top-0 z-40 border-b border-slate-100">
         <div className="flex items-center gap-3 flex-1 overflow-hidden">
-            <img src={optimizeCloudinary(storeSettings.storeLogoUrl, 100)} alt={storeSettings.name} className="h-12 w-12 rounded-full object-cover border border-slate-100 shadow-sm flex-shrink-0" onError={(e)=>e.target.src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0iI2NiZDRlMSI+PHBhdGggZD0iTTQgNmgxNnYySDR6bTIgMmgxMnYxMkg2eiIvPjwvc3ZnPg=="}/>
+            <img src={optimizeCloudinary(storeSettings.storeLogoUrl, 100)} alt={storeSettings.name} className="h-12 w-12 rounded-full object-cover border border-slate-100 shadow-sm shrink-0" onError={(e)=>e.target.src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0iI2NiZDRlMSI+PHBhdGggZD0iTTQgNmgxNnYySDR6bTIgMmgxMnYxMkg2eiIvPjwvc3ZnPg=="}/>
             <div className="flex flex-col overflow-hidden">
                 <h1 className="text-sm font-black text-slate-900 uppercase tracking-tight leading-tight line-clamp-1">{storeSettings.name || "Sua Loja"}</h1>
                 {storeSettings.slogan && (
                     <p className="text-[10px] font-medium text-slate-500 leading-tight line-clamp-1 mt-0.5">{storeSettings.slogan}</p>
                 )}
                 <div className="flex items-center gap-1.5 mt-1">
-                    <span className={`w-2 h-2 rounded-full flex-shrink-0 ${isStoreOpenNow ? 'bg-green-600 animate-pulse' : 'bg-red-600'}`}></span>
+                    <span className={`w-2 h-2 rounded-full shrink-0 ${isStoreOpenNow ? 'bg-green-600 animate-pulse' : 'bg-red-600'}`}></span>
                     <span className={`text-[10px] font-black uppercase tracking-widest leading-none line-clamp-1 ${isStoreOpenNow ? 'text-green-700' : 'text-red-700'}`}>{storeMessage}</span>
                 </div>
             </div>
         </div>
-        <button onClick={handleShare} aria-label="Compartilhar loja" title="Compartilhar loja" className="w-10 h-10 flex flex-shrink-0 items-center justify-center rounded-full bg-slate-50 text-slate-500 hover:bg-slate-100 hover:text-slate-900 transition-colors border border-slate-100 shadow-sm active:scale-95 ml-2">
+        <button onClick={handleShare} aria-label="Compartilhar loja" title="Compartilhar loja" className="w-10 h-10 flex shrink-0 items-center justify-center rounded-full bg-slate-50 text-slate-500 hover:bg-slate-100 hover:text-slate-900 transition-colors border border-slate-100 shadow-sm active:scale-95 ml-2">
             <Share2 size={16} />
         </button>
    </header>
@@ -3290,20 +3290,20 @@ alert("Pagamento recusado pelo Mercado Pago. Tente outro cartão ou entre em con
    {!isCatalogReady ? (
        <div className="w-full min-h-[80vh] flex flex-col px-6 mt-6 gap-6 animate-pulse z-20 relative">
            {/* Skeleton do Banner */}
-           <div className="w-full aspect-[2/1] bg-slate-200 rounded-[2rem]"></div>
+           <div className="w-full aspect-2/1 bg-slate-200 rounded-4xl"></div>
            {/* Skeleton da Pesquisa */}
            <div className="w-full h-14 bg-slate-200 rounded-2xl"></div>
            {/* Skeleton das Categorias */}
            <div className="flex gap-4 overflow-hidden">
-               <div className="w-[72px] h-[72px] bg-slate-200 rounded-2xl shrink-0"></div>
-               <div className="w-[72px] h-[72px] bg-slate-200 rounded-2xl shrink-0"></div>
-               <div className="w-[72px] h-[72px] bg-slate-200 rounded-2xl shrink-0"></div>
-               <div className="w-[72px] h-[72px] bg-slate-200 rounded-2xl shrink-0"></div>
+               <div className="w-18 h-18 bg-slate-200 rounded-2xl shrink-0"></div>
+               <div className="w-18 h-18 bg-slate-200 rounded-2xl shrink-0"></div>
+               <div className="w-18 h-18 bg-slate-200 rounded-2xl shrink-0"></div>
+               <div className="w-18 h-18 bg-slate-200 rounded-2xl shrink-0"></div>
            </div>
            {/* Skeleton dos Produtos */}
            <div className="grid grid-cols-2 gap-4 mt-2">
-               <div className="h-48 bg-slate-200 rounded-[2rem]"></div>
-               <div className="h-48 bg-slate-200 rounded-[2rem]"></div>
+               <div className="h-48 bg-slate-200 rounded-4xl"></div>
+               <div className="h-48 bg-slate-200 rounded-4xl"></div>
            </div>
        </div>
    ) : (
@@ -3316,7 +3316,7 @@ alert("Pagamento recusado pelo Mercado Pago. Tente outro cartão ou entre em con
                 <div className="absolute top-0 right-0 w-32 h-32 bg-purple-500 rounded-full blur-[60px] opacity-20 pointer-events-none"></div>
                 <div className="flex justify-between items-end relative z-10 mb-2">
                   <div className="flex items-center gap-3">
-                    <div className="bg-gradient-to-br from-yellow-300 to-yellow-600 text-slate-900 p-2.5 rounded-xl shadow-lg shadow-yellow-900/20">
+                    <div className="bg-linear-to-br from-yellow-300 to-yellow-600 text-slate-900 p-2.5 rounded-xl shadow-lg shadow-yellow-900/20">
                        <Crown size={18} fill="currentColor" /> 
                     </div>
                     <div>
@@ -3328,13 +3328,12 @@ alert("Pagamento recusado pelo Mercado Pago. Tente outro cartão ou entre em con
                   </div>
                   <div className="text-right flex-1 ml-4 flex flex-col items-end">
                     <p className="text-[9px] font-bold text-slate-500 uppercase mb-1 whitespace-nowrap">Próxima Recompensa</p>
-                    <p className="text-[10px] font-bold text-purple-200 leading-snug whitespace-normal break-words max-w-[200px] md:max-w-[300px]">
-                      {marketingSettings.loyaltyReward || 'Prêmio Surpresa'}
+<p className="text-[10px] font-bold text-purple-200 leading-snug whitespace-normal wrap-break-word max-w-50 md:max-w-75">                      {marketingSettings.loyaltyReward || 'Prêmio Surpresa'}
                     </p>
                   </div>
                 </div>
                 <div className="relative h-2 w-full bg-slate-800 rounded-full overflow-hidden">
-                  <motion.div initial={{ width: 0 }} animate={{ width: `${Math.min((loyaltyPoints / (marketingSettings.loyaltyGoal || 100)) * 100, 100)}%` }} transition={{ duration: 1.5, ease: "easeOut" }} className="absolute top-0 left-0 h-full bg-gradient-to-r from-yellow-400 via-orange-500 to-purple-500"></motion.div>
+                  <motion.div initial={{ width: 0 }} animate={{ width: `${Math.min((loyaltyPoints / (marketingSettings.loyaltyGoal || 100)) * 100, 100)}%` }} transition={{ duration: 1.5, ease: "easeOut" }} className="absolute top-0 left-0 h-full bg-linear-to-r from-yellow-400 via-orange-500 to-purple-500"></motion.div>
                 </div>
                 <p className="text-[9px] text-center text-slate-500 mt-2 font-medium">
                   Faltam <span className="text-white font-bold">{Math.max(0, (marketingSettings.loyaltyGoal || 100) - loyaltyPoints)}</span> pontos para resgatar!
@@ -3350,11 +3349,11 @@ alert("Pagamento recusado pelo Mercado Pago. Tente outro cartão ou entre em con
              (!marketingSettings.promoStartsAt || new Date() >= new Date(marketingSettings.promoStartsAt)) && 
              (!marketingSettings.promoExpiresAt || new Date() < new Date(marketingSettings.promoExpiresAt)) && 
              isWithinRecurringSchedule(marketingSettings.promoRecurringDay, marketingSettings.promoRecurringStart, marketingSettings.promoRecurringEnd) && (
-              <motion.div initial={{ opacity:0 }} animate={{ opacity:1 }} exit={{ opacity:0 }} className="overflow-hidden p-6 w-full aspect-[2/1] bg-slate-50">
+              <motion.div initial={{ opacity:0 }} animate={{ opacity:1 }} exit={{ opacity:0 }} className="overflow-hidden p-6 w-full aspect-2/1 bg-slate-50">
                 <Carousel showThumbs={false} infiniteLoop={true} autoPlay={true} interval={3000} showStatus={false} renderIndicator={renderAccessibleIndicator}>
                   {marketingSettings.promoBannerUrls.map((url, index) => (
-                    <div key={index} className="w-full aspect-[2/1] bg-slate-200 animate-pulse rounded-[2rem]">
-                      <img src={optimizeCloudinary(url, 800)} alt={`Banner Promocional ${index + 1}`} width="800" height="400" loading={index === 0 ? "eager" : "lazy"} fetchpriority={index === 0 ? "high" : "low"} decoding={index === 0 ? "sync" : "async"} className="w-full h-full object-cover rounded-[2rem] shadow-xl border-4 border-white" />
+                    <div key={index} className="w-full aspect-2/1 bg-slate-200 animate-pulse rounded-4xl">
+                      <img src={optimizeCloudinary(url, 800)} alt={`Banner Promocional ${index + 1}`} width="800" height="400" loading={index === 0 ? "eager" : "lazy"} fetchpriority={index === 0 ? "high" : "low"} decoding={index === 0 ? "sync" : "async"} className="w-full h-full object-cover rounded-4xl shadow-xl border-4 border-white" />
                     </div>
                   ))}
                 </Carousel>
@@ -3364,12 +3363,12 @@ alert("Pagamento recusado pelo Mercado Pago. Tente outro cartão ou entre em con
 
           <AnimatePresence mode="popLayout">
             {generalBanners.length > 0 && (
-              <motion.div initial={{ opacity:0 }} animate={{ opacity:1 }} exit={{ opacity:0 }} className="overflow-hidden p-6 pt-0 w-full aspect-[2/1] bg-slate-50">
+              <motion.div initial={{ opacity:0 }} animate={{ opacity:1 }} exit={{ opacity:0 }} className="overflow-hidden p-6 pt-0 w-full aspect-2/1 bg-slate-50">
                 <Carousel showThumbs={false} infiniteLoop={true} autoPlay={true} interval={5000} showStatus={false} renderIndicator={renderAccessibleIndicator}>
                   {generalBanners.map((banner, index) => (
                     <div key={banner.id}>
                         <a href={banner.linkTo} target="_blank" rel="noopener noreferrer">
-                            <img src={optimizeCloudinary(banner.imageUrl, 800)} alt={banner.linkTo || "Banner da Loja"} width="800" height="400" loading={index === 0 ? "eager" : "lazy"} fetchpriority={index === 0 ? "high" : "auto"} decoding="async" className="w-full aspect-[2/1] object-cover rounded-[2rem] shadow-xl border-4 border-white" />
+                            <img src={optimizeCloudinary(banner.imageUrl, 800)} alt={banner.linkTo || "Banner da Loja"} width="800" height="400" loading={index === 0 ? "eager" : "lazy"} fetchpriority={index === 0 ? "high" : "auto"} decoding="async" className="w-full aspect-2/1 object-cover rounded-4xl shadow-xl border-4 border-white" />
                         </a>
                     </div>
                   ))}
@@ -3415,10 +3414,10 @@ alert("Pagamento recusado pelo Mercado Pago. Tente outro cartão ou entre em con
                             <div key="flash-deal" className="pb-8 px-1 h-full">
                                 <div className={`relative flex items-stretch rounded-2xl shadow-md ${style.bg} text-white overflow-hidden text-left h-full border-2 ${style.border}`}>
                                     <div className="absolute inset-0 bg-white/10 pointer-events-none" style={{ backgroundImage: 'radial-gradient(circle at 2px 2px, rgba(255,255,255,0.2) 1px, transparent 0)', backgroundSize: '16px 16px' }}></div>
-                                    <div className={`w-[25%] min-w-[70px] flex flex-col items-center justify-center p-3 relative z-10 ${style.darkBg}`}>
+                                    <div className={`w-[25%] min-w-17.5 flex flex-col items-center justify-center p-3 relative z-10 ${style.darkBg}`}>
                                         <FaBoltLightning size={32} className="text-yellow-300 drop-shadow-md mb-1 animate-pulse" />
                                     </div>
-                                    <div className={`relative w-0 border-l-[2px] border-dashed ${style.border} opacity-50 z-10`}></div>
+                                    <div className={`relative w-0 border-l-2 border-dashed ${style.border} opacity-50 z-10`}></div>
                                     <div className="flex-1 p-4 pl-5 flex flex-col justify-center z-10">
                                         <p className={`font-black uppercase text-[9px] tracking-widest ${style.textLight} mb-1 flex items-center gap-1`}>
                                             <Clock size={10} className="text-white"/> Termina em breve!
@@ -3458,11 +3457,11 @@ alert("Pagamento recusado pelo Mercado Pago. Tente outro cartão ou entre em con
                             <div key={`bogo-${idx}`} className="pb-8 px-1 h-full">
                                 <div className={`relative flex items-stretch rounded-2xl shadow-md ${style.bg} text-white overflow-hidden text-left h-full border ${style.border}`}>
                                     <div className="absolute inset-0 bg-white/10 pointer-events-none" style={{ backgroundImage: 'radial-gradient(circle at 2px 2px, rgba(255,255,255,0.15) 1px, transparent 0)', backgroundSize: '12px 12px' }}></div>
-                                    <div className={`w-[25%] min-w-[70px] flex flex-col items-center justify-center p-3 relative z-10 ${style.darkBg}`}>
+                                    <div className={`w-[25%] min-w-17.5 flex flex-col items-center justify-center p-3 relative z-10 ${style.darkBg}`}>
                                         <Gift size={32} className="text-yellow-300 drop-shadow-md animate-bounce mb-1" />
                                         <span className="bg-yellow-400 text-slate-900 text-[9px] font-black uppercase px-2 py-0.5 rounded shadow-sm">Grátis</span>
                                     </div>
-                                    <div className={`relative w-0 border-l-[2px] border-dashed ${style.border} opacity-50 z-10`}></div>
+                                    <div className={`relative w-0 border-l-2 border-dashed ${style.border} opacity-50 z-10`}></div>
                                     <div className="flex-1 p-4 pl-5 flex flex-col justify-center z-10">
                                         <p className={`font-black uppercase text-[9px] tracking-widest ${style.textLight} mb-1 flex items-center gap-1`}>
                                             <Zap size={10} className="text-yellow-400"/> Oferta Especial
@@ -3488,11 +3487,11 @@ alert("Pagamento recusado pelo Mercado Pago. Tente outro cartão ou entre em con
                         activePromos.push(
                             <div key={`smart-${index}`} className="pb-8 px-1 h-full">
                                 <div className={`relative flex items-stretch rounded-2xl shadow-md ${banner.topBarColor || 'bg-red-600'} text-white overflow-hidden text-left h-full`}>
-                                    <div className="absolute inset-1 border-[2px] border-dashed border-white/30 rounded-xl pointer-events-none"></div>
-                                    <div className="w-[25%] min-w-[70px] flex items-center justify-center p-3 relative z-10">
+                                    <div className="absolute inset-1 border-2 border-dashed border-white/30 rounded-xl pointer-events-none"></div>
+                                    <div className="w-[25%] min-w-17.5 flex items-center justify-center p-3 relative z-10">
                                         <Gift size={32} className="text-white drop-shadow-md animate-pulse" />
                                     </div>
-                                    <div className="relative w-0 border-l-[2px] border-dashed border-white/40 my-1 z-10">
+                                    <div className="relative w-0 border-l-2 border-dashed border-white/40 my-1 z-10">
                                         <div className="absolute -top-3 -left-3 w-6 h-6 bg-slate-50 rounded-full"></div>
                                         <div className="absolute -bottom-3 -left-3 w-6 h-6 bg-slate-50 rounded-full"></div>
                                     </div>
@@ -3550,7 +3549,7 @@ alert("Pagamento recusado pelo Mercado Pago. Tente outro cartão ou entre em con
                 <motion.div 
                     initial={{ opacity: 0, y: -10 }} 
                     animate={{ opacity: 1, y: 0 }} 
-                    className="mb-4 bg-gradient-to-r from-pink-600 to-purple-600 rounded-2xl p-4 shadow-lg flex items-center justify-between text-white cursor-pointer active:scale-95 transition-transform"
+                    className="mb-4 bg-linear-to-r from-pink-600 to-purple-600 rounded-2xl p-4 shadow-lg flex items-center justify-between text-white cursor-pointer active:scale-95 transition-transform"
                     onClick={startInstaFunCamera}
                 >
                     <div className="flex items-center gap-3">
@@ -3562,7 +3561,7 @@ alert("Pagamento recusado pelo Mercado Pago. Tente outro cartão ou entre em con
                             <span className="font-bold text-sm leading-tight">Veja sua versão {marketingSettings.gamification.instaFun.theme || 'IA'} e ganhe <strong className="text-yellow-300">{marketingSettings.gamification.instaFun.prize || 'Brinde'}</strong>!</span>
                         </div>
                     </div>
-                    <Sparkles size={20} className="text-pink-200 flex-shrink-0" />
+                    <Sparkles size={20} className="text-pink-200 shrink-0" />
                 </motion.div>
             )}
         </AnimatePresence>
@@ -3573,15 +3572,14 @@ alert("Pagamento recusado pelo Mercado Pago. Tente outro cartão ou entre em con
           <input type="text" placeholder="O que você procura?" className={`w-full p-4 pl-12 rounded-2xl bg-white shadow-sm outline-none focus:ring-2 ring-${currentTheme.ringColor} font-medium`} onChange={e => setSearchTerm(e.target.value)} />
         </div>
 
-        <div className="flex gap-4 overflow-x-auto no-scrollbar pb-4 pt-2 snap-x px-2 min-h-[110px]">
+        <div className="flex gap-4 overflow-x-auto no-scrollbar pb-4 pt-2 snap-x px-2 min-h-27.5">
           {displayCategories.map(c => (
             <button
                 key={c.id} 
                 onClick={() => scrollToCategory(c.id)} 
-                className="flex flex-col items-center gap-2 min-w-[85px] snap-center group"
+                className="flex flex-col items-center gap-2 min-w-21.25 snap-center group"
             >
-              <div className={`w-[72px] h-[72px] rounded-2xl flex items-center justify-center shadow-sm transition-all duration-300 ${activeCategory === c.id ? `${currentTheme.primary} text-white scale-105 shadow-md` : 'bg-white text-slate-500 border border-slate-100 group-hover:border-slate-300 group-hover:bg-slate-50'}`}>
-                {React.cloneElement(c.icon, { size: activeCategory === c.id ? 32 : 28 })}
+<div className={`w-18 h-18 rounded-2xl flex items-center justify-center shadow-sm transition-all duration-300 ${activeCategory === c.id ? `${currentTheme.primary} text-white scale-105 shadow-md` : 'bg-white text-slate-500 border border-slate-100 group-hover:border-slate-300 group-hover:bg-slate-50'}`}>                {React.cloneElement(c.icon, { size: activeCategory === c.id ? 32 : 28 })}
               </div>
               <span className={`text-[10px] font-black uppercase tracking-tight text-center leading-none px-1 ${activeCategory === c.id ? currentTheme.text : 'text-slate-500'}`}>
                 {c.name}
@@ -3613,7 +3611,7 @@ alert("Pagamento recusado pelo Mercado Pago. Tente outro cartão ou entre em con
           if (smartProducts.length === 0) return null;
 
           return (
-              <div className="px-6 mt-8 min-h-[320px]">
+              <div className="px-6 mt-8 min-h-80">
                   <h2 className="text-2xl font-black italic tracking-tighter uppercase mb-6 flex items-center gap-2">
                       <Sparkles className="text-purple-500" size={24}/> {smartTitle}
                   </h2>
@@ -3621,11 +3619,11 @@ alert("Pagamento recusado pelo Mercado Pago. Tente outro cartão ou entre em con
                       <AnimatePresence>
                           {smartProducts.map((p) => {
                               return (
-                                  <motion.div initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}} key={`smart-${p.id}`} className={`min-w-[160px] md:min-w-[200px] bg-white rounded-[2rem] border border-slate-100 shadow-sm flex flex-col group hover:shadow-md transition-all snap-center overflow-hidden ${p.videoUrl ? 'p-0' : 'p-4'}`}>
+                                  <motion.div initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}} key={`smart-${p.id}`} className={`min-w-40 md:min-w-50 bg-white rounded-4xl border border-slate-100 shadow-sm flex flex-col group hover:shadow-md transition-all snap-center overflow-hidden ${p.videoUrl ? 'p-0' : 'p-4'}`}>
                                       {p.videoUrl ? (
                                           // --- MODO MERCADO LIVRE (VÍDEO EDGE-TO-EDGE) ---
                                           <>
-                                              <div className="relative w-full aspect-[9/16] bg-slate-900 cursor-pointer overflow-hidden" onClick={() => handleOpenProduct(p)}>
+                                              <div className="relative w-full aspect-9/16 bg-slate-900 cursor-pointer overflow-hidden" onClick={() => handleOpenProduct(p)}>
                                                   {/* VÍDEO NATIVO AUTOPLAY SILENCIOSO PREENCHENDO TUDO */}
                                                   <video 
                                                       src={p.videoUrl} 
@@ -3725,11 +3723,11 @@ alert("Pagamento recusado pelo Mercado Pago. Tente outro cartão ou entre em con
                             }
                         }
                         return (
-                            <motion.div initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}} key={p.id} className={`bg-white rounded-[2rem] border border-slate-100 shadow-sm flex flex-col h-full group hover:shadow-md transition-all overflow-hidden ${!hasStock ? 'opacity-60 grayscale' : ''} ${p.videoUrl ? 'p-0' : 'p-4'}`}>
+                            <motion.div initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}} key={p.id} className={`bg-white rounded-4xl border border-slate-100 shadow-sm flex flex-col h-full group hover:shadow-md transition-all overflow-hidden ${!hasStock ? 'opacity-60 grayscale' : ''} ${p.videoUrl ? 'p-0' : 'p-4'}`}>
                                 {p.videoUrl ? (
                                     // --- MODO MERCADO LIVRE (VÍDEO EDGE-TO-EDGE) ---
                                     <>
-                                        <div className="relative w-full aspect-[9/16] bg-slate-900 cursor-pointer overflow-hidden flex-shrink-0" onClick={() => hasStock ? handleOpenProduct(p) : null}>
+                                        <div className="relative w-full aspect-9/16 bg-slate-900 cursor-pointer overflow-hidden shrink-0" onClick={() => hasStock ? handleOpenProduct(p) : null}>
                                             <video 
                                                 src={p.videoUrl} 
                                                 autoPlay loop muted playsInline 
@@ -3755,14 +3753,14 @@ alert("Pagamento recusado pelo Mercado Pago. Tente outro cartão ou entre em con
                                                         <span className={`${currentTheme.text} font-black text-base italic leading-none`}>R$ {Number(p.price)?.toFixed(2)}</span>
                                                     )}
                                                 </div>
-                                                <button aria-label={`Adicionar ${p.name}`} onClick={() => hasStock && addToCart(p)} disabled={!isStoreOpenNow || !hasStock} className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 shadow-md active:scale-90 ${currentTheme.primary} text-white`}><Plus size={16} /></button>
+                                                <button aria-label={`Adicionar ${p.name}`} onClick={() => hasStock && addToCart(p)} disabled={!isStoreOpenNow || !hasStock} className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 shadow-md active:scale-90 ${currentTheme.primary} text-white`}><Plus size={16} /></button>
                                             </div>
                                         </div>
                                     </>
                                 ) : (
                                     // --- MODO PADRÃO (IMAGEM) ---
                                     <>
-                                        <div className="rounded-2xl bg-slate-50 mb-3 flex items-center justify-center overflow-hidden relative cursor-pointer aspect-square flex-shrink-0" onClick={() => hasStock ? handleOpenProduct(p) : null}>
+                                        <div className="rounded-2xl bg-slate-50 mb-3 flex items-center justify-center overflow-hidden relative cursor-pointer aspect-square shrink-0" onClick={() => hasStock ? handleOpenProduct(p) : null}>
                                             {p.imageUrl ? (
                                                 <img 
                                                     src={optimizeCloudinary(p.imageUrl, 300)} 
@@ -3804,7 +3802,7 @@ alert("Pagamento recusado pelo Mercado Pago. Tente outro cartão ou entre em con
                                                         <span className={`${currentTheme.text} font-black text-base italic leading-none`}>R$ {Number(p.price)?.toFixed(2)}</span>
                                                     )}
                                                 </div>
-                                                <button aria-label={`Adicionar ${p.name} ao carrinho`} onClick={() => hasStock && addToCart(p)} disabled={!isStoreOpenNow || !hasStock} className={`p-2.5 rounded-xl flex-shrink-0 active:scale-90 shadow-lg ${isStoreOpenNow && hasStock ? `${currentTheme.primary} text-white ${currentTheme.shadow}` : 'bg-slate-300 text-slate-500 cursor-not-allowed'}`}>
+                                                <button aria-label={`Adicionar ${p.name} ao carrinho`} onClick={() => hasStock && addToCart(p)} disabled={!isStoreOpenNow || !hasStock} className={`p-2.5 rounded-xl shrink-0 active:scale-90 shadow-lg ${isStoreOpenNow && hasStock ? `${currentTheme.primary} text-white ${currentTheme.shadow}` : 'bg-slate-300 text-slate-500 cursor-not-allowed'}`}>
                                                     <ShoppingCart size={16} aria-hidden="true" />
                                                 </button>
                                             </div>
@@ -3871,7 +3869,7 @@ alert("Pagamento recusado pelo Mercado Pago. Tente outro cartão ou entre em con
                                                         )}
                                                     </div>
                                                 </div>
-                                                <div className="w-28 h-28 flex-shrink-0 relative rounded-2xl overflow-hidden bg-slate-50 border border-slate-100">
+                                                <div className="w-28 h-28 shrink-0 relative rounded-2xl overflow-hidden bg-slate-50 border border-slate-100">
                                                     {p.videoUrl ? (
                                                         <VeloProductVideo 
                                                             videoUrl={p.videoUrl} 
@@ -3911,7 +3909,7 @@ alert("Pagamento recusado pelo Mercado Pago. Tente outro cartão ou entre em con
         {loading && products.length === 0 && (
              <div className="grid grid-cols-2 gap-4 mt-4">
                  {[1,2,3,4,5,6].map(n => (
-                     <div key={n} className="bg-slate-100 animate-pulse h-[250px] rounded-[2rem]"></div>
+                     <div key={n} className="bg-slate-100 animate-pulse h-62.5 rounded-4xl"></div>
                  ))}
              </div>
         )}
@@ -3921,8 +3919,8 @@ alert("Pagamento recusado pelo Mercado Pago. Tente outro cartão ou entre em con
         </div>
       </main>
 
-      {/* OTIMIZAÇÃO CLS: min-h-[250px] evita o Shift de Layout mapeado pelo Google */}
-      <section className="px-6 py-10 bg-slate-100/50 text-center min-h-[250px] flex flex-col justify-center">
+      {/* OTIMIZAÇÃO CLS: min-h-62.5 evita o Shift de Layout mapeado pelo Google */}
+      <section className="px-6 py-10 bg-slate-100/50 text-center min-h-62.5 flex flex-col justify-center">
         <h2 className="text-slate-400 font-black text-[10px] uppercase tracking-[0.3em] mb-4">Estamos localizados em</h2>
         <div className="bg-white p-6 rounded-[2.5rem] shadow-sm max-w-md mx-auto border border-white w-full">
             <p className="font-black text-slate-800 uppercase tracking-tighter italic text-xl mb-1">{storeSettings.name || "Nossa Loja"}</p>
@@ -3952,7 +3950,7 @@ alert("Pagamento recusado pelo Mercado Pago. Tente outro cartão ou entre em con
           </div>
 
           <div className="space-y-3">
-              <details className="group bg-white rounded-[1.5rem] shadow-sm border border-slate-100 overflow-hidden [&_summary::-webkit-details-marker]:hidden">
+              <details className="group bg-white rounded-3xl shadow-sm border border-slate-100 overflow-hidden [&_summary::-webkit-details-marker]:hidden">
                   <summary className="flex items-center justify-between gap-3 p-5 font-bold text-slate-800 cursor-pointer">
                       <div className="flex items-center gap-3">
                           <Clock size={18} className="text-blue-500" />
@@ -3993,7 +3991,7 @@ alert("Pagamento recusado pelo Mercado Pago. Tente outro cartão ou entre em con
                   </div>
               </details>
 
-              <details className="group bg-white rounded-[1.5rem] shadow-sm border border-slate-100 overflow-hidden [&_summary::-webkit-details-marker]:hidden">
+              <details className="group bg-white rounded-3xl shadow-sm border border-slate-100 overflow-hidden [&_summary::-webkit-details-marker]:hidden">
                   <summary className="flex items-center justify-between gap-3 p-5 font-bold text-slate-800 cursor-pointer">
                       <div className="flex items-center gap-3">
                           <CreditCard size={18} className="text-purple-500" />
@@ -4027,7 +4025,7 @@ alert("Pagamento recusado pelo Mercado Pago. Tente outro cartão ou entre em con
                   </div>
               </details>
 
-              <details className="group bg-white rounded-[1.5rem] shadow-sm border border-slate-100 overflow-hidden [&_summary::-webkit-details-marker]:hidden">
+              <details className="group bg-white rounded-3xl shadow-sm border border-slate-100 overflow-hidden [&_summary::-webkit-details-marker]:hidden">
                   <summary className="flex items-center justify-between gap-3 p-5 font-bold text-slate-800 cursor-pointer">
                       <div className="flex items-center gap-3">
                           <MapPin size={18} className="text-green-500" />
@@ -4059,7 +4057,7 @@ alert("Pagamento recusado pelo Mercado Pago. Tente outro cartão ou entre em con
 
               {/* PERGUNTAS DINÂMICAS DO LOJISTA (ADITIVO) */}
               {storeSettings?.faq && storeSettings.faq.length > 0 && storeSettings.faq.map((item, index) => (
-                  <details key={index} className="group bg-white rounded-[1.5rem] shadow-sm border border-slate-100 overflow-hidden [&_summary::-webkit-details-marker]:hidden animate-in fade-in slide-in-from-top-2">
+                  <details key={index} className="group bg-white rounded-3xl shadow-sm border border-slate-100 overflow-hidden [&_summary::-webkit-details-marker]:hidden animate-in fade-in slide-in-from-top-2">
                       <summary className="flex items-center justify-between gap-3 p-5 font-bold text-slate-800 cursor-pointer">
                           <div className="flex items-center gap-3">
                               <MessageSquare size={18} className="text-blue-500" />
@@ -4137,9 +4135,9 @@ alert("Pagamento recusado pelo Mercado Pago. Tente outro cartão ou entre em con
                   initial={{ opacity: 0, y: 50, scale: 0.9 }} 
                   animate={{ opacity: 1, y: 0, scale: 1 }} 
                   exit={{ opacity: 0, y: 20, scale: 0.9 }} 
-                  className="fixed bottom-28 left-4 right-4 md:left-auto md:right-auto w-[calc(100%-2rem)] max-w-[calc(28rem-2rem)] mx-auto bg-white rounded-2xl shadow-2xl border-l-4 border-green-500 p-4 z-40 flex items-center gap-4"
+                  className="fixed bottom-28 left-4 right-4 md:left-auto md:right-auto w-[calc(100%-2rem)] max-w-104 mx-auto bg-white rounded-2xl shadow-2xl border-l-4 border-green-500 p-4 z-40 flex items-center gap-4"
               >
-                  <div className="bg-green-100 p-2 rounded-full flex-shrink-0">
+                  <div className="bg-green-100 p-2 rounded-full shrink-0">
                       <CheckCircle size={20} className="text-green-600" />
                   </div>
                   <div className="flex-1 overflow-hidden">
@@ -4185,7 +4183,7 @@ alert("Pagamento recusado pelo Mercado Pago. Tente outro cartão ou entre em con
             
             <AnimatePresence>
                 {cart.length > 0 && (
-                <motion.div aria-label={`${cart.length} itens no carrinho`} initial={{ scale: 0 }} animate={{ scale: 1 }} exit={{ scale: 0 }} className="absolute top-0 right-0 bg-red-500 text-white text-[10px] font-black rounded-full w-5 h-5 flex items-center justify-center border-2 border-white shadow-sm z-[60]">
+                <motion.div aria-label={`${cart.length} itens no carrinho`} initial={{ scale: 0 }} animate={{ scale: 1 }} exit={{ scale: 0 }} className="absolute top-0 right-0 bg-red-500 text-white text-[10px] font-black rounded-full w-5 h-5 flex items-center justify-center border-2 border-white shadow-sm z-60">
                     {cart.reduce((acc, item) => acc + item.quantity, 0)}
                 </motion.div>
                 )}
@@ -4207,7 +4205,7 @@ alert("Pagamento recusado pelo Mercado Pago. Tente outro cartão ou entre em con
 
       <AnimatePresence>
         {showCheckout && (
-          <motion.div initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}} className="fixed inset-0 bg-slate-900/80 backdrop-blur-sm flex justify-center items-end sm:items-center z-[100] p-0 sm:p-4">
+          <motion.div initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}} className="fixed inset-0 bg-slate-900/80 backdrop-blur-sm flex justify-center items-end sm:items-center z-100 p-0 sm:p-4">
             <motion.div initial={{y:"100%"}} animate={{y:0}} exit={{y:"100%"}} className="bg-white w-full max-w-md rounded-t-[2.5rem] sm:rounded-[2.5rem] p-6 pb-12 relative max-h-[90vh] overflow-y-auto custom-scrollbar shadow-2xl flex flex-col">
               <button onClick={() => setShowCheckout(false)} className="absolute top-6 right-6 text-slate-300 hover:text-red-500 transition-colors z-20"><X size={28}/></button>
               <h2 className="text-3xl font-black text-slate-900 mb-2 tracking-tighter italic pr-8">SEU PEDIDO</h2>
@@ -4234,7 +4232,7 @@ alert("Pagamento recusado pelo Mercado Pago. Tente outro cartão ou entre em con
                                       <div className="h-3 w-full bg-slate-200 rounded-full overflow-hidden">
                                           <div 
                                               style={{ width: `${progress}%` }}
-                                              className={`h-full bg-gradient-to-r ${currentTheme.gradientFrom} ${currentTheme.gradientTo} transition-all duration-500`}
+                                              className={`h-full bg-linear-to-r ${currentTheme.gradientFrom} ${currentTheme.gradientTo} transition-all duration-500`}
                                           />
                                       </div>
                                   </>
@@ -4294,7 +4292,7 @@ alert("Pagamento recusado pelo Mercado Pago. Tente outro cartão ou entre em con
 
                   <div className="mb-6">
                     {useSavedAddress && !tableSession && customer.deliveryMethod !== 'pickup' && !isWaiterMode ? (
-                        <div className="bg-blue-50 p-6 rounded-[2rem] border border-blue-100 shadow-sm relative animate-in fade-in zoom-in-95">
+                        <div className="bg-blue-50 p-6 rounded-4xl border border-blue-100 shadow-sm relative animate-in fade-in zoom-in-95">
                             <h3 className="text-2xl font-black text-blue-900 mb-2 tracking-tighter italic">Olá, {customer.name.split(' ')[0]}! 👋</h3>
                             <p className="text-sm font-bold text-blue-700 mb-5 leading-relaxed">
                                 Entregar neste endereço?<br/>
@@ -4327,19 +4325,19 @@ alert("Pagamento recusado pelo Mercado Pago. Tente outro cartão ou entre em con
                         </div>
                     ) : (
                         <div className="animate-in fade-in slide-in-from-top-2">
-                            <input type="text" placeholder="Nome do Cliente" className="w-full p-5 bg-slate-50 rounded-[2rem] font-bold mb-3 shadow-inner border-none focus:ring-2 ring-blue-500 outline-none" value={customer.name} onChange={e => handleCustomerChange('name', e.target.value)} />
+                            <input type="text" placeholder="Nome do Cliente" className="w-full p-5 bg-slate-50 rounded-4xl font-bold mb-3 shadow-inner border-none focus:ring-2 ring-blue-500 outline-none" value={customer.name} onChange={e => handleCustomerChange('name', e.target.value)} />
                             
                             {isWaiterMode ? (
                                 <>
-                                    <input type="tel" placeholder="WhatsApp (Opcional)" className="w-full p-5 bg-slate-50 rounded-[2rem] font-bold mb-3 shadow-inner border-none focus:ring-2 ring-blue-500 outline-none" value={customer.phone} onChange={e => handleCustomerChange('phone', e.target.value)} />
-                                    <div className="bg-yellow-50 p-4 rounded-[2rem] border border-yellow-200 mb-3">
+                                    <input type="tel" placeholder="WhatsApp (Opcional)" className="w-full p-5 bg-slate-50 rounded-4xl font-bold mb-3 shadow-inner border-none focus:ring-2 ring-blue-500 outline-none" value={customer.phone} onChange={e => handleCustomerChange('phone', e.target.value)} />
+                                    <div className="bg-yellow-50 p-4 rounded-4xl border border-yellow-200 mb-3">
                                         <label className="text-xs font-black uppercase text-yellow-700 ml-2 mb-1 block">Número da Mesa *</label>
                                         <input type="number" placeholder="Ex: 12" className="w-full p-4 bg-white rounded-xl font-black text-xl text-center shadow-inner border-none outline-none focus:ring-2 ring-yellow-400" value={tableNumber} onChange={e => setTableNumber(e.target.value)} />
                                     </div>
                                 </>
                             ) : (
                                 <>
-                                    <input type="tel" placeholder="WhatsApp (DDD + Número)" className="w-full p-5 bg-slate-50 rounded-[2rem] font-bold mb-3 shadow-inner border-none focus:ring-2 ring-blue-500 outline-none" value={customer.phone} onChange={e => handleCustomerChange('phone', e.target.value)} />
+                                    <input type="tel" placeholder="WhatsApp (DDD + Número)" className="w-full p-5 bg-slate-50 rounded-4xl font-bold mb-3 shadow-inner border-none focus:ring-2 ring-blue-500 outline-none" value={customer.phone} onChange={e => handleCustomerChange('phone', e.target.value)} />
                                     
                             {/* O Módulo de CPF foi movido para baixo para não sumir quando o cliente for recorrente */}
 
@@ -4401,7 +4399,7 @@ alert("Pagamento recusado pelo Mercado Pago. Tente outro cartão ou entre em con
                                                     type="checkbox" 
                                                     checked={customer.isAnonymous || false} 
                                                     onChange={(e) => handleCustomerChange('isAnonymous', e.target.checked)} 
-                                                    className="w-5 h-5 accent-pink-600 rounded cursor-pointer flex-shrink-0" 
+                                                    className="w-5 h-5 accent-pink-600 rounded cursor-pointer shrink-0" 
                                                 />
                                                 <span className="text-xs font-bold text-slate-600 leading-tight">
                                                     <span className="text-pink-700 font-black uppercase">Enviar como Anônimo 🤫</span> <br/> 
@@ -4416,10 +4414,10 @@ alert("Pagamento recusado pelo Mercado Pago. Tente outro cartão ou entre em con
                                     {!tableSession && ((storeSettings?.deliveryEnabled !== false) || (storeSettings?.pickupEnabled !== false)) && (
                                         <div className="flex gap-2 mb-3 mt-2">
                                             {storeSettings?.deliveryEnabled !== false && (
-                                                <button 
+                                               <button 
                                                     type="button"
                                                     onClick={() => handleCustomerChange('deliveryMethod', 'delivery')}
-                                                    className={`flex-1 py-4 rounded-[2rem] font-black text-[10px] uppercase tracking-widest transition-all ${customer.deliveryMethod === 'delivery' ? 'bg-blue-600 text-white shadow-md' : 'bg-slate-50 text-slate-400 hover:bg-slate-100'}`}
+                                                    className={`flex-1 py-4 rounded-4xl font-black text-[10px] uppercase tracking-widest transition-all ${customer.deliveryMethod === 'delivery' ? 'bg-blue-600 text-white shadow-md' : 'bg-slate-50 text-slate-400 hover:bg-slate-100'}`}
                                                 >
                                                     🛵 Entrega
                                                 </button>
@@ -4431,7 +4429,7 @@ alert("Pagamento recusado pelo Mercado Pago. Tente outro cartão ou entre em con
                                                         handleCustomerChange('deliveryMethod', 'pickup');
                                                         setShippingFee(0); // Zera o frete ao clicar em retirada
                                                     }}
-                                                    className={`flex-1 py-4 rounded-[2rem] font-black text-[10px] uppercase tracking-widest transition-all ${customer.deliveryMethod === 'pickup' ? 'bg-blue-600 text-white shadow-md' : 'bg-slate-50 text-slate-400 hover:bg-slate-100'}`}
+                                                    className={`flex-1 py-4 rounded-4xl font-black text-[10px] uppercase tracking-widest transition-all ${customer.deliveryMethod === 'pickup' ? 'bg-blue-600 text-white shadow-md' : 'bg-slate-50 text-slate-400 hover:bg-slate-100'}`}
                                                 >
                                                     🏪 Retirar na Loja
                                                 </button>
@@ -4442,13 +4440,13 @@ alert("Pagamento recusado pelo Mercado Pago. Tente outro cartão ou entre em con
                                     {!tableSession && customer.deliveryMethod !== 'pickup' && (
                                         <div className="animate-in fade-in slide-in-from-top-2">
                                             <div className="relative">
-                                              <input type="tel" placeholder="CEP" maxLength="9" className="w-full p-5 bg-slate-50 rounded-[2rem] font-bold mb-3 shadow-inner border-none focus:ring-2 ring-blue-500 outline-none" value={customer.cep} onChange={e => handleCustomerChange('cep', e.target.value)} />
+                                              <input type="tel" placeholder="CEP" maxLength="9" className="w-full p-5 bg-slate-50 rounded-4xl font-bold mb-3 shadow-inner border-none focus:ring-2 ring-blue-500 outline-none" value={customer.cep} onChange={e => handleCustomerChange('cep', e.target.value)} />
                                               {isCepLoading && <Loader2 className={`animate-spin absolute right-5 top-5 text-${currentTheme.ringColor}`}/>}
                                             </div>
                                             {customer.street && (
                                               <>
-                                                  <input type="text" value={customer.street} disabled className="w-full p-5 bg-slate-200 text-slate-500 rounded-[2rem] mb-3 font-bold"/>
-                                                  <input type="text" placeholder="Número / Complemento" className="w-full p-5 bg-slate-50 rounded-[2rem] font-bold mb-3 shadow-inner border-none focus:ring-2 ring-blue-500 outline-none" value={customer.number} onChange={e => handleCustomerChange('number', e.target.value)}/>
+                                                  <input type="text" value={customer.street} disabled className="w-full p-5 bg-slate-200 text-slate-500 rounded-4xl mb-3 font-bold"/>
+                                                  <input type="text" placeholder="Número / Complemento" className="w-full p-5 bg-slate-50 rounded-4xl font-bold mb-3 shadow-inner border-none focus:ring-2 ring-blue-500 outline-none" value={customer.number} onChange={e => handleCustomerChange('number', e.target.value)}/>
                                               </>
                                             )}
                                         </div>
@@ -4466,8 +4464,8 @@ alert("Pagamento recusado pelo Mercado Pago. Tente outro cartão ou entre em con
 
                   <p className="font-black text-xs text-slate-400 uppercase mt-8 ml-4 tracking-widest">Cupom de Desconto:</p>
                   <div className="flex gap-2 mt-2">
-                    <input type="text" placeholder="Insira o código do cupom" className="flex-1 min-w-0 p-4 md:p-5 bg-slate-50 rounded-[2rem] font-bold shadow-inner border-none text-sm md:text-base" value={couponCode} onChange={e => setCouponCode(e.target.value)} />
-                    <button onClick={applyCoupon} className={`${currentTheme.primary} text-white px-5 py-4 md:p-5 rounded-[2rem] font-black uppercase shadow-xl ${currentTheme.hoverPrimary} shrink-0 text-sm md:text-base`}>Aplicar</button>
+                    <input type="text" placeholder="Insira o código do cupom" className="flex-1 min-w-0 p-4 md:p-5 bg-slate-50 rounded-4xl font-bold shadow-inner border-none text-sm md:text-base" value={couponCode} onChange={e => setCouponCode(e.target.value)} />
+                    <button onClick={applyCoupon} className={`${currentTheme.primary} text-white px-5 py-4 md:p-5 rounded-4xl font-black uppercase shadow-xl ${currentTheme.hoverPrimary} shrink-0 text-sm md:text-base`}>Aplicar</button>
                   </div>
                   {couponError && <p className={`text-xs font-bold text-center mt-2 ${appliedCoupon ? 'text-green-500' : 'text-red-500'}`}>{couponError}</p>}
 
@@ -4476,7 +4474,7 @@ alert("Pagamento recusado pelo Mercado Pago. Tente outro cartão ou entre em con
                           <p className="font-black text-xs text-slate-400 uppercase ml-4 tracking-widest mb-4">Que tal pedir também?</p>
                           <div className="flex gap-4 overflow-x-auto no-scrollbar pb-2">
       {upsellProducts.map(p => (
-          <div key={p.id} className="flex-shrink-0 w-36 bg-slate-50 rounded-2xl border border-slate-100 p-3 text-center relative">
+          <div key={p.id} className="shrink-0 w-36 bg-slate-50 rounded-2xl border border-slate-100 p-3 text-center relative">
               <img 
                   src={optimizeCloudinary(p.imageUrl, 200)} 
                   alt={p.name} 
@@ -4581,7 +4579,7 @@ alert("Pagamento recusado pelo Mercado Pago. Tente outro cartão ou entre em con
                                 })()}
                             </div>
                             {customer.payment === 'dinheiro' && (
-                                <input type="text" placeholder="Troco para..." className="w-full p-5 bg-slate-50 rounded-[2rem] mt-3 font-bold" value={customer.changeFor} onChange={e => setCustomer({...customer, changeFor: e.target.value})} />
+                                <input type="text" placeholder="Troco para..." className="w-full p-5 bg-slate-50 rounded-4xl mt-3 font-bold" value={customer.changeFor} onChange={e => setCustomer({...customer, changeFor: e.target.value})} />
                             )}
                             
                             {/* --- INÍCIO: DIV ONDE O MERCADO PAGO BRICK VAI RENDERIZAR --- */}
@@ -4630,7 +4628,7 @@ alert("Pagamento recusado pelo Mercado Pago. Tente outro cartão ou entre em con
                                   checked={useCashback}
                                   onChange={() => setUseCashback(!useCashback)}
                               />
-                              <div className="w-11 h-6 bg-emerald-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-emerald-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-600 shadow-inner"></div>
+                              <div className="w-11 h-6 bg-emerald-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:bg-white after:border-emerald-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-600 shadow-inner"></div>
                           </label>
                       </div>
                   )}
@@ -4656,7 +4654,7 @@ alert("Pagamento recusado pelo Mercado Pago. Tente outro cartão ou entre em con
                       <button 
                           onClick={finalizeOrder} 
                           disabled={!isStoreOpenNow || isCepLoading || isFinalizing} 
-                          className={`w-full ${currentTheme.primary} text-white py-6 rounded-[2rem] font-black mt-6 uppercase text-xl shadow-xl ${currentTheme.hoverPrimary} disabled:opacity-50`}
+                          className={`w-full ${currentTheme.primary} text-white py-6 rounded-4xl font-black mt-6 uppercase text-xl shadow-xl ${currentTheme.hoverPrimary} disabled:opacity-50`}
                       >
                           {isFinalizing ? 'Processando...' : (isCepLoading ? 'Calculando...' : 'Confirmar Pedido')}
                       </button>
@@ -4675,7 +4673,7 @@ alert("Pagamento recusado pelo Mercado Pago. Tente outro cartão ou entre em con
             initial={{ opacity: 0 }} 
             animate={{ opacity: 1 }} 
             exit={{ opacity: 0 }} 
-            className="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-[110] flex justify-center items-end sm:items-center p-0 sm:p-4"
+            className="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-110 flex justify-center items-end sm:items-center p-0 sm:p-4"
             onClick={() => {
                 setSelectedProduct(null);
                 window.history.pushState(null, '', '/');
@@ -4710,7 +4708,7 @@ alert("Pagamento recusado pelo Mercado Pago. Tente outro cartão ou entre em con
               {/* TELA CHEIA (OVERLAY) */}
               <AnimatePresence>
                   {isFullscreenMedia && (
-                      <motion.div initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}} className="fixed inset-0 z-[999] bg-black flex items-center justify-center">
+                      <motion.div initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}} className="fixed inset-0 z-999 bg-black flex items-center justify-center">
                           <button onClick={() => setIsFullscreenMedia(false)} className="absolute top-6 right-6 text-white bg-black/50 p-3 rounded-full z-50"><X size={24}/></button>
                           {selectedProduct.videoUrl ? (
                               <video src={selectedProduct.videoUrl} controls autoPlay playsInline className="w-full max-h-screen object-contain" />
@@ -4722,7 +4720,7 @@ alert("Pagamento recusado pelo Mercado Pago. Tente outro cartão ou entre em con
               </AnimatePresence>
 
               {/* CARROSSEL HÍBRIDO: VÍDEO (PRIORIDADE) + IMAGEM */}
-              <div className="w-full h-64 bg-slate-50 relative flex-shrink-0">
+              <div className="w-full h-64 bg-slate-50 relative shrink-0">
                 <Carousel 
                     showArrows={false} 
                     showStatus={false} 
@@ -4776,7 +4774,7 @@ alert("Pagamento recusado pelo Mercado Pago. Tente outro cartão ou entre em con
                     <h2 className="text-2xl font-black text-slate-900 leading-tight">{selectedProduct.name}</h2>
                     
                     {/* BOTOES DE AÇÃO: FAVORITAR E COMPARTILHAR */}
-                    <div className="flex items-center gap-2 flex-shrink-0 mt-1">
+                    <div className="flex items-center gap-2 shrink-0 mt-1">
                         <button 
                             onClick={() => handleToggleLike(selectedProduct.id)}
                             className={`p-2.5 rounded-full transition-all border ${likedProducts.includes(selectedProduct.id) ? 'bg-red-50 border-red-200 text-red-500 shadow-sm scale-110' : 'bg-white border-slate-200 text-slate-400 hover:bg-slate-50 hover:text-red-400'}`}
@@ -4874,7 +4872,7 @@ alert("Pagamento recusado pelo Mercado Pago. Tente outro cartão ou entre em con
                                         value={varOption}
                                         checked={selectedVariation === varOption}
                                         onChange={() => setSelectedVariation(varOption)}
-                                        className={`${currentTheme.accent} w-4 h-4 cursor-pointer flex-shrink-0`}
+                                        className={`${currentTheme.accent} w-4 h-4 cursor-pointer shrink-0`}
                                     />
                                     <span className={`text-sm font-bold leading-tight ${selectedVariation === varOption ? currentTheme.darkText : 'text-slate-600'}`}>{varOption}</span>
                                 </label>
@@ -4998,11 +4996,11 @@ alert("Pagamento recusado pelo Mercado Pago. Tente outro cartão ou entre em con
 {/* --- ÁREA VIP & MISSÕES --- */}
       <AnimatePresence>
         {showVipArea && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-slate-900/80 backdrop-blur-sm flex justify-center items-end sm:items-center z-[150] p-0 sm:p-4">
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-slate-900/80 backdrop-blur-sm flex justify-center items-end sm:items-center z-150 p-0 sm:p-4">
             <motion.div initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }} className="bg-white w-full max-w-md rounded-t-[2.5rem] sm:rounded-[2.5rem] p-6 pb-12 shadow-2xl relative max-h-[90vh] overflow-y-auto custom-scrollbar">
               <button onClick={() => setShowVipArea(false)} className="absolute top-6 right-6 text-white bg-black/20 hover:bg-red-500 rounded-full p-1 transition-colors z-20"><X size={20} /></button>
               
-             <div className="bg-gradient-to-br from-yellow-300 to-yellow-500 p-6 rounded-3xl text-center mb-6 shadow-xl shadow-yellow-200 relative overflow-hidden">
+             <div className="bg-linear-to-br from-yellow-300 to-yellow-500 p-6 rounded-3xl text-center mb-6 shadow-xl shadow-yellow-200 relative overflow-hidden">
                   <Crown size={48} className="mx-auto text-slate-900 mb-2 relative z-10" fill="currentColor" />
                   <h2 className="text-3xl font-black italic uppercase text-slate-900 leading-none relative z-10">Clube VIP</h2>
                   <p className="text-slate-800 font-bold mt-2 relative z-10">Você possui <span className="text-2xl font-black bg-slate-900 text-yellow-400 px-3 py-1 rounded-xl mx-1 shadow-inner">{loyaltyPoints}</span> pontos!</p>
@@ -5022,7 +5020,7 @@ alert("Pagamento recusado pelo Mercado Pago. Tente outro cartão ou entre em con
               </div>
               {/* --- NOVA CARTEIRA DE CASHBACK --- */}
               {marketingSettings?.gamification?.cashback && (
-                  <div className="bg-gradient-to-br from-emerald-500 to-teal-700 p-6 rounded-3xl text-center mb-6 shadow-xl shadow-teal-200/50 relative overflow-hidden animate-in fade-in zoom-in">
+                  <div className="bg-linear-to-br from-emerald-500 to-teal-700 p-6 rounded-3xl text-center mb-6 shadow-xl shadow-teal-200/50 relative overflow-hidden animate-in fade-in zoom-in">
                       <div className="absolute -top-10 -left-10 opacity-10 pointer-events-none">
                           <Wallet size={120} />
                       </div>
@@ -5041,10 +5039,10 @@ alert("Pagamento recusado pelo Mercado Pago. Tente outro cartão ou entre em con
 
               {/* --- NOVO: CARTÃO VELO (BUY NOW, PAY LATER) --- */}
               {marketingSettings?.veloCardEnabled && (
-                  <div className="bg-gradient-to-tr from-slate-900 via-slate-800 to-black p-6 rounded-3xl mb-6 shadow-2xl relative overflow-hidden animate-in fade-in zoom-in border border-slate-700">
+                  <div className="bg-linear-to-tr from-slate-900 via-slate-800 to-black p-6 rounded-3xl mb-6 shadow-2xl relative overflow-hidden animate-in fade-in zoom-in border border-slate-700">
                       {/* Efeitos Visuais Premium (Holográfico e Brilho) */}
                       <div className="absolute -top-16 -right-16 w-40 h-40 bg-blue-500 rounded-full blur-[70px] opacity-30 pointer-events-none"></div>
-                      <div className="absolute bottom-0 left-0 w-full h-1/2 bg-gradient-to-t from-blue-900/20 to-transparent pointer-events-none"></div>
+                      <div className="absolute bottom-0 left-0 w-full h-1/2 bg-linear-to-t from-blue-900/20 to-transparent pointer-events-none"></div>
                       <div className="absolute inset-0 opacity-[0.03]" style={{ backgroundImage: 'radial-gradient(circle at 2px 2px, white 1px, transparent 0)', backgroundSize: '12px 12px' }}></div>
 
                       {/* Header do Cartão */}
@@ -5057,7 +5055,7 @@ alert("Pagamento recusado pelo Mercado Pago. Tente outro cartão ou entre em con
                           </div>
                           
                           {/* Chip Virtual Premium */}
-                          <div className="w-10 h-8 bg-gradient-to-br from-yellow-200 via-yellow-400 to-yellow-600 rounded-md flex items-center justify-center shadow-[0_0_10px_rgba(250,204,21,0.3)] opacity-90 border border-yellow-700">
+                          <div className="w-10 h-8 bg-linear-to-br from-yellow-200 via-yellow-400 to-yellow-600 rounded-md flex items-center justify-center shadow-[0_0_10px_rgba(250,204,21,0.3)] opacity-90 border border-yellow-700">
                               <div className="w-7 h-5 border border-yellow-800/40 rounded-sm grid grid-cols-2 gap-px opacity-60">
                                   <div className="border-r border-b border-yellow-800/40"></div>
                                   <div className="border-b border-yellow-800/40"></div>
@@ -5087,7 +5085,7 @@ alert("Pagamento recusado pelo Mercado Pago. Tente outro cartão ou entre em con
                                   if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
                               }, 300);
                           }}
-                          className="w-full relative z-10 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white py-4 rounded-xl font-black uppercase text-[11px] tracking-widest shadow-lg shadow-blue-900/50 transition-all active:scale-95 flex items-center justify-center gap-2 border border-blue-500/50"
+                          className="w-full relative z-10 bg-linear-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white py-4 rounded-xl font-black uppercase text-[11px] tracking-widest shadow-lg shadow-blue-900/50 transition-all active:scale-95 flex items-center justify-center gap-2 border border-blue-500/50"
                       >
                           <Zap size={16} className="text-yellow-300" />
                           Usar Meu Limite Velo
@@ -5130,8 +5128,8 @@ alert("Pagamento recusado pelo Mercado Pago. Tente outro cartão ou entre em con
               </div>
 
               {/* MÓDULO: PAGUE COM SEGUIDORES (INSTAGRAM/TIKTOK) */}
-              {marketingSettings?.influencerTiers && marketingSettings.influencerTiers.length > 0 && (
-                  <div className="mb-6 bg-gradient-to-br from-fuchsia-600 via-purple-600 to-indigo-700 p-6 rounded-[2rem] shadow-xl text-white relative overflow-hidden animate-in fade-in zoom-in-95">
+             {marketingSettings?.influencerTiers && marketingSettings.influencerTiers.length > 0 && (
+                  <div className="mb-6 bg-linear-to-br from-fuchsia-600 via-purple-600 to-indigo-700 p-6 rounded-4xl shadow-xl text-white relative overflow-hidden animate-in fade-in zoom-in-95">
                       <div className="absolute -top-10 -right-10 opacity-10 pointer-events-none">
                           <Camera size={150} />
                       </div>
@@ -5198,7 +5196,7 @@ alert("Pagamento recusado pelo Mercado Pago. Tente outro cartão ou entre em con
               
               <div className="space-y-4">
                   {/* Missão Automatizada: Google (DESTAQUE) */}
-                  <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border-2 border-blue-200 p-5 rounded-2xl flex flex-col md:flex-row justify-between items-start md:items-center hover:border-blue-400 transition-all shadow-sm relative overflow-hidden">
+                  <div className="bg-linear-to-r from-blue-50 to-indigo-50 border-2 border-blue-200 p-5 rounded-2xl flex flex-col md:flex-row justify-between items-start md:items-center hover:border-blue-400 transition-all shadow-sm relative overflow-hidden">
                       <div className="absolute top-0 right-0 bg-blue-500 text-white text-[9px] font-black uppercase px-3 py-1 rounded-bl-xl shadow-sm">
                           Autoverificável
                       </div>
@@ -5252,7 +5250,7 @@ alert("Pagamento recusado pelo Mercado Pago. Tente outro cartão ou entre em con
       {/* --- MODAL DA MISSÃO (UPLOAD DE COMPROVANTE) --- */}
       <AnimatePresence>
         {missionModal.isOpen && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-slate-900/90 backdrop-blur-md flex items-center justify-center z-[200] p-4">
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-slate-900/90 backdrop-blur-md flex items-center justify-center z-200 p-4">
             <motion.div initial={{ scale: 0.9 }} animate={{ scale: 1 }} className="bg-white w-full max-w-sm rounded-[3rem] p-8 relative shadow-2xl">
               <button onClick={() => { setMissionModal({ isOpen: false }); setProofFile(null); }} className="absolute top-6 right-6 text-slate-300 hover:text-slate-900"><X size={24} /></button>
               
@@ -5330,7 +5328,7 @@ alert("Pagamento recusado pelo Mercado Pago. Tente outro cartão ou entre em con
       {/* --- INÍCIO: MODAL VELO INSTAFUN (CÂMERA E RESULTADO OTIMIZADO) --- */}
       <AnimatePresence>
         {showInstaFun && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-slate-900/95 backdrop-blur-md flex items-center justify-center z-[500] p-4">
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-slate-900/95 backdrop-blur-md flex items-center justify-center z-500 p-4">
             <motion.div initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} className="bg-slate-900 w-full max-w-sm rounded-[3rem] p-6 relative shadow-2xl overflow-hidden border border-slate-700 flex flex-col max-h-[90vh] custom-scrollbar overflow-y-auto">
               
               <button 
@@ -5347,7 +5345,7 @@ alert("Pagamento recusado pelo Mercado Pago. Tente outro cartão ou entre em con
               </div>
 
               {/* MÁGICA DE CONVERSÃO: O ALERTA DO PRÊMIO SEMPRE VISÍVEL */}
-              <div className="bg-gradient-to-r from-yellow-400 to-orange-500 p-1 rounded-2xl shadow-[0_0_20px_rgba(250,204,21,0.2)] animate-pulse mb-6 relative z-10">
+              <div className="bg-linear-to-r from-yellow-400 to-orange-500 p-1 rounded-2xl shadow-[0_0_20px_rgba(250,204,21,0.2)] animate-pulse mb-6 relative z-10">
                   <div className="bg-slate-900 rounded-xl p-3 text-center">
                       <p className="text-[10px] font-black text-yellow-500 uppercase tracking-widest mb-1 flex items-center justify-center gap-1">
                           <Gift size={12}/> Participe e Concorra
@@ -5362,7 +5360,7 @@ alert("Pagamento recusado pelo Mercado Pago. Tente outro cartão ou entre em con
                   <div className="flex flex-col items-center animate-in fade-in">
                       <p className="text-xs font-bold text-slate-400 mb-4 text-center">Enquadre seu rosto para criar sua foto com Inteligência Artificial.</p>
                       
-                      <div className="relative w-full aspect-[3/4] bg-slate-800 rounded-3xl overflow-hidden border-4 border-pink-500/30 shadow-[0_0_30px_rgba(236,72,153,0.2)] mb-6">
+                      <div className="relative w-full aspect-3/4 bg-slate-800 rounded-3xl overflow-hidden border-4 border-pink-500/30 shadow-[0_0_30px_rgba(236,72,153,0.2)] mb-6">
                           {/* Feed ao vivo da câmera */}
                           <video 
                               ref={videoRef} 
@@ -5409,7 +5407,7 @@ alert("Pagamento recusado pelo Mercado Pago. Tente outro cartão ou entre em con
 
               {instaFunStep === 'result' && (
                   <div className="flex flex-col items-center animate-in zoom-in-95">
-                      <div className="w-full aspect-[3/4] rounded-3xl overflow-hidden shadow-2xl mb-6 relative border border-slate-700">
+                      <div className="w-full aspect-3/4 rounded-3xl overflow-hidden shadow-2xl mb-6 relative border border-slate-700">
                           <img src={instaFunImage} alt="Resultado IA" className="w-full h-full object-cover" />
                       </div>
 
@@ -5422,7 +5420,7 @@ alert("Pagamento recusado pelo Mercado Pago. Tente outro cartão ou entre em con
 
                           <button 
                               onClick={handleShareInstaFun}
-                              className="w-full bg-gradient-to-r from-pink-600 to-purple-600 text-white py-4 rounded-2xl font-black uppercase tracking-widest shadow-[0_0_20px_rgba(219,39,119,0.4)] hover:opacity-90 active:scale-95 transition-all flex items-center justify-center gap-2"
+                              className="w-full bg-linear-to-r from-pink-600 to-purple-600 text-white py-4 rounded-2xl font-black uppercase tracking-widest shadow-[0_0_20px_rgba(219,39,119,0.4)] hover:opacity-90 active:scale-95 transition-all flex items-center justify-center gap-2"
                           >
                               <Share2 size={18} /> Postar e Concorrer
                           </button>
@@ -5450,7 +5448,7 @@ alert("Pagamento recusado pelo Mercado Pago. Tente outro cartão ou entre em con
       {/* --- POP-UP AVALIAÇÃO INTERNA (AUTOMÁTICA 10 PTS) --- */}
       <AnimatePresence>
         {showReviewPopup && pendingReviewOrder && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-slate-900/90 backdrop-blur-md flex items-center justify-center z-[250] p-4">
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-slate-900/90 backdrop-blur-md flex items-center justify-center z-250 p-4">
             <motion.div initial={{ scale: 0.8, y: 50 }} animate={{ scale: 1, y: 0 }} className="bg-white w-full max-w-sm rounded-[3rem] p-8 relative shadow-2xl text-center">
               <button onClick={() => { setShowReviewPopup(false); sessionStorage.setItem(`review_skipped_${pendingReviewOrder.id}`, 'true'); }} className="absolute top-6 right-6 text-slate-300 hover:text-slate-900"><X size={24} /></button>
               
@@ -5480,7 +5478,7 @@ alert("Pagamento recusado pelo Mercado Pago. Tente outro cartão ou entre em con
       {/* --- MODO GARÇOM LOGIN --- */}
       <AnimatePresence>
         {showWaiterLogin && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-slate-900/80 backdrop-blur-md flex items-center justify-center z-[200] p-4">
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-slate-900/80 backdrop-blur-md flex items-center justify-center z-200 p-4">
             <motion.div initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} className="bg-white w-full max-w-sm rounded-[3rem] p-8 relative shadow-2xl text-center">
               <button onClick={() => setShowWaiterLogin(false)} className="absolute top-6 right-6 text-slate-300 hover:text-slate-900"><X size={24}/></button>
               
@@ -5546,7 +5544,7 @@ alert("Pagamento recusado pelo Mercado Pago. Tente outro cartão ou entre em con
       {/* --- MODAL DA ROLETA PÓS-CHECKOUT --- */}
       <AnimatePresence>
         {showRoulette && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-slate-900/95 backdrop-blur-md flex items-center justify-center z-[300] p-4">
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-slate-900/95 backdrop-blur-md flex items-center justify-center z-300 p-4">
             <motion.div initial={{ scale: 0.8 }} animate={{ scale: 1 }} className="bg-white w-full max-w-sm rounded-[3rem] p-8 text-center relative shadow-2xl overflow-hidden">
               <h2 className="text-3xl font-black italic uppercase text-slate-900 mb-2">Gire e Ganhe!</h2>
               <p className="text-slate-500 font-bold mb-8 text-sm">Você finalizou seu pedido e ganhou uma chance na nossa roleta.</p>
@@ -5578,7 +5576,7 @@ alert("Pagamento recusado pelo Mercado Pago. Tente outro cartão ou entre em con
                           return (
                               <div key={index} className="absolute top-0 left-0 w-full h-full text-center origin-center" style={{ transform: `rotate(${rotation}deg)` }}>
                                   <div className="w-full h-1/2 flex justify-center pt-3">
-                                      <span className="font-black text-[10px] uppercase text-white drop-shadow-md max-w-[60px] leading-tight break-words">
+                                      <span className="font-black text-[10px] uppercase text-white drop-shadow-md max-w-15 leading-tight wrap-break-word">
                                           {slice.label}
                                       </span>
                                   </div>
@@ -5622,7 +5620,7 @@ alert("Pagamento recusado pelo Mercado Pago. Tente outro cartão ou entre em con
           ========================================= */}
       <AnimatePresence>
         {binanceResult && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-slate-900/95 backdrop-blur-md z-[600] flex items-center justify-center p-4">
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-slate-900/95 backdrop-blur-md z-600 flex items-center justify-center p-4">
               <motion.div initial={{ scale: 0.9 }} animate={{ scale: 1 }} className="bg-slate-900 border border-slate-800 w-full max-w-md rounded-[3rem] p-8 sm:p-10 relative text-center shadow-2xl flex flex-col items-center">
                   <button onClick={() => { setBinanceResult(null); window.location.href = `/track/${activeOrderId}`; }} className="absolute top-6 right-6 text-slate-500 hover:text-white transition-colors"><X size={24}/></button>
                   
@@ -5654,7 +5652,7 @@ alert("Pagamento recusado pelo Mercado Pago. Tente outro cartão ou entre em con
       {/* --- MODAL DA IA DE RETENÇÃO (SMART RETENTION) --- */}
       <AnimatePresence>
         {showSmartOffer && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-slate-900/90 backdrop-blur-md flex items-center justify-center z-[400] p-4">
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-slate-900/90 backdrop-blur-md flex items-center justify-center z-400 p-4">
             <motion.div initial={{ scale: 0.8, y: 50 }} animate={{ scale: 1, y: 0 }} className="bg-white w-full max-w-md rounded-[3rem] p-8 text-center relative shadow-2xl overflow-hidden border-4 border-rose-500">
               <button onClick={closeSmartOffer} className="absolute top-6 right-6 text-slate-400 hover:text-slate-900"><X size={24} /></button>
               

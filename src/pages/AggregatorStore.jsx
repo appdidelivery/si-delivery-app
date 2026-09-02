@@ -278,7 +278,7 @@ export default function AggregatorStore() {
                 </p>
 
                 {ratingCount > 0 && (
-                    <div className="inline-flex flex-col items-center justify-center p-4 bg-amber-50/50 rounded-[1.5rem] border border-amber-100/50 w-full mb-6 shadow-inner">
+<div className="inline-flex flex-col items-center justify-center p-4 bg-amber-50/50 rounded-3xl border border-amber-100/50 w-full mb-6 shadow-inner">
                         <div className="flex items-center gap-2 mb-1">
                             <span className="text-3xl font-black text-amber-500 tracking-tighter">{ratingValue}</span>
                             <div className="flex text-amber-400">
@@ -364,7 +364,7 @@ export default function AggregatorStore() {
                                         <div className="w-6 h-6 bg-blue-50 text-blue-600 rounded-full flex items-center justify-center text-[10px] font-black uppercase border border-blue-100">
                                             {(rev.customerName || rev.userName || "C")[0]}
                                         </div>
-                                        <span className="text-[11px] font-black text-slate-800 uppercase truncate max-w-[120px]">{rev.customerName || rev.userName || "Cliente"}</span>
+<span className="text-[11px] font-black text-slate-800 uppercase truncate max-w-30">{rev.customerName || rev.userName || "Cliente"}</span>
                                     </div>
                                     <div className="flex text-amber-400">
                                         {[...Array(5)].map((_, idx) => (
@@ -404,7 +404,7 @@ export default function AggregatorStore() {
             {/* MODAL COM TODAS AS AVALIAÇÕES DO APP */}
             <AnimatePresence>
                 {showAllReviewsModal && (
-                    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-slate-900/90 backdrop-blur-md z-[500] flex items-center justify-center p-4">
+<motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-slate-900/90 backdrop-blur-md z-500 flex items-center justify-center p-4">
                         <motion.div initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.9, y: 20 }} className="bg-slate-50 w-full max-w-md rounded-[2.5rem] shadow-2xl relative flex flex-col h-[85vh] overflow-hidden border border-slate-200">
                             <div className="bg-white p-6 border-b border-slate-100 flex items-center justify-between z-10 shadow-sm shrink-0">
                                 <div>
@@ -423,7 +423,7 @@ export default function AggregatorStore() {
                                                     {(rev.customerName || rev.userName || "C")[0]}
                                                 </div>
                                                 <div className="flex flex-col">
-                                                    <span className="text-xs font-black text-slate-800 uppercase truncate max-w-[120px]">{rev.customerName || rev.userName || "Cliente"}</span>
+<span className="text-xs font-black text-slate-800 uppercase truncate max-w-30">{rev.customerName || rev.userName || "Cliente"}</span>
                                                     <span className="text-[8px] font-bold text-slate-400 uppercase">✅ Compra Verificada</span>
                                                 </div>
                                             </div>
