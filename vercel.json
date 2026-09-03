@@ -95,6 +95,10 @@
       "destination": "/api/velopay/$1"
     },
     {
+      "source": "/api/social",
+      "destination": "/api/social"
+    },
+    {
       "source": "/api/(.*)",
       "destination": "/api/index"
     },
@@ -104,7 +108,7 @@
         {
           "type": "header",
           "key": "user-agent",
-          "value": ".*(WhatsApp|facebookexternalhit|Twitterbot|LinkedInBot|TelegramBot|viber).*"
+          "value": ".*(WhatsApp|facebookexternalhit|Twitterbot|LinkedInBot|TelegramBot|viber|Googlebot|Googlebot-Smartphone|bingbot|Slurp|DuckDuckBot|YandexBot).*"
         }
       ],
       "destination": "/api/social?route=/$1"
