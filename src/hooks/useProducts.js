@@ -1,73 +1,115 @@
-import { useState, useEffect, useMemo, useCallback } from 'react';
-import { collection, query, where, getDocs } from 'firebase/firestore';
+import { useState, useEffect, useCallback } from 'react';
+import { collection, query, where, getDocs, limit, startAfter } from 'firebase/firestore';
 import { db } from '../services/firebase';
 
-export default function useProducts(storeId, activeCategory, searchTerm) {
-    const [allProducts, setAllProducts] = useState([]);
-    const [loading, setLoading] = useState(true);
-    const [visibleCount, setVisibleCount] = useState(12); // Só desenha 12 na tela
+const PAGE_SIZE = 20; // Carrega 20 itens por vez
 
-    // 1. Busca no Banco UMA ÚNICA VEZ
-    const fetchCatalog = useCallback(async () => {
+export default function useProducts(storeId, activeCategory = 'all', searchTerm = '') {
+    const [products, setProducts] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [loadingMore, setLoadingMore] = useState(false);
+    const [hasMore, setHasMore] = useState(true);
+    const [lastVisible, setLastVisible] = useState(null);
+
+    const fetchProducts = useCallback(async (isLoadMore = false) => {
         if (!storeId) return;
-        setLoading(true);
+
+        // Controle de estados de carregamento
+        if (isLoadMore) {
+            setLoadingMore(true);
+        } else {
+            setLoading(true);
+            setHasMore(true);
+        }
+
+        // Cache Inteligente (Evita reler a primeira página se o cliente voltar da Home)
+        const cacheKey = `veloProducts_${storeId}_${activeCategory}_${searchTerm.toLowerCase()}`;
+        if (!isLoadMore && sessionStorage.getItem(cacheKey)) {
+            const cachedParams = JSON.parse(sessionStorage.getItem(cacheKey));
+            setProducts(cachedParams.items);
+            setLastVisible(null); // Desativa paginação em cache para forçar recarregamento se ele descer muito
+            setHasMore(cachedParams.items.length >= PAGE_SIZE);
+            setLoading(false);
+            return;
+        }
+
         try {
-            const q = query(collection(db, "products"), where("storeId", "==", storeId));
-            const snapshot = await getDocs(q);
-            const docs = snapshot.docs.map(d => ({ id: d.id, ...d.data() })).filter(p => p.isActive !== false);
+            let baseConstraints = [
+                where("storeId", "==", storeId),
+                where("isActive", "==", true)
+            ];
+
+            if (activeCategory !== 'all') {
+                baseConstraints.push(where("category", "==", activeCategory));
+            }
+
+            let q;
+            if (isLoadMore && lastVisible) {
+                q = query(collection(db, "products"), ...baseConstraints, startAfter(lastVisible), limit(PAGE_SIZE));
+            } else {
+                q = query(collection(db, "products"), ...baseConstraints, limit(PAGE_SIZE));
+            }
+
+            const querySnapshot = await getDocs(q);
             
-            // Ordena nativamente pelo Javascript para não exigir Índice no Firebase
-            docs.sort((a, b) => (Number(a.order) || 0) - (Number(b.order) || 0));
-            setAllProducts(docs);
+            let fetchedProducts = querySnapshot.docs.map(doc => ({
+                id: doc.id,
+                ...doc.data()
+            }));
+
+            // Filtro local de busca textual (O Firestore não faz busca "contains" nativa eficientemente)
+            if (searchTerm) {
+                const searchLower = searchTerm.toLowerCase();
+                fetchedProducts = fetchedProducts.filter(p => 
+                    p.name.toLowerCase().includes(searchLower) || 
+                    (p.description && p.description.toLowerCase().includes(searchLower))
+                );
+            }
+
+            if (isLoadMore) {
+                setProducts(prev => {
+                    const merged = [...prev, ...fetchedProducts];
+                    // Remove duplicados por segurança
+                    const unique = Array.from(new Set(merged.map(a => a.id))).map(id => merged.find(a => a.id === id));
+                    return unique;
+                });
+            } else {
+                setProducts(fetchedProducts);
+                // Salva a primeira página no cache
+                if (!searchTerm) {
+                    sessionStorage.setItem(cacheKey, JSON.stringify({ items: fetchedProducts }));
+                }
+            }
+
+            const lastDoc = querySnapshot.docs[querySnapshot.docs.length - 1];
+            setLastVisible(lastDoc);
+            
+            // Se trouxe menos que o limite, significa que acabaram os itens
+            if (querySnapshot.docs.length < PAGE_SIZE) {
+                setHasMore(false);
+            }
+
         } catch (error) {
             console.error("Erro ao buscar produtos:", error);
         } finally {
             setLoading(false);
+            setLoadingMore(false);
         }
-    }, [storeId]);
+    }, [storeId, activeCategory, searchTerm, lastVisible]);
 
+    // Gatilho inicial e recálculos quando categoria ou busca mudam
     useEffect(() => {
-        fetchCatalog();
-    }, [fetchCatalog]);
+        setLastVisible(null); // Reseta a paginação
+        setProducts([]); // Limpa a tela
+        fetchProducts(false);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [storeId, activeCategory, searchTerm]);
 
-    // 2. Sempre que mudar de categoria ou buscar, volta a mostrar apenas 12
-    useEffect(() => {
-        setVisibleCount(12);
-    }, [activeCategory, searchTerm]);
-
-    // 3. Filtra na memória e Pagina a Tela (Super Rápido)
-    const { products, hasMore } = useMemo(() => {
-        let filtered = allProducts;
-
-        // Filtro de Categoria
-        if (activeCategory && activeCategory !== 'all') {
-            filtered = filtered.filter(p => p.category === activeCategory);
+    const loadMore = () => {
+        if (!loadingMore && hasMore) {
+            fetchProducts(true);
         }
-
-        // Filtro de Busca
-        if (searchTerm) {
-            const term = searchTerm.toLowerCase().trim();
-            filtered = filtered.filter(p => 
-                p.name.toLowerCase().includes(term) || 
-                (p.description && p.description.toLowerCase().includes(term))
-            );
-        }
-
-        // Corta o array para mostrar só o limite atual (12, 24, 36...)
-        const paginated = filtered.slice(0, visibleCount);
-        const hasMoreItems = visibleCount < filtered.length;
-
-        return { products: paginated, hasMore: hasMoreItems };
-    }, [allProducts, activeCategory, searchTerm, visibleCount]);
-
-    return { 
-        products, 
-        loading, 
-        loadingMore: false, 
-        hasMore, 
-        loadMore: () => {
-            // Quando rolar a tela, adiciona mais 12 itens
-            if (hasMore) setVisibleCount(prev => prev + 12);
-        } 
     };
+
+    return { products, loading, loadingMore, hasMore, loadMore };
 }

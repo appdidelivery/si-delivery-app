@@ -1544,8 +1544,27 @@ export default function Home() {
     const savedOrderId = localStorage.getItem('activeOrderId');
     if (savedOrderId) setActiveOrderId(savedOrderId);
 
-    // OTIMIZAÇÃO DE COTA (ERROR 429): Busca dados estáticos via getDocs (Leitura única)
+    // OTIMIZAÇÃO MAX: Busca dados estáticos via getDocs + SessionStorage Cache
     const fetchStaticCatalogData = async () => {
+        if (!storeId) return;
+        const cacheKey = `veloStaticData_${storeId}`;
+        const cachedData = sessionStorage.getItem(cacheKey);
+
+        if (cachedData) {
+            try {
+                const parsed = JSON.parse(cachedData);
+                setCategories(parsed.categories);
+                setIngredients(parsed.ingredients);
+                setAvailableCoupons(parsed.coupons);
+                setShippingRates(parsed.shippingRates);
+                setGeneralBanners(parsed.banners);
+                setIsCatalogReady(true);
+                return; // Corta a execução aqui. ZERO leituras no Firebase!
+            } catch (e) {
+                sessionStorage.removeItem(cacheKey);
+            }
+        }
+
         try {
             const [catSnap, ingSnap, coupSnap, shipSnap, banSnap] = await Promise.all([
                 getDocs(query(collection(db, "categories"), where("storeId", "==", storeId))),
@@ -1555,11 +1574,22 @@ export default function Home() {
                 getDocs(query(collection(db, "banners"), where("storeId", "==", storeId), where("isActive", "==", true), orderBy("order", "asc")))
             ]);
 
-            setCategories(catSnap.docs.map(d => ({ id: d.id, ...d.data() })).filter(c => c.isActive !== false).sort((a, b) => (Number(a.order) || 0) - (Number(b.order) || 0)));
-            setIngredients(ingSnap.docs.map(d => ({ id: d.id, ...d.data() })));
-            setAvailableCoupons(coupSnap.docs.map(d => ({ id: d.id, ...d.data() })));
-            setShippingRates(shipSnap.docs.map(d => ({ id: d.id, ...d.data() })));
-            setGeneralBanners(banSnap.docs.map(d => ({ id: d.id, ...d.data() })));
+            const cats = catSnap.docs.map(d => ({ id: d.id, ...d.data() })).filter(c => c.isActive !== false).sort((a, b) => (Number(a.order) || 0) - (Number(b.order) || 0));
+            const ings = ingSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+            const coups = coupSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+            const ships = shipSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+            const bans = banSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+
+            setCategories(cats);
+            setIngredients(ings);
+            setAvailableCoupons(coups);
+            setShippingRates(ships);
+            setGeneralBanners(bans);
+
+            // Salva na memória do navegador do cliente para não buscar de novo
+            sessionStorage.setItem(cacheKey, JSON.stringify({
+                categories: cats, ingredients: ings, coupons: coups, shippingRates: ships, banners: bans
+            }));
         } catch (error) {
             console.error("Erro ao carregar catálogo estático:", error);
         } finally {
