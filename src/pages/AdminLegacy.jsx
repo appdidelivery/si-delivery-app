@@ -9398,7 +9398,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                 </div>
                             </div>
 
-                            {/* COLUNA DIREITA: FIDELIDADE E CUPONS GERAIS */}
+                            {/* COLUNA DIREITA:  FIDELIDADE E CUPONS GERAIS */}
                             <div className="space-y-6 lg:space-y-8">
                                 {/* --- NOVO: COMPRE E GANHE (BOGO) --- */}
                                 <div className={`p-6 lg:p-10 rounded-3xl lg:rounded-[3rem] shadow-xl border-4 transition-all h-fit ${settings.buyAndGetPromo?.active ? 'bg-teal-600 text-white border-teal-400' : 'bg-white border-slate-100'}`}>
