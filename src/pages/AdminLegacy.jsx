@@ -2101,7 +2101,8 @@ const [vipMissions, setVipMissions] = useState([]);
         calories: '',
         suitableForDiet:[],
         variations: '',
-        isActive: true // <-- NOVO CAMPO ADICIONADO
+        isActive: true, // <-- NOVO CAMPO ADICIONADO
+        bundleItems: [] // 📦 NOVO: Guarda as peças que formam o combo
     });
 
     const [editingId, setEditingId] = useState(null);
@@ -8251,7 +8252,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                         p.name.toLowerCase().includes(productSearch.toLowerCase()) || 
                                         p.category.toLowerCase().includes(productSearch.toLowerCase())
                                     ).map(p => {
-                                        // 🚨 MÁGICA: Verifica o estoque do Produto E dos Insumos (Ficha Técnica)
+                                        // 🚨 MÁGICA: Verifica o estoque do Produto, dos Insumos E dos Itens do Combo
                                         let isOutOfStock = p.stock !== undefined && p.stock !== '' && Number(p.stock) <= 0;
                                         
                                         if (!isOutOfStock && settings?.enableIngredientsControl && p.consumedIngredients?.length > 0) {
@@ -8264,12 +8265,48 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                             }
                                         }
 
+                                        // 📦 NOVA TRAVA: Verifica se as peças do Combo têm estoque
+                                        if (!isOutOfStock && p.bundleItems?.length > 0) {
+                                            for (let bi of p.bundleItems) {
+                                                const pMem = products.find(prod => prod.id === bi.productId);
+                                                if (pMem && pMem.stock !== undefined && pMem.stock !== '' && Number(pMem.stock) < Number(bi.qty)) {
+                                                    isOutOfStock = true;
+                                                    break; // Se faltar a Coca-Cola, o Combo esgota na tela
+                                                }
+                                            }
+                                        }
+
                                         return (
                                             <div 
                                                 key={p.id}
                                                 onClick={() => {
                                                     if (isOutOfStock) return;
                                                     
+                                                    // 📦 TRAVA DE COMBO NO CLIQUE DO PDV
+                                                    if (p.bundleItems?.length > 0) {
+                                                        let comboStockError = '';
+                                                        p.bundleItems.forEach(bi => {
+                                                            const pMem = products.find(prod => prod.id === bi.productId);
+                                                            if (pMem && pMem.stock !== undefined && pMem.stock !== '') {
+                                                                let usedSoFar = 0;
+                                                                manualCart.forEach(mc => {
+                                                                    // Conta se a peça está no carrinho solta
+                                                                    if (mc.id === bi.productId) usedSoFar += Number(mc.quantity);
+                                                                    // Conta se a peça está dentro de outros combos no carrinho
+                                                                    if (mc.bundleItems) {
+                                                                        mc.bundleItems.forEach(mbi => {
+                                                                            if (mbi.productId === bi.productId) usedSoFar += Number(mc.quantity) * Number(mbi.qty);
+                                                                        });
+                                                                    }
+                                                                });
+                                                                if (Number(pMem.stock) < (usedSoFar + Number(bi.qty))) {
+                                                                    comboStockError = `O item do combo "${pMem.name}" tem apenas ${pMem.stock} unidades.`;
+                                                                }
+                                                            }
+                                                        });
+                                                        if (comboStockError) return alert(`⚠️ Estoque do Combo Insuficiente!\n${comboStockError}`);
+                                                    }
+
                                                     // 🚨 TRAVA DE INSUMOS NO PDV
                                                     if (settings?.enableIngredientsControl && p.consumedIngredients?.length > 0) {
                                                         let stockError = '';
@@ -8910,7 +8947,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                 const sellerEmail = auth.currentUser?.email || 'owner';
 
                 try {
-                    // === VALIDAÇÃO E BAIXA DE ESTOQUE E INSUMOS (PDV BALCÃO) ===
+                    // === VALIDAÇÃO E BAIXA DE ESTOQUE (PRODUTOS, INSUMOS E COMBOS) ===
                     
                     // 1. Validação de Estoque de Insumos ANTES de prosseguir
                     const requiredIngs = {};
@@ -8925,12 +8962,11 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
 
                     let pdvStockError = '';
                     for (const ingId of Object.keys(requiredIngs)) {
-                        // Aproveitamos o estado "ingredients" que já existe na tela do Admin
                         const ingMem = ingredients.find(i => i.id === ingId);
                         if (ingMem) {
                             const currentStock = Number(ingMem.stock || 0);
                             if (currentStock < requiredIngs[ingId]) {
-                                pdvStockError = `O insumo "${ingMem.name}" tem apenas ${currentStock} ${ingMem.unit} disponíveis (Necessário: ${requiredIngs[ingId]}).`;
+                                pdvStockError = `O insumo "${ingMem.name}" tem apenas ${currentStock} ${ingMem.unit} disponíveis.`;
                                 break;
                             }
                         }
@@ -8941,31 +8977,45 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                         return alert(`⚠️ Erro de Estoque:\n\n${pdvStockError}\n\nAjuste o carrinho antes de lançar o pedido.`);
                     }
 
-                    // 2. Se passou na validação, executa a baixa
+                    // 2. Se passou na validação, executa a baixa no Firebase
                     const promisesBaixa = [];
                     manualCart.forEach(cartItem => {
-                        // Baixa do Produto Principal
+                        
+                        // A) Baixa do Produto Principal (Se tiver estoque próprio)
                         if (cartItem.stock !== undefined && cartItem.stock !== null && cartItem.stock !== '') {
                             const productRef = doc(db, "products", cartItem.id);
                             promisesBaixa.push(updateDoc(productRef, { stock: increment(-Number(cartItem.quantity)) }));
                             
-                            // 🛑 GATILHO DE PROTEÇÃO DE BOLSO (META ADS AUTO-PAUSE)
-                            // Se o estoque atual menos o que foi vendido chegar a Zero (ou negativo)
                             if (cartItem.metaCampaignId && (Number(cartItem.stock) - Number(cartItem.quantity) <= 0)) {
                                 authenticatedFetch('/api/meta-pause-campaign', {
                                     method: 'POST',
                                     headers: { 'Content-Type': 'application/json' },
                                     body: JSON.stringify({ storeId: storeId, productId: cartItem.id })
-                                }).catch(e => console.error("Aviso: Falha ao tentar auto-pausar campanha Meta.", e));
+                                }).catch(e => console.error("Aviso Meta Ads", e));
                             }
                         }
 
-                        // Baixa dos Insumos da Ficha Técnica
+                        // B) 📦 MÁGICA DOS COMBOS: Baixa dos itens filhos que formam o Combo
+                        if (cartItem.bundleItems && cartItem.bundleItems.length > 0) {
+                            cartItem.bundleItems.forEach(bi => {
+                                const pRef = doc(db, "products", bi.productId);
+                                const totalGastoCombo = Number(cartItem.quantity) * Number(bi.qty);
+                                promisesBaixa.push(updateDoc(pRef, { stock: increment(-totalGastoCombo) }));
+                                
+                                // Auto-pause se a peça do combo zerar e tiver anúncio ativo
+                                const pMem = products.find(prod => prod.id === bi.productId);
+                                if (pMem?.metaCampaignId && (Number(pMem.stock) - totalGastoCombo <= 0)) {
+                                    authenticatedFetch('/api/meta-pause-campaign', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ storeId: storeId, productId: bi.productId }) }).catch(()=>{});
+                                }
+                            });
+                        }
+
+                        // C) Baixa dos Insumos (Ficha Técnica do produto principal)
                         if (cartItem.consumedIngredients && cartItem.consumedIngredients.length > 0) {
                             cartItem.consumedIngredients.forEach(ci => {
                                 const ingRef = doc(db, "ingredients", ci.ingredientId);
-                                const totalGasto = Number(cartItem.quantity) * Number(ci.qty);
-                                promisesBaixa.push(updateDoc(ingRef, { stock: increment(-totalGasto) }));
+                                const totalGastoIng = Number(cartItem.quantity) * Number(ci.qty);
+                                promisesBaixa.push(updateDoc(ingRef, { stock: increment(-totalGastoIng) }));
                             });
                         }
                     });
@@ -8974,7 +9024,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                         await Promise.all(promisesBaixa).catch(e => console.error("Erro ao processar baixa de estoque/insumo:", e));
                     }
 
-                    await addDoc(collection(db, "orders"), { 
+                    await addDoc(collection(db, "orders"), {
                         ...manualCustomer,
                         customerName: finalName, 
                         customerAddress: finalAddress, 
@@ -14409,7 +14459,9 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                                         originalPrice: '', 
                                                         category: 'Combos', // Auto Categoriza
                                                         categories: ['Combos'],
-                                                        imageUrl: '', tag: '', stock: 0, hasDiscount: false, discountPercentage: null, isFeatured: false, isBestSeller: false, quantityDiscounts:[], recommendedIds:[], complements:[], isChilled: false, gtin: '', brand: '', prepTime: '', deliveryLeadTime: '', calories: '', suitableForDiet:[], variations: '', removables: '', ratingValue: '', reviewCount: '', isActive: true 
+                                                        imageUrl: '', tag: '', stock: '', // Deixa o estoque vazio (Infinito), pois a trava será nas peças!
+                                                        bundleItems: comboItems.map(i => ({ productId: i.id, qty: i.qty, name: i.name })), // 📦 Salva a receita do Combo
+                                                        hasDiscount: false, discountPercentage: null, isFeatured: false, isBestSeller: false, quantityDiscounts:[], recommendedIds:[], complements:[], isChilled: false, gtin: '', brand: '', prepTime: '', deliveryLeadTime: '', calories: '', suitableForDiet:[], variations: '', removables: '', ratingValue: '', reviewCount: '', isActive: true 
                                                     });
 
                                                     // Injeta o prompt na IA

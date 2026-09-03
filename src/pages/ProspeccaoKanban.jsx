@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { db } from '../services/firebase';
 import { collection, query, onSnapshot, addDoc, updateDoc, doc, deleteDoc, serverTimestamp } from 'firebase/firestore';
+import { getAuth } from 'firebase/auth';
 import { Search, Loader2, Send, Phone, MapPin, User, Settings, ArrowRight, ArrowLeft, Trash2, CheckCircle2, MessageCircle, Star, Store, Clock, Tag, MessageSquareText, ExternalLink, X, CalendarClock, TrendingUp, AlertCircle, Target } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import ProspectChat from '../components/ProspectChat'; // <-- Importando o Chat
@@ -28,18 +29,21 @@ export default function ProspeccaoKanban() {
     // NOVO: Controle do Modal de Abordagem Manual
     const [approachLead, setApproachLead] = useState(null);
 
-    // NOVO: Textos de Prospecção Prontos (Você pode editar esses textos aqui no código depois)
-   const PROMO_TEMPLATES = [
+   // NOVO: Textos de Prospecção Prontos (Com 'templateName' para a API Oficial)
+    const PROMO_TEMPLATES = [
         {
             title: "🔥 Permissão para Áudio (Conversão Máxima)",
+            templateName: "crm_audio_v1", // <-- Nome exato aprovado na Meta
             text: "Oi [Nome], tudo bem? Encontrei a [Nicho] de vocês aqui e notei uma falha grave na forma como vocês estão ranqueando contra a concorrência no delivery da cidade. Posso te mandar um áudio de 30 seg explicando?"
         },
         {
             title: "💰 Tirar do iFood (Dor Financeira)",
+            templateName: "crm_ifood_v1", // <-- Nome exato aprovado na Meta
             text: "Opa [Nome], tudo bem? Vi que vocês estão fortes no iFood, mas me tire uma dúvida: Vocês já têm uma forma de não perder os 27% de taxa em clientes que já são fiéis a vocês, ou todo pedido paga pedágio pra eles?"
         },
         {
             title: "⏰ Foco em Agilidade (Sem Cardápio)",
+            templateName: "crm_sem_site_v1", // <-- Nome exato aprovado na Meta
             text: "Fala [Nome]! Vi a página de vocês no Google e não achei o link do cardápio digital. Vocês ainda perdem tempo tirando pedido via texto sexta à noite? Isso cria gargalo. Tenho um sistema que automatiza isso hoje pra você."
         }
     ];
@@ -56,6 +60,18 @@ export default function ProspeccaoKanban() {
         return () => unsubscribe();
     }, []);
 
+    // Helper: Garante que a chamada API envie o token do admin, se existir
+    const secureFetch = async (url, options) => {
+        const token = localStorage.getItem('velo_admin_token') || sessionStorage.getItem('velo_admin_token');
+        return fetch(url, {
+            ...options,
+            headers: {
+                ...options.headers,
+                'Authorization': token ? `Bearer ${token}` : ''
+            }
+        });
+    };
+
     // 1. Buscar Leads no Google via Vercel Backend
     const handleSearchLeads = async (e) => {
         e.preventDefault();
@@ -65,7 +81,8 @@ export default function ProspeccaoKanban() {
         console.log(`🚀 [Frontend] Iniciando busca por: "${searchTerm}"`);
 
         try {
-            const response = await authenticatedFetch('/api/prospeccao', {
+            // Alterado para usar a função de fetch segura para evitar bloqueio A2
+            const response = await secureFetch('/api/prospeccao', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ action: 'prospeccao_serper', queryTerm: searchTerm })
@@ -83,41 +100,21 @@ export default function ProspeccaoKanban() {
             }
 
             console.log(`📦 [Frontend] O backend entregou ${data.leads.length} restaurantes brutos.`);
-            if (data.leads.length > 0) {
-                 console.log(`🔍 [Raio-X] Estrutura completa do 1º lead:`, data.leads[0]);
-            }
 
             let added = 0;
             for (const place of data.leads) {
-                // aAdicionado 'phone_number' (com underline) na malha de busca
                 const rawPhone = place.phoneNumber || place.phone_number || place.formatted_phone_number || place.international_phone_number || place.phone || place.telefone;
                 const leadName = place.title || place.name || 'Sem Nome';
                 
-                if (!rawPhone) {
-                    // RAIO-X IMPRESSO: Mostra exatamente o que o Serper entregou
-                    console.log(`❌ [Descartado] ${leadName} - Motivo: Chave de telefone ausente. As chaves recebidas foram: [ ${Object.keys(place).join(', ')} ]`);
-                    continue; 
-                }
+                if (!rawPhone) continue; 
 
                 let cleanPhone = String(rawPhone).replace(/\D/g, ''); 
-                
-                if (cleanPhone.length >= 10 && !cleanPhone.startsWith('55')) {
-                    cleanPhone = `55${cleanPhone}`;
-                }
-
-                if (cleanPhone.length < 10) {
-                     console.log(`❌ [Descartado] ${leadName} - Motivo: O telefone é muito curto/inválido (${cleanPhone}).`);
-                     continue;
-                }
+                if (cleanPhone.length >= 10 && !cleanPhone.startsWith('55')) cleanPhone = `55${cleanPhone}`;
+                if (cleanPhone.length < 10) continue;
 
                 const isDuplicate = leads.some(l => l.phone === cleanPhone);
                 
-                if (isDuplicate) {
-                    console.log(`🔁 [Descartado] ${leadName} - Motivo: O telefone ${cleanPhone} JÁ EXISTE no seu Kanban.`);
-                } else {
-                    console.log(`✅ [Adicionado] ${leadName} - Telefone limpo e válido: ${cleanPhone}`);
-                    
-                    // Lógica de Identificação de Marketplaces e Concorrentes
+                if (!isDuplicate) {
                     const allUrls = [place.website, place.orderUrl].filter(Boolean).join(' ').toLowerCase();
                     let detectedMarketplace = null;
                     if (allUrls.includes('ifood')) detectedMarketplace = 'iFood';
@@ -125,7 +122,6 @@ export default function ProspeccaoKanban() {
                     else if (allUrls.includes('aiqfome')) detectedMarketplace = 'Aiqfome';
                     else if (allUrls.includes('goomer') || allUrls.includes('anotaai') || allUrls.includes('menudino') || allUrls.includes('ola.click')) detectedMarketplace = 'Usa App Terceiro';
 
-                    // Busca a categoria principal fornecida pelo Apify/Google
                     const leadCategory = place.categoryName || place.category || (place.categories ? place.categories[0] : 'Desconhecido');
 
                     await addDoc(collection(db, 'leads_prospeccao'), {
@@ -139,7 +135,7 @@ export default function ProspeccaoKanban() {
                         reviewsCount: place.reviewsCount || 0,
                         isOpen: place.isOpen !== undefined ? place.isOpen : null,
                         marketplace: detectedMarketplace,
-                        category: leadCategory, // NOVO DADO GRAVADO
+                        category: leadCategory, 
                         status: 'extracted',
                         createdAt: serverTimestamp()
                     });
@@ -147,15 +143,11 @@ export default function ProspeccaoKanban() {
                 }
             }
             
-            if (added > 0) {
-                alert(`🎯 Sucesso! ${added} novos restaurantes adicionados ao funil.`);
-            } else {
-                alert(`Nenhum lead NOVO foi adicionado. \nA pesquisa retornou ${data.leads.length} resultados, mas todos foram rejeitados. \nAbra o Inspecionar (F12) > Console para ver os detalhes!`);
-            }
+            if (added > 0) alert(`🎯 Sucesso! ${added} novos restaurantes adicionados ao funil.`);
+            else alert(`Nenhum lead NOVO foi adicionado. A pesquisa não retornou números inéditos.`);
             
         } catch (error) {
             alert(`Erro na busca: ${error.message}`);
-            console.error("Erro na busca de leads:", error);
         } finally {
             setIsSearching(false);
         }
@@ -166,94 +158,115 @@ export default function ProspeccaoKanban() {
         try {
             const updatePayload = { 
                 status: newStatus,
-                updatedAt: serverTimestamp(), // NOVO: Grava a hora que moveu
-                snoozeUntil: null // NOVO: Limpa o agendamento se você mexer no card
+                updatedAt: serverTimestamp(),
+                snoozeUntil: null 
             };
-
-            if (newStatus === 'contacted') {
-                updatePayload.wppCloudStatus = 'pending_trigger';
-                updatePayload.wppTriggeredAt = serverTimestamp();
-            }
-
             await updateDoc(doc(db, 'leads_prospeccao', leadId), updatePayload);
         } catch (error) {
             alert('Erro ao atualizar status.');
         }
     };
 
-    // 2.1 Enviar direto para Descartados
     const handleDiscard = async (leadId) => {
-        const reason = window.prompt('Motivo do descarte (ex: Não tem delivery, Número errado):', 'Sem perfil / Inviável');
+        const reason = window.prompt('Motivo do descarte:', 'Sem perfil / Inviável');
         if (reason !== null) {
             try {
-                await updateDoc(doc(db, 'leads_prospeccao', leadId), { 
-                    status: 'discarded',
-                    discardReason: reason,
-                    snoozeUntil: null
-                });
+                await updateDoc(doc(db, 'leads_prospeccao', leadId), { status: 'discarded', discardReason: reason, snoozeUntil: null });
             } catch (error) {
                 alert('Erro ao descartar lead.');
             }
         }
     };
 
-    // 2.2 Retornar Depois (Snooze) - Estratégia 3
     const handleSnooze = async (leadId) => {
-        const days = window.prompt('Ocultar este card e retornar daqui a quantos dias? (Ex: 7, 15, 30)', '15');
+        const days = window.prompt('Ocultar e retornar daqui a quantos dias?', '15');
         const parsedDays = parseInt(days, 10);
         if (!isNaN(parsedDays) && parsedDays > 0) {
             try {
                 const futureDate = new Date();
                 futureDate.setDate(futureDate.getDate() + parsedDays);
-                await updateDoc(doc(db, 'leads_prospeccao', leadId), { 
-                    snoozeUntil: futureDate.toISOString() 
-                });
-                alert(`⏳ Card ocultado! Ele aparecerá sozinho daqui a ${parsedDays} dias.`);
+                await updateDoc(doc(db, 'leads_prospeccao', leadId), { snoozeUntil: futureDate.toISOString() });
+                alert(`⏳ Card ocultado por ${parsedDays} dias.`);
             } catch (error) {
                 alert('Erro ao agendar retorno.');
             }
         }
     };
 
-    // 3. Abrir Modal de Abordagem Manual
-    const handleSendColdMessage = (lead) => {
-        setApproachLead(lead);
-    };
+    const handleSendColdMessage = (lead) => setApproachLead(lead);
 
-    // 4. Executar Redirecionamento para WhatsApp Web
-    const executeManualApproach = async (templateText) => {
-        if (!approachLead) return;
+  // 4. Disparar Meta Cloud API (Com Token Fresco do Firebase)
+    const executeManualApproach = async (templateObj) => {
+        if (!approachLead || !templateObj.templateName) {
+            alert("Erro: O lead não foi selecionado ou o template não possui um nome cadastrado.");
+            return;
+        }
 
         try {
-            // 1. Prepara o nome do cliente (pega o primeiro nome) e a categoria
             const firstName = approachLead.name ? approachLead.name.split(' ')[0] : 'pessoal';
             const categoryName = approachLead.category && approachLead.category !== 'Desconhecido' ? approachLead.category.toLowerCase() : 'loja';
-
-            // 2. Substitui as variáveis mágicas no texto
-            let finalMessage = templateText
-                .replace(/\[Nome\]/gi, firstName)
-                .replace(/\[Nicho\]/gi, categoryName);
-
-            // 3. Codifica para o formato URL (converte espaços e emojis)
-            const encodedMessage = encodeURIComponent(finalMessage);
-
-            // 4. Limpa o telefone
+            
             let cleanPhone = String(approachLead.phone).replace(/\D/g, '');
             if (cleanPhone.length >= 10 && !cleanPhone.startsWith('55')) cleanPhone = `55${cleanPhone}`;
 
-            // 5. Monta a URL oficial do WhatsApp (Abre o app no Mac ou o Web)
-            const waUrl = `https://wa.me/${cleanPhone}?text=${encodedMessage}`;
+            // 🛡️ BUSCA O TOKEN OFICIAL DIRETO DO MOTOR DO FIREBASE (Fura a Blindagem A2 com autorização)
+            const auth = getAuth();
+            let token = '';
+            if (auth.currentUser) {
+                token = await auth.currentUser.getIdToken(true); // Pega token fresquinho, ignorando cache
+            } else {
+                throw new Error("Você precisa estar logado no sistema para disparar mensagens.");
+            }
+            
+            const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+            const baseUrl = isLocal ? 'https://app.velodelivery.com.br' : '';
 
-            // 6. Abre numa nova aba
-            window.open(waUrl, '_blank');
+            console.log(`[Disparo] Chamando backend em: ${baseUrl || 'URL Relativa (Produção)'}/api/whatsapp-send`);
 
-            // 7. Move o card para "Abordagem Inicial" no Kanban automaticamente
-            await handleChangeStatus(approachLead.id, 'contacted');
+            // Dispara para a rota API
+            const res = await fetch(`${baseUrl}/api/whatsapp-send`, {
+                method: 'POST',
+                headers: { 
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}` 
+                },
+                body: JSON.stringify({
+                    action: 'send_template',
+                    storeId: 'main-app', 
+                    toPhone: cleanPhone,
+                    templateName: templateObj.templateName,
+                    variables: [firstName, categoryName] 
+                })
+            });
 
-            // 8. Fecha o modal
-            setApproachLead(null);
+            const rawResponse = await res.text();
+
+            if (!res.ok) {
+                let errorMsg = `Erro ${res.status} no servidor.`;
+                try {
+                    const errorJson = JSON.parse(rawResponse);
+                    // Puxa a fofoca exata do que a Meta reclamou
+                    const motivoDaMeta = errorJson.details?.error?.message || JSON.stringify(errorJson.details);
+                    errorMsg = `${errorJson.error}\n\nMotivo da Meta:\n${motivoDaMeta}`;
+                } catch(e) {
+                    errorMsg = `O Servidor Online recusou a conexão.`;
+                }
+                throw new Error(errorMsg);
+            }
+
+            const data = JSON.parse(rawResponse);
+
+            if (data.success) {
+                await handleChangeStatus(approachLead.id, 'contacted');
+                setActiveChatLead(approachLead); 
+                setApproachLead(null);
+            } else {
+                throw new Error(data.error || 'A Meta rejeitou o disparo. Verifique se o template está aprovado.');
+            }
+
         } catch (error) {
-            alert(`Erro ao redirecionar para o WhatsApp: ${error.message}`);
+            alert(`⚠️ Erro ao disparar mensagem:\n\n${error.message}`);
+            console.error("Stack Trace do Erro:", error);
         }
     };
 
@@ -619,7 +632,7 @@ export default function ProspeccaoKanban() {
                                 {PROMO_TEMPLATES.map((template, idx) => (
                                     <button 
                                         key={idx}
-                                        onClick={() => executeManualApproach(template.text)}
+                                        onClick={() => executeManualApproach(template)}
                                         className="text-left bg-white border border-slate-200 p-4 rounded-2xl hover:border-blue-400 hover:ring-2 hover:ring-blue-100 transition-all group relative"
                                     >
                                         <h4 className="font-black text-slate-800 text-xs uppercase tracking-widest mb-2 flex justify-between items-center">
