@@ -4406,51 +4406,91 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
    const getFilteredOrdersForReport = () => {
         const now = new Date();
         
-        // 🚀 CORREÇÃO DEFINITIVA DO "DIA OPERACIONAL" (MADRUGADA)
-        const rawAbertura = localStorage.getItem('caixa_abertura_timestamp');
-        
-        // SE NÃO TIVER HORA DE ABERTURA, USA O "DIA COMERCIAL" (Vira apenas às 06:00 da manhã)
-        let defaultStart = new Date(now);
-        if (now.getHours() < 6) {
-            // Se for antes das 6 da manhã (ex: 02:00), o turno "Hoje" começou ontem às 06:00
-            defaultStart.setDate(defaultStart.getDate() - 1);
-        }
-        defaultStart.setHours(6, 0, 0, 0);
+        // --- 🚀 NOVA LÓGICA DE SESSÃO DE CAIXA (TURNO EXATO VIA LOGS) ---
+        let shiftStart = null;
+        let shiftEnd = null;
 
-        const startOfShift = rawAbertura ? new Date(rawAbertura) : defaultStart;
-        
-        // Mantido para os outros filtros (7d, 30d, mês)
-        const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        if (reportDateRange === 'hoje' || reportDateRange === 'ontem') {
+            // Filtra os logs pelo vendedor selecionado para encontrar as sessões dele
+            const sellerLogs = (reportSeller !== 'todos' && reportSeller !== 'online') 
+                ? posLogs.filter(log => log.userEmail === reportSeller) 
+                : posLogs;
+
+            // Os logs já vêm do Firebase ordenados por timestamp DESC (mais recente primeiro)
+            const aberturas = sellerLogs.filter(log => log.action === 'ABRIU O CAIXA');
+            
+            let targetAbertura = null;
+            if (reportDateRange === 'hoje') targetAbertura = aberturas[0]; // Turno Atual / Último aberto
+            if (reportDateRange === 'ontem') targetAbertura = aberturas[1]; // Turno Anterior (Penúltimo)
+
+            if (targetAbertura) {
+                // Converte Timestamp do Firebase para Date (Blindagem anti-crash)
+                const targetDate = targetAbertura.timestamp?.toDate 
+                    ? targetAbertura.timestamp.toDate() 
+                    : new Date(targetAbertura.timestamp?.seconds ? targetAbertura.timestamp.seconds * 1000 : targetAbertura.timestamp);
+                
+                shiftStart = targetDate;
+                const targetTime = targetDate.getTime();
+                
+                // Encontra o fechamento exato deste turno
+                const fechamentosValidos = sellerLogs.filter(log => {
+                    if (log.action !== 'FECHOU O CAIXA') return false;
+                    const logDate = log.timestamp?.toDate 
+                        ? log.timestamp.toDate() 
+                        : new Date(log.timestamp?.seconds ? log.timestamp.seconds * 1000 : log.timestamp);
+                    return logDate.getTime() > targetTime; // Pega apenas fechamentos DEPOIS que abriu
+                });
+                
+                if (fechamentosValidos.length > 0) {
+                    // Como a lista está em ordem DECRESCENTE (desc), o fechamento MAIS PRÓXIMO da abertura é o ÚLTIMO do array
+                    const fechamentoCorreto = fechamentosValidos[fechamentosValidos.length - 1];
+                    shiftEnd = fechamentoCorreto.timestamp?.toDate 
+                        ? fechamentoCorreto.timestamp.toDate() 
+                        : new Date(fechamentoCorreto.timestamp?.seconds ? fechamentoCorreto.timestamp.seconds * 1000 : fechamentoCorreto.timestamp);
+                } else {
+                    // Se o caixa ainda não foi fechado, vai até o momento atual
+                    shiftEnd = now;
+                }
+            } else {
+                // FALLBACK DE SEGURANÇA: Se não houver logs na loja, usa o "Dia Operacional Padrão" (06:00 -> 05:59)
+                let fallbackStart = new Date(now);
+                if (now.getHours() < 6) fallbackStart.setDate(fallbackStart.getDate() - 1);
+                fallbackStart.setHours(6, 0, 0, 0);
+                
+                if (reportDateRange === 'hoje') {
+                    shiftStart = fallbackStart;
+                    shiftEnd = now;
+                } else if (reportDateRange === 'ontem') {
+                    shiftStart = new Date(fallbackStart);
+                    shiftStart.setDate(shiftStart.getDate() - 1);
+                    shiftEnd = new Date(fallbackStart); 
+                    shiftEnd.setMilliseconds(shiftEnd.getMilliseconds() - 1); // 05:59:59 do dia atual
+                }
+            }
+        }
+        // ----------------------------------------------------------------
 
         return orders.filter(o => {
             // Ignora cancelados
             if (o.status === 'canceled' || !o.createdAt) return false;
 
             // FILTRO 1: VENDEDOR / ORIGEM
-            // ✅ Agora inclui os pedidos lançados pela aba de Chat do WhatsApp!
             const isManualOrder = ['manual', 'manual_pdv', 'whatsapp_pdv'].includes(o.source);
 
             if (reportSeller === 'online' && isManualOrder) return false;
             
-            // Se escolheu um vendedor específico, ignora os pedidos do App (online) 
             if (reportSeller !== 'todos' && reportSeller !== 'online') {
                 if (!isManualOrder) return false;
                 const orderEmail = o.sellerEmail || 'owner'; 
                 if (orderEmail !== reportSeller) return false;
             }
             
-            // FILTRO 2: DATA
+            // FILTRO 2: DATA (Agora baseado na Sessão Exata do Caixa)
             const orderDate = o.createdAt.toDate ? o.createdAt.toDate() : new Date(o.createdAt.seconds * 1000 || o.createdAt);
             
-            if (reportDateRange === 'hoje') {
-                // 🚀 Aqui é a grande mágica: "Hoje" agora significa "Desde que eu abri o caixa".
-                // Não importa se passou da meia noite.
-                return orderDate >= startOfShift;
-            } else if (reportDateRange === 'ontem') {
-                // 🕒 Lógica do Ontem (Da meia-noite de ontem até as 23h59 de ontem)
-                const ontemStart = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1, 0, 0, 0);
-                const ontemEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1, 23, 59, 59);
-                return orderDate >= ontemStart && orderDate <= ontemEnd;
+            if (reportDateRange === 'hoje' || reportDateRange === 'ontem') {
+                if (!shiftStart) return false;
+                return orderDate >= shiftStart && orderDate <= shiftEnd;
             } else if (reportDateRange === '7dias') {
                 const sevenDaysAgo = new Date(now);
                 sevenDaysAgo.setDate(now.getDate() - 7);
@@ -15954,8 +15994,8 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                         <label className="text-xs font-black uppercase tracking-widest text-slate-400 mb-3 block">1. Selecione o Período</label>
                                         <div className="flex flex-wrap gap-3 mb-4">
                                             {[
-                                                { id: 'hoje', label: 'Hoje (Diário)' },
-                                                { id: 'ontem', label: 'Ontem' }, // <-- NOVO BOTÃO AQUI
+                                                { id: 'hoje', label: 'Turno Atual (Hoje)' },
+                                                { id: 'ontem', label: 'Turno Anterior' },
                                                 { id: '7dias', label: 'Últimos 7 Dias' },
                                                 { id: 'mes', label: 'Este Mês Atual' },
                                                 { id: '30dias', label: 'Últimos 30 Dias' },
