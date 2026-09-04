@@ -5,25 +5,9 @@ export const config = {
 
 export default async function middleware(request) {
     const url = new URL(request.url);
-    const userAgent = request.headers.get('user-agent') || '';
-
-    // 1. O SEGREDO DESVENDADO AQUI 👇
-    // Adicionamos o "Google-InspectionTool" (Testador do Google) e o "Storebot-Google" (Robô de Produtos)
-    const isBot = /WhatsApp|facebookexternalhit|facebookcatalog|Twitterbot|LinkedInBot|TelegramBot|viber|googlebot|Google-InspectionTool|Storebot-Google|bingbot|slurp|duckduckbot|yandexbot/i.test(userAgent);
-    
-    if (isBot) {
-        // Redireciona a requisição do bot para a nossa fábrica de SEO (social.js)
-        const apiSocialUrl = new URL(`/api/social`, request.url);
-        apiSocialUrl.searchParams.set('route', url.pathname);
-        
-        return fetch(apiSocialUrl.toString(), {
-            method: 'GET',
-            headers: request.headers 
-        });
-    }
 
     // ==========================================================
-    // DAQUI PARA BAIXO, SÓ HUMANOS PASSAM! (Seu código original mantido 100%)
+    // DEIXA O GOOGLE E HUMANOS PASSAREM RETO PARA RENDERIZAR O FRONTEND
     // ==========================================================
 
     if (url.pathname.startsWith('/api/') || url.pathname.includes('.')) {
@@ -33,6 +17,7 @@ export default async function middleware(request) {
     const host = request.headers.get('host') || '';
     const cleanHost = host.toLowerCase().trim().replace(/^www\./, '');
     
+    // --- REGRA DE FALLBACK/REDIRECIONAMENTO LIMPO ---
     if (cleanHost === 'cowburguer.com.br' || cleanHost === 'cowburguer.velodelivery.com.br') {
         return Response.redirect('https://www.velodelivery.com.br', 301);
     }
@@ -64,7 +49,6 @@ export default async function middleware(request) {
     let name = capitalize(storeId);
     let slogan = 'O seu app de entregas';
     let logo = 'https://app.velodelivery.com.br/logo-square.png'; 
-    let debugStatus = 'fallback-initialized';
 
     const projectId = process.env.VITE_FIREBASE_PROJECT_ID || process.env.FIREBASE_PROJECT_ID || 'zetesteapp';
     const apiKey = process.env.VITE_FIREBASE_API_KEY || process.env.FIREBASE_API_KEY || '';
@@ -93,17 +77,12 @@ export default async function middleware(request) {
                 if (fetchedLogo) {
                     logo = fetchedLogo.startsWith('http') ? fetchedLogo : `https://${host}${fetchedLogo}`;
                 }
-                debugStatus = 'firebase-success';
-            } else {
-                debugStatus = 'firebase-document-empty';
             }
-        } else {
-            debugStatus = `firebase-error-${dbRes.status}`;
-        }
+        } 
     } catch (err) {
-        debugStatus = `firebase-fetch-failed`;
     }
 
+    // LEITURA E INJEÇÃO NO INDEX.HTML DO VITE (Para o WhatsApp/Facebook verem)
     let html = '';
     try {
         const indexResponse = await fetch(new URL('/index.html', request.url));
@@ -113,6 +92,7 @@ export default async function middleware(request) {
         return fetch(request);
     }
 
+    // LIMPEZA VORAZ DE META-TAGS ANTIGAS
     html = html.replace(/<title[^>]*>.*?<\/title>/gis, '');
     html = html.replace(/<meta\s+name=["']description["'][^>]*>/gis, '');
     html = html.replace(/<meta\s+(?:property|name)=["']og:[^>]*>/gis, '');
@@ -140,7 +120,6 @@ export default async function middleware(request) {
             'Content-Type': 'text/html; charset=utf-8',
             'Cache-Control': 'public, s-maxage=300, stale-while-revalidate=600',
             'Vary': 'Host', 
-            'X-SEO-Debug': debugStatus,
             'X-Store-Id': storeId       
         },
     });
