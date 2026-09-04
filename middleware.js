@@ -1,5 +1,5 @@
 export const config = {
-    // Ignora chamadas de API, arquivos do Vercel e arquivos estáticos (css, js, imagens)
+    // Ignora chamadas de API, arquivos do Vercel e arquivos estáticos
     matcher: ['/((?!api|_vercel|assets|.*\\..*).*)'], 
 };
 
@@ -7,21 +7,25 @@ export default async function middleware(request) {
     const url = new URL(request.url);
     const userAgent = request.headers.get('user-agent') || '';
 
-    // 1. O SEGREDO DO WHATSAPP: REDIRECIONAR O ROBÔ DIRETO NO MIDDLEWARE
-    // Como o middleware roda ANTES do vercel.json, precisamos repassar o bot aqui.
-    // Deixamos apenas redes sociais. Os buscadores (Google, Bing) PRECISAM passar direto para ler o HTML e o SEO.jsx
-const isBot = /WhatsApp|facebookexternalhit|Twitterbot|LinkedInBot|TelegramBot|viber|googlebot|bingbot|slurp|duckduckbot|yandexbot/i.test(userAgent);
+    // 1. REGRA SUPREMA: DETECÇÃO DE ROBÔS (Atualizada e Imune a falhas de case)
+    const isBot = /WhatsApp|facebookexternalhit|Twitterbot|LinkedInBot|TelegramBot|viber|googlebot|bingbot|slurp|duckduckbot|yandexbot/i.test(userAgent);
     
     if (isBot) {
-        // Redireciona a requisição do bot internamente para o api/social.js de forma transparente
-        const apiSocialUrl = new URL(`/api/social`, request.url);
-        apiSocialUrl.searchParams.set('route', url.pathname);
+        // SOLUÇÃO NATIVA DA VERCEL: Em vez de fazer um 'fetch' (que pode dar timeout), 
+        // nós dizemos para a Vercel reescrever a rota na própria máquina dela. É instantâneo.
+        const rewriteUrl = new URL(`/api/social`, request.url);
+        rewriteUrl.searchParams.set('route', url.pathname);
         
-        return fetch(apiSocialUrl.toString(), {
-            method: 'GET',
-            headers: request.headers // Repassa os headers originais
+        return new Response(null, {
+            headers: {
+                'x-middleware-rewrite': rewriteUrl.toString(),
+            },
         });
     }
+
+    // =========================================================================
+    // DAQUI PARA BAIXO, É O SEU CÓDIGO ORIGINAL (SÓ PARA CLIENTES HUMANOS)
+    // =========================================================================
 
     if (url.pathname.startsWith('/api/') || url.pathname.includes('.')) {
         return fetch(request); 
@@ -30,13 +34,10 @@ const isBot = /WhatsApp|facebookexternalhit|Twitterbot|LinkedInBot|TelegramBot|v
     const host = request.headers.get('host') || '';
     const cleanHost = host.toLowerCase().trim().replace(/^www\./, '');
     
-    // --- REGRA DE FALLBACK/REDIRECIONAMENTO LIMPO ---
-    // Intercepta qualquer tentativa de acesso ao domínio ou subdomínio da Cowburguer
     if (cleanHost === 'cowburguer.com.br' || cleanHost === 'cowburguer.velodelivery.com.br') {
         return Response.redirect('https://www.velodelivery.com.br', 301);
     }
 
-    // 2. MOTOR DE ROTEAMENTO DE DOMÍNIOS
     const baseDomain = 'velodelivery.com.br';
     let storeId = 'csi'; 
 
@@ -60,14 +61,12 @@ const isBot = /WhatsApp|facebookexternalhit|Twitterbot|LinkedInBot|TelegramBot|v
         storeId = domainMap[cleanHost] || cleanHost.split('.')[0];
     }
 
-    // 3. VALORES PADRÃO (FALLBACKS)
     const capitalize = (str) => str.charAt(0).toUpperCase() + str.slice(1);
     let name = capitalize(storeId);
     let slogan = 'O seu app de entregas';
     let logo = 'https://app.velodelivery.com.br/logo-square.png'; 
     let debugStatus = 'fallback-initialized';
 
-    // 4. BUSCA NO FIREBASE (EDGE COMPATIBLE)
     const projectId = process.env.VITE_FIREBASE_PROJECT_ID || process.env.FIREBASE_PROJECT_ID || 'zetesteapp';
     const apiKey = process.env.VITE_FIREBASE_API_KEY || process.env.FIREBASE_API_KEY || '';
     
@@ -76,7 +75,7 @@ const isBot = /WhatsApp|facebookexternalhit|Twitterbot|LinkedInBot|TelegramBot|v
         const firestoreUrl = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/stores/${storeId}${authParam}`;
         
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 1500); // 1.5s timeout no Edge
+        const timeoutId = setTimeout(() => controller.abort(), 1500); 
 
         const dbRes = await fetch(firestoreUrl, { 
             signal: controller.signal,
@@ -106,7 +105,6 @@ const isBot = /WhatsApp|facebookexternalhit|Twitterbot|LinkedInBot|TelegramBot|v
         debugStatus = `firebase-fetch-failed`;
     }
 
-    // 5. LEITURA E INJEÇÃO NO INDEX.HTML DO VITE
     let html = '';
     try {
         const indexResponse = await fetch(new URL('/index.html', request.url));
@@ -116,7 +114,6 @@ const isBot = /WhatsApp|facebookexternalhit|Twitterbot|LinkedInBot|TelegramBot|v
         return fetch(request);
     }
 
-    // 6. LIMPEZA VORAZ DE META-TAGS ANTIGAS
     html = html.replace(/<title[^>]*>.*?<\/title>/gis, '');
     html = html.replace(/<meta\s+name=["']description["'][^>]*>/gis, '');
     html = html.replace(/<meta\s+(?:property|name)=["']og:[^>]*>/gis, '');
@@ -143,7 +140,7 @@ const isBot = /WhatsApp|facebookexternalhit|Twitterbot|LinkedInBot|TelegramBot|v
         headers: {
             'Content-Type': 'text/html; charset=utf-8',
             'Cache-Control': 'public, s-maxage=300, stale-while-revalidate=600',
-            'Vary': 'Host', // CRÍTICO: Previne que o cache da loja A apareça na loja B
+            'Vary': 'Host', 
             'X-SEO-Debug': debugStatus,
             'X-Store-Id': storeId       
         },
