@@ -7,19 +7,19 @@ export default async function middleware(request) {
     const url = new URL(request.url);
     const userAgent = request.headers.get('user-agent') || '';
 
-    // 1. O SEGREDO DO WHATSAPP E DO GOOGLE: DETECÇÃO DE ROBÔS
+    // 1. O SEGREDO DO WHATSAPP E DO GOOGLE
     // Adicionamos os robôs de busca para que eles sejam interceptados AQUI no servidor!
     const isBot = /WhatsApp|facebookexternalhit|Twitterbot|LinkedInBot|TelegramBot|viber|googlebot|bingbot|slurp|duckduckbot|yandexbot/i.test(userAgent);
     
     if (isBot) {
-        // Redireciona a requisição do bot internamente para o api/social.js de forma transparente
+        // VOLTAMOS AO FETCH! (O seu código original que sempre funcionou)
+        // Ele vai forçar a Vercel a rodar o social.js e pegar o cardápio rico.
         const apiSocialUrl = new URL(`/api/social`, request.url);
         apiSocialUrl.searchParams.set('route', url.pathname);
         
-        // Usando o seu fetch original que é blindado na Vercel
         return fetch(apiSocialUrl.toString(), {
             method: 'GET',
-            headers: request.headers
+            headers: request.headers 
         });
     }
 
@@ -79,7 +79,7 @@ export default async function middleware(request) {
         const firestoreUrl = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/stores/${storeId}${authParam}`;
         
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 1500);
+        const timeoutId = setTimeout(() => controller.abort(), 1500); 
 
         const dbRes = await fetch(firestoreUrl, { 
             signal: controller.signal,
