@@ -83,7 +83,20 @@ export default function SEO({ title, description, image, productData }) {
                     if (store.address.state) addressObj.addressRegion = store.address.state;
                     if (store.address.zipCode || store.address.cep) addressObj.postalCode = store.address.zipCode || store.address.cep;
                 } else if (fields.address?.stringValue) {
-                    addressObj.streetAddress = fields.address.stringValue;
+                    const addrStr = fields.address.stringValue;
+                    addressObj.streetAddress = addrStr;
+                    
+                    // Extração inteligente de CEP (ex: 94410-400)
+                    const cepMatch = addrStr.match(/\d{5}-?\d{3}/);
+                    if (cepMatch) addressObj.postalCode = cepMatch[0];
+                    
+                    // Extração inteligente de UF (ex: RS)
+                    const ufMatch = addrStr.match(/\b(AC|AL|AP|AM|BA|CE|DF|ES|GO|MA|MT|MS|MG|PA|PB|PR|PE|PI|RJ|RN|RS|RO|RR|SC|SP|SE|TO)\b/);
+                    if (ufMatch) addressObj.addressRegion = ufMatch[0];
+                    
+                    // Extração inteligente de Cidade (ex: Viamão)
+                    const cityMatch = addrStr.match(/,\s*([^,-]+)\s*-\s*[A-Z]{2}\b/);
+                    if (cityMatch && cityMatch[1]) addressObj.addressLocality = cityMatch[1].trim();
                 }
 
                 // Busca os produtos direto no Client-Side (Seu plano original)
