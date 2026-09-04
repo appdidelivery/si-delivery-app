@@ -7,7 +7,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 
-    <title>Velo Delivery | O seu app de entregas</title> <!-- Título alterado para a loja específica -->
+    <title>Velo Delivery | O seu app de entregas</title>
     <meta name="description" content="Plataforma de delivery rápido e fácil. Peça agora na sua loja favorita com o Velo App!" />
     <meta name="theme-color" content="#2563eb" />
 
@@ -22,7 +22,6 @@
     <meta name="twitter:image" content="https://www.velodelivery.com.br/velo%20delivery%20painel.jpg" />
     <link id="dynamic-favicon" rel="icon" href="/Logo Vero Delivery.png" />
     
-    <!-- --- INÍCIO DA CORREÇÃO (index.html PWA) --- -->
     <!-- PWA Manifest dinâmico -->
     <link rel="manifest" href="/manifest.json" id="manifest-tag" />
 
@@ -34,16 +33,12 @@
     <link rel="mask-icon" href="/safari-pinned-tab.svg" color="#2563eb">
     <meta name="msapplication-TileImage" content="/mstile-150x150.png">
     <meta name="msapplication-TileColor" content="#ffffff">
-    <!-- --- FIM DA CORREÇÃO (index.html PWA) --- -->
-    
-    <!-- Você pode ter outros links CSS aqui se usar um CSS global, por exemplo -->
   </head>
   <body>
     
-    <div id="root"></div> <!-- ESTE É ONDE SEU APP REACT SERÁ MONTADO -->
-    <script type="module" src="/src/main.jsx"></script> <!-- ESTE CARREGA SEU CÓDIGO JS PRINCIPAL -->
+    <div id="root"></div> 
+    <script type="module" src="/src/main.jsx"></script> 
 
-    <!-- --- INÍCIO DA CORREÇÃO (Service Worker Registration) --- -->
     <!-- Service Worker Registration -->
     <script>
       if ('serviceWorker' in navigator) {
@@ -58,6 +53,5 @@
         });
       }
     </script>
-    <!-- --- FIM DA CORREÇÃO (Service Worker Registration) --- -->
   </body>
 </html>
