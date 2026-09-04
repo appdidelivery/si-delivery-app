@@ -1,6 +1,20 @@
 <!doctype html>
 <html lang="pt-BR">
   <head>
+    <!-- REDIRECIONADOR INFALÍVEL DE ROBÔS PARA O BACKEND -->
+    <script>
+      (function() {
+        var ua = navigator.userAgent.toLowerCase();
+        var isBot = /bot|googlebot|crawler|spider|robot|crawling/i.test(ua) || 
+                    /whatsapp|facebookexternalhit|twitterbot|linkedinbot|telegrambot|viber/i.test(ua);
+        
+        // Se for um robô, força o navegador a buscar o JSON-LD na API do Backend.
+        if (isBot && window.location.pathname.indexOf('/api/') === -1) {
+          window.location.replace('/api/social?route=' + encodeURIComponent(window.location.pathname + window.location.search));
+        }
+      })();
+    </script>
+
     <link rel="preconnect" href="https://res.cloudinary.com">
   <link rel="dns-prefetch" href="https://res.cloudinary.com">
     
