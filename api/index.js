@@ -2531,6 +2531,7 @@ const paymentsStr = acceptedList.length > 0 ? acceptedList.join('\n') : 'Consult
                                                             address: deliveryAddress,
                                                             deliveryType: shippingFee > 0 ? 'delivery' : 'pickup'
                                                         },
+                                                        fiscalStatus: 'internal_receipt', // Sem CPF no WhatsApp, força recibo interno
                                                         // --- FIM: CORREÇÃO FISCAL FOCUS NFE ---
                                                         paymentMethod: paymentMethod,
                                                         status: 'pending',

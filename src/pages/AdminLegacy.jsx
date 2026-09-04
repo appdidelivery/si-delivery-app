@@ -3339,6 +3339,12 @@ const handleGenerateProductCopy = async () => {
     };
 
     const printLabel = async (o) => {
+        // Roteador de Impressão (NFC-e vs Comanda Interna)
+        if (o.fiscalStatus === 'authorized' && o.nfeUrl && !o.nfeUrl.endsWith('/relatorios/danfe.pdf')) {
+            window.open(o.nfeUrl, '_blank');
+            return; // Interrompe para não imprimir a térmica
+        }
+
         const w = window.open('', '_blank');
         
         // 🚨 BLINDAGEM DE POP-UP BLOQUEADO PELO NAVEGADOR
@@ -6715,6 +6721,11 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                                             )}
                                                             
                                                             {/* --- TAG FISCAL (STATUS SEFAZ) --- */}
+                                                            {o.fiscalStatus === 'internal_receipt' && (
+                                                                <span className="bg-slate-600 text-white px-2 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider flex items-center gap-1 shadow-md cursor-default" title="Recibo Interno (Sem CPF)">
+                                                                    <Receipt size={10}/> Recibo Interno
+                                                                </span>
+                                                            )}
                                                             {o.fiscalStatus === 'processing' && (
                                                                 <span className="bg-amber-100 text-amber-700 px-2 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider flex items-center gap-1 border border-amber-200" title="Processando na SEFAZ"><Loader2 size={10} className="animate-spin"/> Emitindo NFC-e</span>
                                                             )}
@@ -7121,6 +7132,24 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                                         )}
 
                                                         {/* ALERTA FISCAL NO KANBAN */}
+                                                        {o.fiscalStatus === 'internal_receipt' && (
+                                                            <div className="bg-slate-600 text-white p-2 rounded-xl mb-4 flex items-center gap-2 shadow-sm w-fit cursor-default" title="Recibo Interno (Sem CPF)">
+                                                                <Receipt size={10}/>
+                                                                <span className="text-[9px] font-black uppercase tracking-widest">Recibo Interno</span>
+                                                            </div>
+                                                        )}
+                                                        {o.fiscalStatus === 'processing' && (
+                                                            <div className="bg-amber-100 text-amber-700 p-2 rounded-xl mb-4 flex items-center gap-2 shadow-sm w-fit border border-amber-200">
+                                                                <Loader2 size={10} className="animate-spin"/>
+                                                                <span className="text-[9px] font-black uppercase tracking-widest">Emitindo NFC-e</span>
+                                                            </div>
+                                                        )}
+                                                        {o.fiscalStatus === 'authorized' && (
+                                                            <a href={o.nfeUrl || '#'} target="_blank" rel="noopener noreferrer" className="bg-slate-900 text-white p-2 rounded-xl mb-4 flex items-center gap-2 shadow-sm w-fit hover:bg-slate-800 transition-colors">
+                                                                <Receipt size={10}/>
+                                                                <span className="text-[9px] font-black uppercase tracking-widest">NFC-e Emitida</span>
+                                                            </a>
+                                                        )}
                                                         {o.fiscalStatus === 'error' && o.fiscalError && (
                                                             <div className="bg-red-50 p-3 rounded-xl border border-red-200 mb-4 flex flex-col gap-1 shadow-sm">
                                                                 <span className="text-[9px] font-black uppercase text-red-800 tracking-widest">Erro SEFAZ:</span>
@@ -8694,20 +8723,28 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                 {/* Acordeão de Cliente/Entrega (Só aparece se tiver item) */}
                                 {manualCart.length > 0 && (
                                     <div className="mb-6 space-y-3">
-                                        {/* LINHA 1: NOME E MESA / WHATSAPP */}
-                                        <div className="flex gap-2">
+                                        {/* LINHA 1: NOME E MESA / WHATSAPP E CPF */}
+                                        <div className="flex flex-wrap md:flex-nowrap gap-2">
                                             <input 
                                                 type="text" 
                                                 placeholder={manualCustomer.deliveryMethod === 'pickup' ? "Nome do Cliente (Opcional)" : "Nome do Cliente *"} 
-                                                className="flex-1 p-3 bg-slate-50 rounded-xl font-bold text-xs outline-none focus:ring-2 ring-blue-500 border border-slate-100" 
+                                                className="flex-1 min-w-[150px] p-3 bg-slate-50 rounded-xl font-bold text-xs outline-none focus:ring-2 ring-blue-500 border border-slate-100" 
                                                 value={manualCustomer.name || ''} 
                                                 onChange={e => setManualCustomer({ ...manualCustomer, name: e.target.value })} 
+                                            />
+                                            <input 
+                                                type="text" 
+                                                placeholder="CPF na Nota? (Opcional)" 
+                                                maxLength="14"
+                                                className="w-full md:w-36 p-3 bg-slate-50 rounded-xl font-bold text-xs outline-none focus:ring-2 ring-blue-500 border border-slate-100" 
+                                                value={manualCustomer.cpf || ''} 
+                                                onChange={e => setManualCustomer({ ...manualCustomer, cpf: e.target.value.replace(/\D/g, '') })} 
                                             />
                                             {manualCustomer.deliveryMethod === 'pickup' && (
                                                 <input 
                                                     type="text" 
                                                     placeholder="Mesa/Comanda (Ex: 05)" 
-                                                    className="w-40 p-3 bg-slate-50 rounded-xl font-bold text-xs outline-none focus:ring-2 ring-blue-500 border border-slate-100 text-center" 
+                                                    className="w-32 p-3 bg-slate-50 rounded-xl font-bold text-xs outline-none focus:ring-2 ring-blue-500 border border-slate-100 text-center" 
                                                     value={manualCustomer.mesa || ''} 
                                                     onChange={e => setManualCustomer({ ...manualCustomer, mesa: e.target.value })} 
                                                 />
@@ -9064,8 +9101,13 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                         await Promise.all(promisesBaixa).catch(e => console.error("Erro ao processar baixa de estoque/insumo:", e));
                     }
 
+                    const cpfLimpo = manualCustomer.cpf ? String(manualCustomer.cpf).replace(/\D/g, '') : '';
+                    const defaultFiscalStatus = cpfLimpo.length === 11 ? 'pending' : 'internal_receipt';
+
                     await addDoc(collection(db, "orders"), {
                         ...manualCustomer,
+                        customerCpf: cpfLimpo,
+                        fiscalStatus: defaultFiscalStatus,
                         customerName: finalName, 
                         customerAddress: finalAddress, 
                         customerPhone: manualCustomer.phone || '', 
