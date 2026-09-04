@@ -6734,9 +6734,63 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                                             
                                                             {/* --- TAG FISCAL (STATUS SEFAZ) --- */}
                                                             {o.fiscalStatus === 'internal_receipt' && (
-                                                                <span className="bg-slate-600 text-white px-2 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider flex items-center gap-1 shadow-md cursor-default" title="Recibo Interno (Sem CPF)">
-                                                                    <Receipt size={10}/> Recibo Interno
-                                                                </span>
+                                                                <button 
+                                                                    onClick={(e) => {
+                                                                        e.preventDefault();
+                                                                        e.stopPropagation();
+                                                                        const w = window.open('', '_blank');
+                                                                        if (!w) return alert("⚠️ POP-UP BLOQUEADO!\n\nPermita pop-ups no seu navegador para conseguir imprimir o recibo do cliente.");
+                                                                        
+                                                                        const dataOriginal = o.createdAt?.toDate ? new Date(o.createdAt.toDate()) : new Date();
+                                                                        const dataFormatada = dataOriginal.toLocaleDateString('pt-BR') + ' às ' + dataOriginal.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+                                                                        
+                                                                        const itemsHtml = (o.items || []).map(i => 
+                                                                            `<tr><td style="padding:4px 0;">${i.quantity}x ${i.name}</td><td style="text-align:right;">R$ ${(Number(i.price)*Number(i.quantity)).toFixed(2)}</td></tr>`
+                                                                        ).join('');
+
+                                                                        w.document.write(`
+                                                                            <html>
+                                                                            <head>
+                                                                                <title>Recibo Interno #${o.id?.slice(-5).toUpperCase()}</title>
+                                                                                <style>
+                                                                                    body { font-family: monospace; width: 80mm; margin: 0 auto; padding: 10px; color: #000; font-size: 12px; }
+                                                                                    h1 { font-size: 16px; text-align: center; margin: 0 0 5px 0; text-transform: uppercase; }
+                                                                                    h2 { font-size: 12px; text-align: center; margin: 0 0 10px 0; font-weight: normal; }
+                                                                                    .divider { border-bottom: 1px dashed #000; margin: 10px 0; }
+                                                                                    table { width: 100%; border-collapse: collapse; font-size: 12px; }
+                                                                                    .totals { text-align: right; margin-top: 10px; line-height: 1.5; }
+                                                                                </style>
+                                                                            </head>
+                                                                            <body>
+                                                                                <h1>${storeStatus?.name || 'LOJA'}</h1>
+                                                                                <h2>RECIBO INTERNO - SEM VALOR FISCAL</h2>
+                                                                                <div class="divider"></div>
+                                                                                <strong>Pedido:</strong> #${o.id?.slice(-5).toUpperCase()}<br>
+                                                                                <strong>Data:</strong> ${dataFormatada}<br>
+                                                                                <strong>Cliente:</strong> ${o.customerName || 'Consumidor'}<br>
+                                                                                <div class="divider"></div>
+                                                                                <table>${itemsHtml}</table>
+                                                                                <div class="divider"></div>
+                                                                                <div class="totals">
+                                                                                    Subtotal: R$ ${(Number(o.subtotal) || 0).toFixed(2)}<br>
+                                                                                    Frete: R$ ${(Number(o.shippingFee) || 0).toFixed(2)}<br>
+                                                                                    ${o.discountAmount > 0 ? `Desconto: - R$ ${Number(o.discountAmount).toFixed(2)}<br>` : ''}
+                                                                                    <strong style="font-size: 14px;">Total: R$ ${(Number(o.total) || 0).toFixed(2)}</strong><br><br>
+                                                                                    Pagamento: <strong>${String(o.paymentMethod || 'Dinheiro').toUpperCase()}</strong>
+                                                                                </div>
+                                                                                <div class="divider"></div>
+                                                                                <div style="text-align: center; margin-top: 15px;">Obrigado pela preferência!</div>
+                                                                                <script>setTimeout(() => { window.print(); window.close(); }, 500);</script>
+                                                                            </body>
+                                                                            </html>
+                                                                        `);
+                                                                        w.document.close();
+                                                                    }}
+                                                                    className="bg-slate-600 text-white px-2 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider flex items-center gap-1 shadow-md hover:bg-slate-700 transition-colors cursor-pointer" 
+                                                                    title="Imprimir Recibo Interno do Cliente"
+                                                                >
+                                                                    <Printer size={10}/> Recibo Interno
+                                                                </button>
                                                             )}
                                                             {o.fiscalStatus === 'processing' && (
                                                                 <span className="bg-amber-100 text-amber-700 px-2 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider flex items-center gap-1 border border-amber-200" title="Processando na SEFAZ"><Loader2 size={10} className="animate-spin"/> Emitindo NFC-e</span>
@@ -7145,10 +7199,64 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
 
                                                         {/* ALERTA FISCAL NO KANBAN */}
                                                         {o.fiscalStatus === 'internal_receipt' && (
-                                                            <div className="bg-slate-600 text-white p-2 rounded-xl mb-4 flex items-center gap-2 shadow-sm w-fit cursor-default" title="Recibo Interno (Sem CPF)">
-                                                                <Receipt size={10}/>
+                                                            <button 
+                                                                onClick={(e) => {
+                                                                    e.preventDefault();
+                                                                    e.stopPropagation();
+                                                                    const w = window.open('', '_blank');
+                                                                    if (!w) return alert("⚠️ POP-UP BLOQUEADO!\n\nPermita pop-ups no seu navegador para conseguir imprimir o recibo do cliente.");
+                                                                    
+                                                                    const dataOriginal = o.createdAt?.toDate ? new Date(o.createdAt.toDate()) : new Date();
+                                                                    const dataFormatada = dataOriginal.toLocaleDateString('pt-BR') + ' às ' + dataOriginal.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+                                                                    
+                                                                    const itemsHtml = (o.items || []).map(i => 
+                                                                        `<tr><td style="padding:4px 0;">${i.quantity}x ${i.name}</td><td style="text-align:right;">R$ ${(Number(i.price)*Number(i.quantity)).toFixed(2)}</td></tr>`
+                                                                    ).join('');
+
+                                                                    w.document.write(`
+                                                                        <html>
+                                                                        <head>
+                                                                            <title>Recibo Interno #${o.id?.slice(-5).toUpperCase()}</title>
+                                                                            <style>
+                                                                                body { font-family: monospace; width: 80mm; margin: 0 auto; padding: 10px; color: #000; font-size: 12px; }
+                                                                                h1 { font-size: 16px; text-align: center; margin: 0 0 5px 0; text-transform: uppercase; }
+                                                                                h2 { font-size: 12px; text-align: center; margin: 0 0 10px 0; font-weight: normal; }
+                                                                                .divider { border-bottom: 1px dashed #000; margin: 10px 0; }
+                                                                                table { width: 100%; border-collapse: collapse; font-size: 12px; }
+                                                                                .totals { text-align: right; margin-top: 10px; line-height: 1.5; }
+                                                                            </style>
+                                                                        </head>
+                                                                        <body>
+                                                                            <h1>${storeStatus?.name || 'LOJA'}</h1>
+                                                                            <h2>RECIBO INTERNO - SEM VALOR FISCAL</h2>
+                                                                            <div class="divider"></div>
+                                                                            <strong>Pedido:</strong> #${o.id?.slice(-5).toUpperCase()}<br>
+                                                                            <strong>Data:</strong> ${dataFormatada}<br>
+                                                                            <strong>Cliente:</strong> ${o.customerName || 'Consumidor'}<br>
+                                                                            <div class="divider"></div>
+                                                                            <table>${itemsHtml}</table>
+                                                                            <div class="divider"></div>
+                                                                            <div class="totals">
+                                                                                Subtotal: R$ ${(Number(o.subtotal) || 0).toFixed(2)}<br>
+                                                                                Frete: R$ ${(Number(o.shippingFee) || 0).toFixed(2)}<br>
+                                                                                ${o.discountAmount > 0 ? `Desconto: - R$ ${Number(o.discountAmount).toFixed(2)}<br>` : ''}
+                                                                                <strong style="font-size: 14px;">Total: R$ ${(Number(o.total) || 0).toFixed(2)}</strong><br><br>
+                                                                                Pagamento: <strong>${String(o.paymentMethod || 'Dinheiro').toUpperCase()}</strong>
+                                                                            </div>
+                                                                            <div class="divider"></div>
+                                                                            <div style="text-align: center; margin-top: 15px;">Obrigado pela preferência!</div>
+                                                                            <script>setTimeout(() => { window.print(); window.close(); }, 500);</script>
+                                                                        </body>
+                                                                        </html>
+                                                                    `);
+                                                                    w.document.close();
+                                                                }}
+                                                                className="bg-slate-600 text-white p-2 rounded-xl mb-4 flex items-center gap-2 shadow-sm w-fit hover:bg-slate-700 transition-colors cursor-pointer" 
+                                                                title="Imprimir Recibo Interno do Cliente"
+                                                            >
+                                                                <Printer size={10}/>
                                                                 <span className="text-[9px] font-black uppercase tracking-widest">Recibo Interno</span>
-                                                            </div>
+                                                            </button>
                                                         )}
                                                         {o.fiscalStatus === 'processing' && (
                                                             <div className="bg-amber-100 text-amber-700 p-2 rounded-xl mb-4 flex items-center gap-2 shadow-sm w-fit border border-amber-200">

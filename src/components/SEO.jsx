@@ -76,8 +76,15 @@ export default function SEO({ title, description, image, productData }) {
                 const schemaTypes = { 'burger': 'FastFoodRestaurant', 'pizza': 'Restaurant', 'sweet': 'IceCreamShop', 'restaurant': 'Restaurant' };
                 const googleBusinessType = schemaTypes[niche] || 'Restaurant';
 
-                let addressObj = { "@type": "PostalAddress", "addressCountry": "BR" };
-                if (fields.address?.stringValue) addressObj.streetAddress = fields.address.stringValue;
+               let addressObj = { "@type": "PostalAddress", "addressCountry": "BR" };
+                if (store?.address && typeof store.address === 'object') {
+                    addressObj.streetAddress = [store.address.street, store.address.number].filter(Boolean).join(', ') || fields.address?.stringValue;
+                    if (store.address.city) addressObj.addressLocality = store.address.city;
+                    if (store.address.state) addressObj.addressRegion = store.address.state;
+                    if (store.address.zipCode || store.address.cep) addressObj.postalCode = store.address.zipCode || store.address.cep;
+                } else if (fields.address?.stringValue) {
+                    addressObj.streetAddress = fields.address.stringValue;
+                }
 
                 // Busca os produtos direto no Client-Side (Seu plano original)
                 let seoProducts = [];
@@ -174,6 +181,8 @@ export default function SEO({ title, description, image, productData }) {
                         "image": absoluteFetchedImage,
                         "description": fetchedDesc,
                         "url": safeOrigin,
+                        "telephone": store?.phone || store?.whatsapp || "+5500000000000",
+                        "servesCuisine": store?.seoCategory || store?.storeNiche || "Fast Food",
                         "priceRange": fetchedPriceRange,
                         "address": addressObj,
                         ...menuData
