@@ -96,7 +96,7 @@ export default function SEO({ title, description, image, productData }) {
                         seoProducts = prodData.map(item => {
                             if(!item.document) return null;
                             const pf = item.document.fields;
-                            if (pf.isActive?.booleanValue === false) return null; // Não lista itens pausados
+                            if (pf.isActive?.booleanValue === false) return null; 
                             return {
                                 id: item.document.name.split('/').pop(),
                                 name: pf.name?.stringValue || '',
@@ -151,7 +151,7 @@ export default function SEO({ title, description, image, productData }) {
                         "@type": ["Product", "MenuItem"], // Força a compatibilidade
                         "@id": `${baseUrl}#product`,
                         "name": productData.name || "Produto",
-                        "description": productData.description || fullDescription || "Produto oficial da loja.",
+                        "description": productData.description || "Produto oficial da loja.",
                         "image": productData.imageUrl ? [ensureAbsoluteUrl(productData.imageUrl)] : [absoluteFetchedImage],
                         "sku": productData.sku || productData.id || "SKU-PADRAO",
                         "brand": { "@type": "Brand", "name": productData.brand || fetchedName || "Marca Própria" },
@@ -203,7 +203,6 @@ export default function SEO({ title, description, image, productData }) {
             } catch (err) { console.error("Erro na injeção de SEO no cliente:", err); }
         };
 
-        // 🚨 IMPORTANTE: Aguardamos um pouco para o banco estabilizar e o React montar
         const timer = setTimeout(injectSchemaForGoogle, 1500);
 
         return () => {

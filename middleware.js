@@ -6,10 +6,6 @@ export const config = {
 export default async function middleware(request) {
     const url = new URL(request.url);
 
-    // ==========================================================
-    // DEIXA O GOOGLE E HUMANOS PASSAREM RETO PARA RENDERIZAR O FRONTEND
-    // ==========================================================
-
     if (url.pathname.startsWith('/api/') || url.pathname.includes('.')) {
         return fetch(request); 
     }
@@ -79,10 +75,8 @@ export default async function middleware(request) {
                 }
             }
         } 
-    } catch (err) {
-    }
+    } catch (err) { }
 
-    // LEITURA E INJEÇÃO NO INDEX.HTML DO VITE (Para o WhatsApp/Facebook verem)
     let html = '';
     try {
         const indexResponse = await fetch(new URL('/index.html', request.url));
@@ -92,7 +86,6 @@ export default async function middleware(request) {
         return fetch(request);
     }
 
-    // LIMPEZA VORAZ DE META-TAGS ANTIGAS
     html = html.replace(/<title[^>]*>.*?<\/title>/gis, '');
     html = html.replace(/<meta\s+name=["']description["'][^>]*>/gis, '');
     html = html.replace(/<meta\s+(?:property|name)=["']og:[^>]*>/gis, '');
