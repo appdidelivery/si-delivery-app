@@ -7,13 +7,12 @@ export default async function middleware(request) {
     const url = new URL(request.url);
     const userAgent = request.headers.get('user-agent') || '';
 
-    // 1. O SEGREDO DO WHATSAPP E DO GOOGLE
-    // Adicionamos os robôs de busca para que eles sejam interceptados AQUI no servidor!
-    const isBot = /WhatsApp|facebookexternalhit|Twitterbot|LinkedInBot|TelegramBot|viber|googlebot|bingbot|slurp|duckduckbot|yandexbot/i.test(userAgent);
+    // 1. O SEGREDO DESVENDADO AQUI 👇
+    // Adicionamos o "Google-InspectionTool" (Testador do Google) e o "Storebot-Google" (Robô de Produtos)
+    const isBot = /WhatsApp|facebookexternalhit|facebookcatalog|Twitterbot|LinkedInBot|TelegramBot|viber|googlebot|Google-InspectionTool|Storebot-Google|bingbot|slurp|duckduckbot|yandexbot/i.test(userAgent);
     
     if (isBot) {
-        // VOLTAMOS AO FETCH! (O seu código original que sempre funcionou)
-        // Ele vai forçar a Vercel a rodar o social.js e pegar o cardápio rico.
+        // Redireciona a requisição do bot para a nossa fábrica de SEO (social.js)
         const apiSocialUrl = new URL(`/api/social`, request.url);
         apiSocialUrl.searchParams.set('route', url.pathname);
         
@@ -24,7 +23,7 @@ export default async function middleware(request) {
     }
 
     // ==========================================================
-    // DAQUI PARA BAIXO, SÓ HUMANOS PASSAM!
+    // DAQUI PARA BAIXO, SÓ HUMANOS PASSAM! (Seu código original mantido 100%)
     // ==========================================================
 
     if (url.pathname.startsWith('/api/') || url.pathname.includes('.')) {
@@ -34,12 +33,10 @@ export default async function middleware(request) {
     const host = request.headers.get('host') || '';
     const cleanHost = host.toLowerCase().trim().replace(/^www\./, '');
     
-    // --- REGRA DE FALLBACK/REDIRECIONAMENTO LIMPO ---
     if (cleanHost === 'cowburguer.com.br' || cleanHost === 'cowburguer.velodelivery.com.br') {
         return Response.redirect('https://www.velodelivery.com.br', 301);
     }
 
-    // 2. MOTOR DE ROTEAMENTO DE DOMÍNIOS
     const baseDomain = 'velodelivery.com.br';
     let storeId = 'csi'; 
 
@@ -63,14 +60,12 @@ export default async function middleware(request) {
         storeId = domainMap[cleanHost] || cleanHost.split('.')[0];
     }
 
-    // 3. VALORES PADRÃO (FALLBACKS)
     const capitalize = (str) => str.charAt(0).toUpperCase() + str.slice(1);
     let name = capitalize(storeId);
     let slogan = 'O seu app de entregas';
     let logo = 'https://app.velodelivery.com.br/logo-square.png'; 
     let debugStatus = 'fallback-initialized';
 
-    // 4. BUSCA NO FIREBASE (EDGE COMPATIBLE)
     const projectId = process.env.VITE_FIREBASE_PROJECT_ID || process.env.FIREBASE_PROJECT_ID || 'zetesteapp';
     const apiKey = process.env.VITE_FIREBASE_API_KEY || process.env.FIREBASE_API_KEY || '';
     
@@ -109,7 +104,6 @@ export default async function middleware(request) {
         debugStatus = `firebase-fetch-failed`;
     }
 
-    // 5. LEITURA E INJEÇÃO NO INDEX.HTML DO VITE
     let html = '';
     try {
         const indexResponse = await fetch(new URL('/index.html', request.url));
@@ -119,7 +113,6 @@ export default async function middleware(request) {
         return fetch(request);
     }
 
-    // 6. LIMPEZA VORAZ DE META-TAGS ANTIGAS
     html = html.replace(/<title[^>]*>.*?<\/title>/gis, '');
     html = html.replace(/<meta\s+name=["']description["'][^>]*>/gis, '');
     html = html.replace(/<meta\s+(?:property|name)=["']og:[^>]*>/gis, '');
