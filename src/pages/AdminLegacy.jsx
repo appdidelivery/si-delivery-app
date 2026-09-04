@@ -2747,22 +2747,35 @@ const [vipMissions, setVipMissions] = useState([]);
     },[storeId]);
 
     // --- 🧹 ANTI-GHOST: LIXEIRO AUTOMÁTICO DE CARRINHOS FALSOS ---
-    useEffect(() => {
-        const cleanFakeCarts = async () => {
-            if (!abandonedCarts || abandonedCarts.length === 0 || !orders || orders.length === 0) return;
+    // Usamos refs para acessar os dados atuais dentro do setInterval 
+    // sem colocar os arrays na dependência do useEffect (O que causava o Infinite Loop)
+    const ordersRef = useRef(orders);
+    const cartsRef = useRef(abandonedCarts);
 
-            // Filtro rigoroso: Apenas pedidos feitos nas últimas 12h
+    useEffect(() => {
+        ordersRef.current = orders;
+        cartsRef.current = abandonedCarts;
+    }, [orders, abandonedCarts]);
+
+    useEffect(() => {
+        if (!storeId) return;
+
+        // Executa a limpeza a cada 2 minutos em background, fora do ciclo de renderização
+        const intervalId = setInterval(async () => {
+            const currentCarts = cartsRef.current;
+            const currentOrders = ordersRef.current;
+
+            if (!currentCarts || currentCarts.length === 0 || !currentOrders || currentOrders.length === 0) return;
+
             const cutoffTime = Date.now() - (12 * 60 * 60 * 1000);
             
-            const recentOrders = orders.filter(o => {
+            const recentOrders = currentOrders.filter(o => {
                 const orderTime = o.createdAt?.toMillis ? o.createdAt.toMillis() : (o.createdAt?.seconds * 1000) || 0;
                 return orderTime > cutoffTime && o.status !== 'canceled';
             });
 
-            for (const cart of abandonedCarts) {
+            for (const cart of currentCarts) {
                 const cartPhone = String(cart.customerPhone || '').replace(/\D/g, '');
-                
-                // Cruza o telefone do carrinho APENAS com pedidos válidos recentes
                 const matchingOrder = recentOrders.find(o => String(o.customerPhone || '').replace(/\D/g, '') === cartPhone);
 
                 if (cartPhone.length >= 8 && matchingOrder) {
@@ -2770,18 +2783,13 @@ const [vipMissions, setVipMissions] = useState([]);
                         // 1. Remove da tela imediatamente
                         setAbandonedCarts(prev => prev.filter(c => c.id !== cart.id));
                         
-                        // 2. Apaga o carrinho do banco de dados
-                        await deleteDoc(doc(db, "abandoned_carts", cart.id));
-                        
-                        // 3. TRAVA DE IDEMPOTÊNCIA: Só soma no Analytics se este pedido ainda não tiver sido contato
+                        // 2. Trava de Idempotência ANTES do Delete: Atualiza o Pedido e Analytics
                         if (!matchingOrder.recoveryCounted) {
-                            // Marca o pedido para não contar duas vezes
                             await updateDoc(doc(db, "orders", matchingOrder.id), { recoveryCounted: true });
 
-                            // Usa o valor real do pedido finalizado, não do carrinho
                             const valorRealRecuperado = Number(matchingOrder.total || 0);
-                            
                             const hoje = new Date().toISOString().split('T')[0];
+                            
                             await setDoc(doc(db, "stores", storeId, "analytics", hoje), { 
                                 recoveredCarts: increment(1),
                                 recoveredCartsValue: increment(valorRealRecuperado),
@@ -2789,15 +2797,19 @@ const [vipMissions, setVipMissions] = useState([]);
                             }, { merge: true });
                         }
 
+                        // 3. Apaga o carrinho do banco de dados com segurança
+                        await deleteDoc(doc(db, "abandoned_carts", cart.id));
+
                     } catch (e) {
                         console.error("Erro na limpeza de carrinhos e analytics:", e);
                     }
                 }
             }
-        };
+        }, 120000); // 120000ms = 2 minutos
 
-        cleanFakeCarts();
-    }, [orders, abandonedCarts]);
+        // Cleanup: Se o lojista fechar a tela, o relógio de limpeza é destruído
+        return () => clearInterval(intervalId);
+    }, [storeId]);
     // --------------------------------------------------------------
     // --- FUNÇÕES AUXILIARES ---
     const uploadImageToCloudinary = async (fileData, customFileName = null) => {
@@ -3338,7 +3350,7 @@ const handleGenerateProductCopy = async () => {
         }
     };
 
-    const printLabel = async (o) => {
+    const printLabel = (o) => {
         // Roteador de Impressão (NFC-e vs Comanda Interna)
         if (o.fiscalStatus === 'authorized' && o.nfeUrl && !o.nfeUrl.endsWith('/relatorios/danfe.pdf')) {
             window.open(o.nfeUrl, '_blank');
@@ -3353,9 +3365,8 @@ const handleGenerateProductCopy = async () => {
             return;
         }
         
-        // 🖨️ BLINDAGEM DE CACHE: Busca os dados reais da loja na hora para evitar nome em branco
-        const stSnap = await getDoc(doc(db, "stores", o.storeId || storeId));
-        const currentStoreStatus = stSnap.exists() ? stSnap.data() : storeStatus;
+        // 🖨️ BLINDAGEM DE CACHE (SÍNCRONA): Puxa da memória da UI, evitando perdas de documento (promises) 
+        const currentStoreStatus = storeStatus;
 
         // Contador de Pedidos do Cliente
         const telefoneLimpo = String(o.customerPhone || '').replace(/\D/g, '');
@@ -3448,7 +3459,7 @@ const handleGenerateProductCopy = async () => {
             ? gerarVia('VIA DA LOJA (COZINHA)', false) 
             : `${gerarVia('VIA DA LOJA', true)}${gerarVia('VIA DO ENTREGADOR', false)}`;
             
-        w.document.write(`<html><body style="margin:0; padding:0;">${htmlContent}<script>setTimeout(() => { window.print(); window.close(); }, 500);</script></body></html>`);
+        w.document.write(`<html><head><title>Comanda #${o.id?.slice(-5).toUpperCase()}</title></head><body style="margin:0; padding:0;">${htmlContent}<script>setTimeout(() => { window.print(); window.close(); }, 500);</script></body></html>`);
         w.document.close();
     };
 
