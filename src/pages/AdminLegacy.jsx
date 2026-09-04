@@ -8848,7 +8848,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                             <input 
                                                 type="text" 
                                                 placeholder={manualCustomer.deliveryMethod === 'pickup' ? "Nome do Cliente (Opcional)" : "Nome do Cliente *"} 
-                                                className="flex-1 min-w-[150px] p-3 bg-slate-50 rounded-xl font-bold text-xs outline-none focus:ring-2 ring-blue-500 border border-slate-100" 
+                                                className="flex-1 min-w-37.5 p-3 bg-slate-50 rounded-xl font-bold text-xs outline-none focus:ring-2 ring-blue-500 border border-slate-100" 
                                                 value={manualCustomer.name || ''} 
                                                 onChange={e => setManualCustomer({ ...manualCustomer, name: e.target.value })} 
                                             />

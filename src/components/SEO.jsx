@@ -181,7 +181,35 @@ export default function SEO({ title, description, image, productData }) {
                             "priceCurrency": "BRL",
                             "price": Number(rawPrice).toFixed(2),
                             "availability": (productData.stock === undefined || Number(productData.stock) > 0) ? "https://schema.org/InStock" : "https://schema.org/OutOfStock",
-                            "itemCondition": "https://schema.org/NewCondition"
+                            "itemCondition": "https://schema.org/NewCondition",
+                            "hasMerchantReturnPolicy": {
+                                "@type": "MerchantReturnPolicy",
+                                "returnPolicyCategory": "https://schema.org/MerchantReturnNotPermitted",
+                                "description": "Produtos perecíveis de consumo imediato não são elegíveis para devolução."
+                            },
+                            "shippingDetails": {
+                                "@type": "OfferShippingDetails",
+                                "shippingRate": {
+                                    "@type": "MonetaryAmount",
+                                    "value": "0.00",
+                                    "currency": "BRL"
+                                },
+                                "deliveryTime": {
+                                    "@type": "ShippingDeliveryTime",
+                                    "handlingTime": {
+                                        "@type": "QuantitativeValue",
+                                        "minValue": 0,
+                                        "maxValue": 1,
+                                        "unitCode": "HUR"
+                                    },
+                                    "transitTime": {
+                                        "@type": "QuantitativeValue",
+                                        "minValue": 0,
+                                        "maxValue": 1,
+                                        "unitCode": "HUR"
+                                    }
+                                }
+                            }
                         }
                     };
                 } else {
