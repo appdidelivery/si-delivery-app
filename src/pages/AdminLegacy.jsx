@@ -2747,8 +2747,9 @@ const [vipMissions, setVipMissions] = useState([]);
     },[storeId]);
 
     // --- 🧹 ANTI-GHOST: LIXEIRO AUTOMÁTICO DE CARRINHOS FALSOS ---
-    // Usamos refs para acessar os dados atuais dentro do setInterval 
-    // sem colocar os arrays na dependência do useEffect (O que causava o Infinite Loop)
+    // BLINDAGEM CONTRA LOOP INFINITO (MEMORY LEAK FIX)
+    // Usamos refs para espelhar os dados atuais para o robô de background, 
+    // sem colocar os estados na dependência do useEffect (o que causava o loop).
     const ordersRef = useRef(orders);
     const cartsRef = useRef(abandonedCarts);
 
@@ -2760,7 +2761,7 @@ const [vipMissions, setVipMissions] = useState([]);
     useEffect(() => {
         if (!storeId) return;
 
-        // Executa a limpeza a cada 2 minutos em background, fora do ciclo de renderização
+        // Motor de limpeza em background (Roda a cada 2 minutos em silêncio)
         const intervalId = setInterval(async () => {
             const currentCarts = cartsRef.current;
             const currentOrders = ordersRef.current;
@@ -2780,10 +2781,10 @@ const [vipMissions, setVipMissions] = useState([]);
 
                 if (cartPhone.length >= 8 && matchingOrder) {
                     try {
-                        // 1. Remove da tela imediatamente
+                        // 1. Remove da tela local imediatamente
                         setAbandonedCarts(prev => prev.filter(c => c.id !== cart.id));
                         
-                        // 2. Trava de Idempotência ANTES do Delete: Atualiza o Pedido e Analytics
+                        // 2. Trava de Idempotência ANTES de apagar
                         if (!matchingOrder.recoveryCounted) {
                             await updateDoc(doc(db, "orders", matchingOrder.id), { recoveryCounted: true });
 
@@ -2797,17 +2798,17 @@ const [vipMissions, setVipMissions] = useState([]);
                             }, { merge: true });
                         }
 
-                        // 3. Apaga o carrinho do banco de dados com segurança
+                        // 3. Apaga o carrinho fantasma
                         await deleteDoc(doc(db, "abandoned_carts", cart.id));
 
                     } catch (e) {
-                        console.error("Erro na limpeza de carrinhos e analytics:", e);
+                        console.error("Erro na limpeza silenciosa de carrinhos:", e);
                     }
                 }
             }
-        }, 120000); // 120000ms = 2 minutos
+        }, 120000); // 120.000 ms = 2 minutos (Tempo seguro para não onerar o banco)
 
-        // Cleanup: Se o lojista fechar a tela, o relógio de limpeza é destruído
+        // Limpeza de memória: Se o lojista fechar a aba, o relógio é destruído
         return () => clearInterval(intervalId);
     }, [storeId]);
     // --------------------------------------------------------------
