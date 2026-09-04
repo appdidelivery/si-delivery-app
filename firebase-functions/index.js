@@ -211,7 +211,7 @@ exports.gerarCopyProduto = onCall(
     }
 );
 
-/// =========================================================================
+// =========================================================================
 // 🧾 MOTOR FISCAL (VELO DELIVERY x FOCUS NFE) - BACKGROUND TASK
 // =========================================================================
 exports.emitirNotaFiscal = functions.firestore
@@ -220,10 +220,18 @@ exports.emitirNotaFiscal = functions.firestore
         const order = change.after.exists ? change.after.data() : null;
         const orderBefore = change.before.exists ? change.before.data() : null;
 
-        // Só dispara se o pedido estiver PAGO e ainda não tiver status fiscal
+        // 1. Aborta se não tiver pedido ou não estiver PAGO
         if (!order || order.paymentStatus !== 'paid') return null;
+        
+        // 2. Aborta se já disparou antes para não ficar em loop
         if (orderBefore && orderBefore.paymentStatus === 'paid') return null;
-        if (order.fiscalStatus && order.fiscalStatus !== 'error') return null; 
+        
+        // 3. 🚨 BLINDAGEM DA RECEITA: Aborta se for um "Recibo Interno" (Sem CPF) 
+        // ou se já foi enviado (processing/authorized)
+        if (order.fiscalStatus === 'internal_receipt' || (order.fiscalStatus && order.fiscalStatus !== 'error')) {
+            functions.logger.log(`Pedido ${context.params.orderId} ignorado pelo Fiscal (Motivo: Status atual = ${order.fiscalStatus}).`);
+            return null; 
+        }
 
         const storeId = order.storeId;
         const orderId = context.params.orderId;
