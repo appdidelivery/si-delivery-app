@@ -196,10 +196,67 @@ export default function SEO({ title, description, image, productData }) {
                             "reviewCount": String(ratingCount)
                         };
                     }
+                    
+                    // SINAIS E-E-A-T (Update Muvera): Transparência Operacional
+                    structuredData.paymentAccepted = "Dinheiro, Cartão de Crédito, Pix";
+                    if (store?.socialLinks?.instagram) {
+                        structuredData.sameAs = [store.socialLinks.instagram];
+                    }
+                    structuredData.openingHoursSpecification = [
+                        {
+                            "@type": "OpeningHoursSpecification",
+                            "dayOfWeek": ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"],
+                            "opens": store?.openingTime || "18:00",
+                            "closes": store?.closingTime || "23:59"
+                        }
+                    ];
                 }
 
                 if (isMounted) {
-                    const safeJsonLd = JSON.stringify(structuredData).replace(/</g, '\\u003c');
+                    // CONSTRUÇÃO DO FAQ DINÂMICO (Densidade Factual para SERP)
+                    let finalSchema = structuredData;
+                    
+                    // Prepara o FAQ apenas se estivermos na Home da loja (não nos produtos individuais)
+                    if (!productData) {
+                        const localName = addressObj.addressLocality || "toda a região";
+                        const faqSchema = {
+                            "@type": "FAQPage",
+                            "mainEntity": [
+                                {
+                                    "@type": "Question",
+                                    "name": `Qual o horário de funcionamento do ${fetchedName}?`,
+                                    "acceptedAnswer": {
+                                        "@type": "Answer",
+                                        "text": `Atendemos todos os dias das ${store?.openingTime || "18:00"} às ${store?.closingTime || "23:59"}.`
+                                    }
+                                },
+                                {
+                                    "@type": "Question",
+                                    "name": `O ${fetchedName} faz entrega em ${localName}?`,
+                                    "acceptedAnswer": {
+                                        "@type": "Answer",
+                                        "text": `Sim! Entregamos rapidamente em ${localName}. Peça direto pelo nosso cardápio digital.`
+                                    }
+                                },
+                                {
+                                    "@type": "Question",
+                                    "name": "Quais são as formas de pagamento aceitas pelo delivery?",
+                                    "acceptedAnswer": {
+                                        "@type": "Answer",
+                                        "text": "Aceitamos Pix, cartões de crédito e débito, além de pagamento em dinheiro na entrega para sua maior comodidade."
+                                    }
+                                }
+                            ]
+                        };
+                        
+                        // Envelopa o Restaurante + Menu + FAQ no padrão @graph do Google
+                        finalSchema = {
+                            "@context": "https://schema.org",
+                            "@graph": [structuredData, faqSchema]
+                        };
+                    }
+
+                    const safeJsonLd = JSON.stringify(finalSchema).replace(/</g, '\\u003c');
                     let scriptTag = document.getElementById('velo-seo-schema');
                     if (!scriptTag) {
                         scriptTag = document.createElement('script');
