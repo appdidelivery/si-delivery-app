@@ -1576,15 +1576,16 @@ export default function Home() {
         const cachedData = sessionStorage.getItem(cacheKey);
 
         if (cachedData) {
-            try {
+           try {
                 const parsed = JSON.parse(cachedData);
-                setCategories(parsed.categories);
-                setIngredients(parsed.ingredients);
-                setAvailableCoupons(parsed.coupons);
-                setShippingRates(parsed.shippingRates);
-                setGeneralBanners(parsed.banners);
+                // BLINDAGEM: Garante que os estados nunca sejam undefined (evita erro .length)
+                setCategories(parsed.categories || []);
+                setIngredients(parsed.ingredients || []);
+                setAvailableCoupons(parsed.coupons || []);
+                setShippingRates(parsed.shippingRates || []);
+                setGeneralBanners(parsed.banners || []);
                 setIsCatalogReady(true);
-                return; // Corta a execução aqui. ZERO leituras no Firebase!
+                return; 
             } catch (e) {
                 sessionStorage.removeItem(cacheKey);
             }
