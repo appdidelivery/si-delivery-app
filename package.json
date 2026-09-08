@@ -18,6 +18,8 @@
     "@google/genai": "^1.50.1",
     "@google/generative-ai": "^0.24.1",
     "@react-google-maps/api": "^2.20.8",
+    "@solana/spl-token": "^0.4.15",
+    "@solana/web3.js": "^1.99.0",
     "@tailwindcss/postcss": "^4.0.0",
     "firebase": "^11.0.0",
     "firebase-admin": "^13.6.1",

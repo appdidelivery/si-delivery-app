@@ -3521,6 +3521,28 @@ const handleGenerateProductCopy = async () => {
         }
         // -----------------------------------------------------------------
 
+        // --- INÍCIO: MVP TOKENIZAÇÃO (SOLANA) - TRANSFERÊNCIA DE RECOMPENSA ---
+        if (newStatus === 'completed' && storeStatus?.isTokenMVPActive && order.customerPhone) {
+            try {
+                const cleanPhone = String(order.customerPhone).replace(/\D/g, '');
+                
+                // Dispara a API em background (fire-and-forget) para não travar a tela do Lojista
+                // enquanto a blockchain da Solana processa a transação.
+                authenticatedFetch('/api/token-reward', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                        storeId: storeId, 
+                        customerPhone: cleanPhone,
+                        orderId: order.id,
+                        amountSpent: Number(order.total) || 0
+                    })
+                }).catch(e => console.error("Aviso Token MVP: ", e));
+                
+            } catch(e) { console.error("Erro ao disparar Token MVP: ", e); }
+        }
+        // --- FIM: MVP TOKENIZAÇÃO ---
+
         const lojaNome = storeStatus.name || "Velo Delivery";
         const primeiroNome = order.customerName ? order.customerName.split(' ')[0] : 'Cliente';
         const linkGoogle = storeStatus.googleReviewUrl || `https://${window.location.host}`; 

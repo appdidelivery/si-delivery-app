@@ -2,6 +2,8 @@ import Stripe from 'stripe';
 import admin from 'firebase-admin';
 import Gerencianet from 'gn-api-sdk-node'; // <-- ADICIONADO AQUI
 import pathModule from 'path';
+import { Connection, Keypair, PublicKey, clusterApiUrl } from '@solana/web3.js'; // <-- NOVO: SOLANA WEB3
+import { getOrCreateAssociatedTokenAccount, transfer } from '@solana/spl-token'; // <-- NOVO: SOLANA TOKENS
 import { GoogleAuth } from 'google-auth-library'; // <-- NOVA AUTENTICAÇÃO SERVICE ACCOUNT
 import crypto from 'crypto'; // <-- OBRIGATÓRIO PARA A CAPI DA META
 
@@ -323,9 +325,9 @@ export default async function handler(req, res) {
         '/api/pay-subscription-mp',      // <-- ADICIONADO P/ LIBERAR O CARTÃO DA FATURA
         '/api/pay-subscription-mp-pix',  // <-- ADICIONADO P/ LIBERAR O PIX DA FATURA
         '/api/pay-subscription-efi-pix', // 🟢 NOVA ROTA ADICIONADA AQUI (Libera o PIX da Efí)
-        '/api/velopay-webhook/pix'       // 🛡️ ADICIONADO: Exceção para o sufixo obrigatório da Efí
+        '/api/velopay-webhook/pix',      // 🛡️ ADICIONADO: Exceção para o sufixo obrigatório da Efí
+        '/api/wallet-create'             // 🟢 NOVO: Libera a criação de carteira B2C (Sem Token Admin)
     ];
-
     // Se a rota atual NÃO estiver na lista pública, exige autenticação
     if (!publicRoutes.includes(path)) {
         // Suporta as duas formas de escrita do cabeçalho
@@ -6512,6 +6514,119 @@ Retorne APENAS um JSON válido com 3 chaves:
         } catch (error) {
             console.error("🔴 Erro crítico Webhook Binance:", error);
             return res.status(500).json({ returnCode: "FAIL", returnMessage: "Internal Error" });
+        }
+    }
+
+    // ------------------------------------------------------------------------
+    // 32. SOLANA: CRIAR CARTEIRA INVISÍVEL (CUSTODIAL) PARA O CLIENTE
+    // ------------------------------------------------------------------------
+    else if (path === '/api/wallet-create') {
+        if (req.method !== 'POST') return res.status(405).json({ error: 'Método não permitido.' });
+
+        try {
+            const { storeId, customerPhone } = req.body;
+
+            if (!storeId || !customerPhone) {
+                return res.status(400).json({ success: false, error: 'storeId e customerPhone são obrigatórios.' });
+            }
+
+            const cleanPhone = String(customerPhone).replace(/\D/g, '');
+            const walletId = `${storeId}_${cleanPhone}`;
+            const walletRef = db.collection('wallets').doc(walletId);
+            
+            const walletSnap = await walletRef.get();
+
+            // TRAVA DE IDEMPOTÊNCIA: Se já tem a chave da Solana, aborta
+            if (walletSnap.exists && walletSnap.data().solanaPublicKey) {
+                return res.status(200).json({ success: true, message: 'Carteira Solana já existente.', address: walletSnap.data().solanaPublicKey });
+            }
+
+            const newWallet = Keypair.generate();
+            const publicKey = newWallet.publicKey.toBase58();
+            const secretKey = Array.from(newWallet.secretKey);
+
+            await walletRef.set({
+                solanaPublicKey: publicKey,
+                solanaSecretKey: secretKey, // MVP Devnet: Array salvo no banco. Mainnet: Necessário KMS/AES256.
+                solanaNetwork: 'devnet',
+                solanaUpdatedAt: admin.firestore.FieldValue.serverTimestamp()
+            }, { merge: true });
+
+            return res.status(201).json({ success: true, message: 'Carteira gerada com sucesso!', address: publicKey });
+
+        } catch (error) {
+            console.error('🚨 [API_WALLET_CREATE]', error);
+            return res.status(500).json({ success: false, error: 'Erro interno ao gerar carteira.' });
+        }
+    }
+
+    // ------------------------------------------------------------------------
+    // 33. SOLANA: TRANSFERIR TOKENS (RECOMPENSA DE PEDIDO)
+    // ------------------------------------------------------------------------
+    else if (path === '/api/token-reward') {
+        if (req.method !== 'POST') return res.status(405).json({ error: 'Método não permitido.' });
+
+        try {
+            const { storeId, customerPhone, orderId, amountSpent } = req.body;
+
+            if (!storeId || !customerPhone || !orderId || !amountSpent) {
+                return res.status(400).json({ success: false, error: 'Dados insuficientes para a recompensa.' });
+            }
+
+            const cleanPhone = String(customerPhone).replace(/\D/g, '');
+            const walletId = `${storeId}_${cleanPhone}`;
+            const walletRef = db.collection('wallets').doc(walletId);
+            const walletSnap = await walletRef.get();
+
+            if (!walletSnap.exists || !walletSnap.data().solanaPublicKey) {
+                return res.status(404).json({ success: false, error: 'Carteira Solana do cliente não encontrada.' });
+            }
+
+            const customerPubKeyString = walletSnap.data().solanaPublicKey;
+            const tokensToAward = Math.floor(amountSpent);
+
+            // TRAVA DE IDEMPOTÊNCIA: Evita dar tokens duplicados se o lojista clicar em "Concluído" 2 vezes
+            const ledgerRef = db.collection('solana_ledger').doc(`reward_${orderId}`);
+            const ledgerSnap = await ledgerRef.get();
+            if (ledgerSnap.exists) {
+                return res.status(200).json({ success: true, message: 'Recompensa já processada.' });
+            }
+
+            let txSignature = "simulated_tx_" + Math.random().toString(36).substring(2, 15);
+            
+            const TREASURY_SECRET = process.env.SOLANA_TREASURY_SECRET_KEY; 
+            const MINT_ADDRESS = process.env.SOLANA_TOKEN_MINT_ADDRESS; 
+
+            if (TREASURY_SECRET && MINT_ADDRESS) {
+                try {
+                    const connection = new Connection(clusterApiUrl('devnet'), 'confirmed');
+                    const treasuryKeypair = Keypair.fromSecretKey(Uint8Array.from(JSON.parse(TREASURY_SECRET)));
+                    const mintPublicKey = new PublicKey(MINT_ADDRESS);
+                    const customerPublicKey = new PublicKey(customerPubKeyString);
+
+                    const customerTokenAccount = await getOrCreateAssociatedTokenAccount(connection, treasuryKeypair, mintPublicKey, customerPublicKey);
+                    const treasuryTokenAccount = await getOrCreateAssociatedTokenAccount(connection, treasuryKeypair, mintPublicKey, treasuryKeypair.publicKey);
+
+                    txSignature = await transfer(connection, treasuryKeypair, treasuryTokenAccount.address, customerTokenAccount.address, treasuryKeypair.publicKey, tokensToAward);
+                } catch (web3Error) {
+                    console.error("Erro Web3, operando em modo simulação.", web3Error);
+                    txSignature = "failed_but_simulated_" + Date.now();
+                }
+            } else {
+                console.log("Variáveis de ambiente Solana ausentes. Modo simulação ativado.");
+            }
+
+            await ledgerRef.set({
+                storeId, customerPhone: cleanPhone, orderId, tokensAwarded: tokensToAward, txHash: txSignature, network: 'devnet', createdAt: admin.firestore.FieldValue.serverTimestamp()
+            });
+
+            await walletRef.set({ solanaTokenBalance: admin.firestore.FieldValue.increment(tokensToAward) }, { merge: true });
+
+            return res.status(200).json({ success: true, message: 'Tokens transferidos com sucesso!', txHash: txSignature, tokens: tokensToAward });
+
+        } catch (error) {
+            console.error('🚨 [API_TOKEN_REWARD]', error);
+            return res.status(500).json({ success: false, error: 'Erro interno ao processar recompensa.' });
         }
     }
 

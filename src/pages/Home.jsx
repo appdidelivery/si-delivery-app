@@ -1110,17 +1110,33 @@ export default function Home() {
               const cleanPhone = phone.replace(/\D/g, '');
               const walletRef = doc(db, "wallets", `${storeId}_${cleanPhone}`);
               
-              const unsubWallet = onSnapshot(walletRef, (docSnap) => {
+              const unsubWallet = onSnapshot(walletRef, async (docSnap) => {
                   if (docSnap.exists()) {
                       setCashbackBalance(docSnap.data().balance || 0);
                   } else {
                       setCashbackBalance(0);
                   }
+
+                  // --- INÍCIO: INTEGRAÇÃO MVP TOKENIZAÇÃO (SOLANA) ---
+                  // Dispara a criação da carteira invisível silenciosamente se a Flag estiver ativa
+                  if (storeSettings?.isTokenMVPActive && !sessionStorage.getItem(`solana_wallet_checked_${cleanPhone}`)) {
+                      sessionStorage.setItem(`solana_wallet_checked_${cleanPhone}`, 'true'); // Trava para chamar API 1x por sessão
+                      try {
+                          await fetch('/api/wallet-create', {
+                              method: 'POST',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({ storeId, customerPhone: cleanPhone })
+                          });
+                      } catch (err) {
+                          console.error("Falha silenciosa ao gerar carteira Solana:", err);
+                      }
+                  }
+                  // --- FIM: INTEGRAÇÃO MVP TOKENIZAÇÃO ---
               });
               return () => unsubWallet();
           }
       }
-  }, [marketingSettings?.gamification?.cashback, storeId, customer.phone]);
+  }, [marketingSettings?.gamification?.cashback, storeId, customer.phone, storeSettings?.isTokenMVPActive]);
 
   const spinRoulette = async () => {
       if (isSpinning) return;
@@ -4640,32 +4656,55 @@ alert("Pagamento recusado pelo Mercado Pago. Tente outro cartão ou entre em con
                   )}
 
                   {/* --- MÓDULO DE RESGATE DE CASHBACK NO CHECKOUT --- */}
-                  {marketingSettings?.gamification?.cashback && cashbackBalance > 0 && !isWaiterMode && (
-                      <div className="mt-6 mb-2 bg-emerald-50 border-2 border-emerald-200 p-4 rounded-3xl flex justify-between items-center shadow-sm transition-all">
-                          <div className="flex flex-col">
-                              <span className="text-emerald-800 font-black text-xs uppercase tracking-widest flex items-center gap-1">
-                                  <Wallet size={14} className="text-emerald-600" /> Seu Cashback
-                              </span>
-                              <span className="text-emerald-600 font-bold text-[10px] leading-tight mt-0.5">
-                                  Saldo disponível: <b>R$ {cashbackBalance.toFixed(2)}</b>
-                              </span>
+                      {marketingSettings?.gamification?.cashback && cashbackBalance > 0 && !isWaiterMode && (
+                          <div className="mt-6 mb-2 bg-emerald-50 border-2 border-emerald-200 p-4 rounded-3xl flex justify-between items-center shadow-sm transition-all">
+                              <div className="flex flex-col">
+                                  <span className="text-emerald-800 font-black text-xs uppercase tracking-widest flex items-center gap-1">
+                                      <Wallet size={14} className="text-emerald-600" /> Seu Cashback
+                                  </span>
+                                  <span className="text-emerald-600 font-bold text-[10px] leading-tight mt-0.5">
+                                      Saldo disponível: <b>R$ {cashbackBalance.toFixed(2)}</b>
+                                  </span>
+                              </div>
+                              
+                              <label className="relative inline-flex items-center cursor-pointer">
+                                  <input 
+                                      type="checkbox" 
+                                      className="sr-only peer" 
+                                      checked={useCashback}
+                                      onChange={() => setUseCashback(!useCashback)}
+                                  />
+                                  <div className="w-11 h-6 bg-emerald-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:bg-white after:border-emerald-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-600 shadow-inner"></div>
+                              </label>
                           </div>
-                          
-                          <label className="relative inline-flex items-center cursor-pointer">
-                              <input 
-                                  type="checkbox" 
-                                  className="sr-only peer" 
-                                  checked={useCashback}
-                                  onChange={() => setUseCashback(!useCashback)}
-                              />
-                              <div className="w-11 h-6 bg-emerald-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:bg-white after:border-emerald-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-600 shadow-inner"></div>
-                          </label>
-                      </div>
-                  )}
-                  {/* ----------------------------------------------- */}
+                      )}
+                      {/* ----------------------------------------------- */}
 
-                  <div className="mt-4 p-6 bg-slate-900 rounded-[2.5rem] text-white shadow-xl">
-                    {!isWaiterMode && (
+                      {/* --- INÍCIO: MVP DE TOKENIZAÇÃO (SOLANA DEVNET) --- */}
+                      {storeSettings?.isTokenMVPActive && !isWaiterMode && (
+                          <div className="mt-6 mb-2 bg-linear-to-r from-indigo-900 to-purple-900 border border-indigo-500/30 p-5 rounded-3xl flex items-center justify-between shadow-lg shadow-indigo-900/20 relative overflow-hidden animate-in fade-in zoom-in-95">
+                              {/* Efeito Visual Web3 */}
+                              <div className="absolute -right-10 -top-10 bg-purple-500 w-32 h-32 rounded-full blur-[50px] opacity-30 pointer-events-none"></div>
+                              
+                              <div className="flex items-center gap-4 relative z-10">
+                                  <div className="bg-indigo-500/20 p-3 rounded-2xl text-indigo-300 border border-indigo-400/20 shadow-inner">
+                                      <Bitcoin size={24} className="animate-pulse" />
+                                  </div>
+                                  <div className="flex flex-col">
+                                      <span className="text-indigo-200 font-black text-[10px] uppercase tracking-widest mb-0.5 flex items-center gap-1">
+                                          <Sparkles size={10} className="text-yellow-400"/> Web3 Cashback
+                                      </span>
+                                      <span className="text-white font-medium text-sm leading-tight">
+                                          Você ganhará <strong className="text-yellow-400 font-black text-lg">{Math.floor(finalTotal)} $VELO</strong> nesta compra!
+                                      </span>
+                                  </div>
+                              </div>
+                          </div>
+                      )}
+                      {/* --- FIM: MVP DE TOKENIZAÇÃO --- */}
+
+                      <div className="mt-4 p-6 bg-slate-900 rounded-[2.5rem] text-white shadow-xl">
+                        {!isWaiterMode && (
                           <div className="flex justify-between text-sm opacity-60 font-bold mb-2">
                               <span>Frete</span>
                               <span className={(isFreeShipping || customer.deliveryMethod === 'pickup' || tableSession) ? "text-green-600 font-black" : ""}>
