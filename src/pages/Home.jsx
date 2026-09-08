@@ -2608,12 +2608,22 @@ if (window.fbq) {
                       if(vId) await deleteDoc(doc(db, "abandoned_carts", `cart_${storeId}_${vId}`));
                       if(customer.phone) await deleteDoc(doc(db, "abandoned_carts", `cart_${storeId}_${customer.phone.replace(/\D/g, '')}`)); 
                   } catch(e){}
-
-                  // Limpa o carrinho e redireciona (O backend já cuidou de salvar o QR Code no banco!)
+// Limpa o carrinho e redireciona (O backend já cuidou de salvar o QR Code no banco!)
                   localStorage.setItem('activeOrderId', orderId);
                   setActiveOrderId(orderId);
                   draftOrderIdRef.current = null; setCart([]); localStorage.removeItem(`veloCart_${storeId}`);
                   
+                  // --- GAMIFICAÇÃO: ABATER SALDO REAL DA CARTEIRA E TOKENS (PIX NATIVO) ---
+                  if (cashbackDiscount > 0 || solanaDiscount > 0) {
+                      const cleanPhone = customer.phone.replace(/\D/g, '');
+                      try { 
+                          await updateDoc(doc(db, "wallets", `${storeId}_${cleanPhone}`), { 
+                              balance: increment(-cashbackDiscount),
+                              solanaTokenBalance: increment(-solanaDiscount)
+                          }); 
+                      } catch(e){}
+                  }
+
                   window.location.href = `/track/${orderId}?payment=pix_pending`;
                   return;
 
@@ -4723,7 +4733,7 @@ alert("Pagamento recusado pelo Mercado Pago. Tente outro cartão ou entre em con
                                               <Sparkles size={10} className="text-yellow-400"/> Web3 Cashback
                                           </span>
                                           <span className="text-white font-medium text-sm leading-tight">
-                                              Você ganhará <strong className="text-yellow-400 font-black text-lg">{Math.floor(finalTotal)} $VELO</strong> nesta compra!
+                                              Você ganhará <strong className="text-yellow-400 font-black text-lg">{Math.floor(finalTotal)} $VFOOD</strong> nesta compra!
                                           </span>
                                       </div>
                                   </div>
@@ -4733,7 +4743,7 @@ alert("Pagamento recusado pelo Mercado Pago. Tente outro cartão ou entre em con
                                   <div className="mt-4 pt-4 border-t border-indigo-500/30 flex items-center justify-between relative z-10">
                                       <div className="flex flex-col">
                                           <span className="text-indigo-200 font-bold text-[10px] uppercase tracking-widest">Saldo na Carteira</span>
-                                          <span className="text-white font-black text-sm">💰 {solanaBalance} $VELO</span>
+                                          <span className="text-white font-black text-sm">💰 {solanaBalance} $VFOOD</span>
                                       </div>
                                       <label className="relative inline-flex items-center cursor-pointer">
                                           <input 
