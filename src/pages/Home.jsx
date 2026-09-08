@@ -1033,8 +1033,8 @@ export default function Home() {
   const [userBadges, setUserBadges] = useState([]);
   
   // --- INÍCIO: ESTADOS MVP TOKENIZAÇÃO ($VFOOD) ---
-  const [useVfoodDiscount, setUseVfoodDiscount] = useState(false);
-  const [vfoodBalance, setVfoodBalance] = useState(0);
+  const [useSolanaTokens, setUseSolanaTokens] = useState(false);
+  const [solanaBalance, setSolanaBalance] = useState(0);
   // --- FIM: ESTADOS MVP TOKENIZAÇÃO ---
 
   // CAPTURA DO LINK DE INDICAÇÃO, INFLUENCIADORES E AUTOATENDIMENTO (MESA) NO LOAD INICIAL
