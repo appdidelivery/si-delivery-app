@@ -10657,6 +10657,19 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                     }} className="bg-linear-to-r from-red-600 to-rose-600 hover:from-red-500 hover:to-rose-500 text-white py-4 px-2 rounded-xl font-black text-[10px] uppercase tracking-widest shadow-lg shadow-red-900/50 transition-all active:scale-95 flex items-center justify-center gap-2">
                                         <RefreshCw size={14}/> Limpar Liberações Manuais
                                     </button>
+
+                                    {/* NOVO: BOTÃO TOGGLE PARA MVP DE TOKENIZAÇÃO (SOLANA) */}
+                                    <button onClick={async () => {
+                                        const newValue = !storeStatus?.isTokenMVPActive;
+                                        if(!window.confirm(`Deseja ${newValue ? 'ATIVAR' : 'DESATIVAR'} o MVP de Tokenização de Cashback (Solana Devnet) para esta loja?`)) return;
+                                        
+                                        await updateDoc(doc(db, "stores", storeId), { 
+                                            isTokenMVPActive: newValue 
+                                        });
+                                        alert(`✅ MVP de Tokenização ${newValue ? 'ATIVADO' : 'DESATIVADO'} com sucesso para a loja ${storeId}!`);
+                                    }} className={`py-4 px-2 rounded-xl font-black text-[10px] uppercase tracking-widest shadow-lg transition-all flex items-center justify-center gap-2 border active:scale-95 ${storeStatus?.isTokenMVPActive ? 'bg-indigo-600 hover:bg-indigo-500 text-white border-indigo-500 shadow-indigo-900/50' : 'bg-slate-800 hover:bg-slate-700 text-slate-400 border-slate-700'}`}>
+                                        <Bitcoin size={14}/> {storeStatus?.isTokenMVPActive ? 'Token MVP (Solana): ON' : 'Token MVP (Solana): OFF'}
+                                    </button>
                                 </div>
                             </div>
                         )}
