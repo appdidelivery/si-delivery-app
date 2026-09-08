@@ -1031,6 +1031,11 @@ export default function Home() {
   const [cashbackBalance, setCashbackBalance] = useState(0);
   const [userTier, setUserTier] = useState({ name: 'Visitante', next: 'Bronze', missing: 0, progress: 0, color: 'text-slate-400' });
   const [userBadges, setUserBadges] = useState([]);
+  
+  // --- INÍCIO: ESTADOS MVP TOKENIZAÇÃO ($VFOOD) ---
+  const [useVfoodDiscount, setUseVfoodDiscount] = useState(false);
+  const [vfoodBalance, setVfoodBalance] = useState(0);
+  // --- FIM: ESTADOS MVP TOKENIZAÇÃO ---
 
   // CAPTURA DO LINK DE INDICAÇÃO, INFLUENCIADORES E AUTOATENDIMENTO (MESA) NO LOAD INICIAL
   useEffect(() => {
@@ -1113,8 +1118,12 @@ export default function Home() {
               const unsubWallet = onSnapshot(walletRef, async (docSnap) => {
                   if (docSnap.exists()) {
                       setCashbackBalance(docSnap.data().balance || 0);
+                      // --- INÍCIO: MVP TOKENIZAÇÃO (Ler saldo) ---
+                      setSolanaBalance(docSnap.data().solanaTokenBalance || 0);
+                      // --- FIM: MVP TOKENIZAÇÃO ---
                   } else {
                       setCashbackBalance(0);
+                      setSolanaBalance(0);
                   }
 
                   // --- INÍCIO: INTEGRAÇÃO MVP TOKENIZAÇÃO (SOLANA) ---
@@ -1600,11 +1609,11 @@ export default function Home() {
             setIngredients(ings);
             setAvailableCoupons(coups);
             setShippingRates(ships);
-            setGeneralBanners(bans);
+            // setGeneralBanners(bans); REMOVIDO DAQUI PARA SER EM TEMPO REAL
 
-            // Salva na memória do navegador do cliente para não buscar de novo
+            // Salva na memória do navegador do cliente para não buscar de novo (Sem os banners)
             sessionStorage.setItem(cacheKey, JSON.stringify({
-                categories: cats, ingredients: ings, coupons: coups, shippingRates: ships, banners: bans
+                categories: cats, ingredients: ings, coupons: coups, shippingRates: ships
             }));
         } catch (error) {
             console.error("Erro ao carregar catálogo estático:", error);
@@ -1614,6 +1623,14 @@ export default function Home() {
     };
     
     fetchStaticCatalogData();
+
+    // --- BANNERS EM TEMPO REAL ---
+    const unsubBanners = onSnapshot(
+        query(collection(db, "banners"), where("storeId", "==", storeId), where("isActive", "==", true), orderBy("order", "asc")), 
+        (snap) => {
+            setGeneralBanners(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+        }
+    );
 
     // Mantém em tempo real APENAS o status da loja (Aberto/Fechado) e Configs
     const storeSettingsRef = doc(db, "stores", storeId);
@@ -2161,7 +2178,11 @@ export default function Home() {
   const baseTotal = Number(subtotal) + finalShippingFee - actualDiscountAmount;
   // Cálculo do Cashback dinâmico: Não pode abater mais do que o total do pedido.
   const cashbackDiscount = (marketingSettings?.gamification?.cashback && useCashback) ? Math.min(cashbackBalance, baseTotal) : 0;
-  const finalTotal = baseTotal - cashbackDiscount;
+  
+  // --- INÍCIO: CÁLCULO DE DESCONTO MVP TOKENIZAÇÃO (1 VELO = R$ 1,00) ---
+  const solanaDiscount = (storeSettings?.isTokenMVPActive && useSolanaTokens) ? Math.min(solanaBalance, baseTotal - cashbackDiscount) : 0;
+  const finalTotal = baseTotal - cashbackDiscount - solanaDiscount;
+  // --- FIM: CÁLCULO DE DESCONTO MVP TOKENIZAÇÃO ---
 
   const applyCoupon = async (autoCode = null) => {
     const codeToUse = typeof autoCode === 'string' ? autoCode : couponCode;
@@ -2359,6 +2380,7 @@ upsellAmount: upsellTotal, // Mantido por retrocompatibilidade com painéis anti
         waiterName: isWaiterMode ? waiterName : null,
         // Gamificação Info:
         usedCashback: cashbackDiscount > 0 ? cashbackDiscount : 0,
+        usedSolanaTokens: solanaDiscount > 0 ? solanaDiscount : 0, // NOVO: MVP TOKENIZAÇÃO
         referredBy: localStorage.getItem('veloReferredBy') || null,
         affiliateId: localStorage.getItem('veloAffiliateId') || null, // MOTOR DE RASTREIO INFLUENCERS
         // --- DADOS DE FLORICULTURA / PRESENTE ---
@@ -2459,10 +2481,15 @@ if (window.fbq) {
       if (isOfflinePayment) {
           await setDoc(newOrderRef, orderData);
 
-          // --- GAMIFICAÇÃO: ABATER SALDO REAL DA CARTEIRA ---
-          if (cashbackDiscount > 0) {
+          // --- GAMIFICAÇÃO: ABATER SALDO REAL DA CARTEIRA E TOKENS ---
+          if (cashbackDiscount > 0 || solanaDiscount > 0) {
               const cleanPhone = customer.phone.replace(/\D/g, '');
-              try { await updateDoc(doc(db, "wallets", `${storeId}_${cleanPhone}`), { balance: increment(-cashbackDiscount) }); } catch(e){}
+              try { 
+                  await updateDoc(doc(db, "wallets", `${storeId}_${cleanPhone}`), { 
+                      balance: increment(-cashbackDiscount),
+                      solanaTokenBalance: increment(-solanaDiscount)
+                  }); 
+              } catch(e){}
           }
           // --------------------------------------------------
 
@@ -4682,23 +4709,42 @@ alert("Pagamento recusado pelo Mercado Pago. Tente outro cartão ou entre em con
 
                       {/* --- INÍCIO: MVP DE TOKENIZAÇÃO (SOLANA DEVNET) --- */}
                       {storeSettings?.isTokenMVPActive && !isWaiterMode && (
-                          <div className="mt-6 mb-2 bg-linear-to-r from-indigo-900 to-purple-900 border border-indigo-500/30 p-5 rounded-3xl flex items-center justify-between shadow-lg shadow-indigo-900/20 relative overflow-hidden animate-in fade-in zoom-in-95">
-                              {/* Efeito Visual Web3 */}
+                          <div className="mt-6 mb-2 bg-linear-to-r from-indigo-900 to-purple-900 border border-indigo-500/30 p-5 rounded-3xl flex flex-col shadow-lg shadow-indigo-900/20 relative overflow-hidden animate-in fade-in zoom-in-95">
                               <div className="absolute -right-10 -top-10 bg-purple-500 w-32 h-32 rounded-full blur-[50px] opacity-30 pointer-events-none"></div>
                               
-                              <div className="flex items-center gap-4 relative z-10">
-                                  <div className="bg-indigo-500/20 p-3 rounded-2xl text-indigo-300 border border-indigo-400/20 shadow-inner">
-                                      <Bitcoin size={24} className="animate-pulse" />
-                                  </div>
-                                  <div className="flex flex-col">
-                                      <span className="text-indigo-200 font-black text-[10px] uppercase tracking-widest mb-0.5 flex items-center gap-1">
-                                          <Sparkles size={10} className="text-yellow-400"/> Web3 Cashback
-                                      </span>
-                                      <span className="text-white font-medium text-sm leading-tight">
-                                          Você ganhará <strong className="text-yellow-400 font-black text-lg">{Math.floor(finalTotal)} $VELO</strong> nesta compra!
-                                      </span>
+                              <div className="flex items-center justify-between relative z-10">
+                                  <div className="flex items-center gap-4">
+                                      <div className="bg-indigo-500/20 p-3 rounded-2xl text-indigo-300 border border-indigo-400/20 shadow-inner">
+                                          <Bitcoin size={24} className="animate-pulse" />
+                                      </div>
+                                      <div className="flex flex-col">
+                                          <span className="text-indigo-200 font-black text-[10px] uppercase tracking-widest mb-0.5 flex items-center gap-1">
+                                              <Sparkles size={10} className="text-yellow-400"/> Web3 Cashback
+                                          </span>
+                                          <span className="text-white font-medium text-sm leading-tight">
+                                              Você ganhará <strong className="text-yellow-400 font-black text-lg">{Math.floor(finalTotal)} $VELO</strong> nesta compra!
+                                          </span>
+                                      </div>
                                   </div>
                               </div>
+
+                              {solanaBalance > 0 && (
+                                  <div className="mt-4 pt-4 border-t border-indigo-500/30 flex items-center justify-between relative z-10">
+                                      <div className="flex flex-col">
+                                          <span className="text-indigo-200 font-bold text-[10px] uppercase tracking-widest">Saldo na Carteira</span>
+                                          <span className="text-white font-black text-sm">💰 {solanaBalance} $VELO</span>
+                                      </div>
+                                      <label className="relative inline-flex items-center cursor-pointer">
+                                          <input 
+                                              type="checkbox" 
+                                              className="sr-only peer" 
+                                              checked={useSolanaTokens}
+                                              onChange={() => setUseSolanaTokens(!useSolanaTokens)}
+                                          />
+                                          <div className="w-11 h-6 bg-indigo-950 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:bg-white after:border-indigo-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-500 shadow-inner"></div>
+                                      </label>
+                                  </div>
+                              )}
                           </div>
                       )}
                       {/* --- FIM: MVP DE TOKENIZAÇÃO --- */}
@@ -4713,9 +4759,10 @@ alert("Pagamento recusado pelo Mercado Pago. Tente outro cartão ou entre em con
                           </div>
                       )}
                       {actualDiscountAmount > 0 && <div className="flex justify-between text-sm font-bold text-green-400 mb-2"><span>Desconto do Cupom</span><span>- R$ {actualDiscountAmount.toFixed(2)}</span></div>}
-                      {useCashback && cashbackDiscount > 0 && <div className="flex justify-between text-sm font-bold text-emerald-400 mb-2"><span>Desconto de Cashback</span><span>- R$ {cashbackDiscount.toFixed(2)}</span></div>}
+                      {useCashback && cashbackDiscount > 0 && <div className="flex justify-between text-sm font-bold text-emerald-400 mb-2"><span>Cashback (R$)</span><span>- R$ {cashbackDiscount.toFixed(2)}</span></div>}
+                      {useSolanaTokens && solanaDiscount > 0 && <div className="flex justify-between text-sm font-bold text-indigo-400 mb-2"><span>Token $VELO</span><span>- R$ {solanaDiscount.toFixed(2)}</span></div>}
                       
-                      <div className="flex justify-between text-xl font-black italic mt-2"><span>TOTAL</span><span className={`${currentTheme.text} italic`}>R$ {finalTotal.toFixed(2)}</span></div>
+                      <div className="flex justify-between text-xl font-black italic mt-2 border-t border-slate-700 pt-2"><span>TOTAL</span><span className={`${currentTheme.text} italic`}>R$ {finalTotal.toFixed(2)}</span></div>
                   </div>
 
                   {/* Esconde o botão padrão se o MP Transparent estiver ativo (pois o formulário gerado pelo MP tem o próprio botão dele) */}
