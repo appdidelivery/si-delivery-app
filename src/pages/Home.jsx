@@ -4695,7 +4695,7 @@ alert("Pagamento recusado pelo Mercado Pago. Tente outro cartão ou entre em con
 
                   {/* --- MÓDULO DE RESGATE DE CASHBACK NO CHECKOUT --- */}
                       {marketingSettings?.gamification?.cashback && cashbackBalance > 0 && !isWaiterMode && (
-                          <div className="mt-6 mb-2 bg-emerald-50 border-2 border-emerald-200 p-4 rounded-3xl flex justify-between items-center shadow-sm transition-all">
+                          <div className="w-full shrink-0 mt-6 mb-2 bg-emerald-50 border-2 border-emerald-200 p-4 rounded-3xl flex justify-between items-center shadow-sm transition-all">
                               <div className="flex flex-col">
                                   <span className="text-emerald-800 font-black text-xs uppercase tracking-widest flex items-center gap-1">
                                       <Wallet size={14} className="text-emerald-600" /> Seu Cashback
@@ -4720,12 +4720,12 @@ alert("Pagamento recusado pelo Mercado Pago. Tente outro cartão ou entre em con
 
                       {/* --- INÍCIO: MVP DE TOKENIZAÇÃO (SOLANA DEVNET) --- */}
                       {storeSettings?.isTokenMVPActive && !isWaiterMode && (
-                          <div className="mt-6 mb-2 bg-linear-to-r from-indigo-900 to-purple-900 border border-indigo-500/30 p-5 rounded-3xl flex flex-col shadow-lg shadow-indigo-900/20 relative overflow-hidden animate-in fade-in zoom-in-95">
+                          <div className="w-full shrink-0 my-4 bg-linear-to-r from-indigo-900 to-purple-900 border border-indigo-500/30 p-5 rounded-3xl flex flex-col shadow-lg shadow-indigo-900/20 relative overflow-hidden animate-in fade-in zoom-in-95">
                               <div className="absolute -right-10 -top-10 bg-purple-500 w-32 h-32 rounded-full blur-[50px] opacity-30 pointer-events-none"></div>
                               
                               <div className="flex items-center justify-between relative z-10">
                                   <div className="flex items-center gap-4">
-                                      <div className="bg-indigo-500/20 p-3 rounded-2xl text-indigo-300 border border-indigo-400/20 shadow-inner">
+                                      <div className="bg-indigo-500/20 p-3 rounded-2xl text-indigo-300 border border-indigo-400/20 shadow-inner shrink-0">
                                           <Bitcoin size={24} className="animate-pulse" />
                                       </div>
                                       <div className="flex flex-col">
@@ -4742,7 +4742,7 @@ alert("Pagamento recusado pelo Mercado Pago. Tente outro cartão ou entre em con
                               {solanaBalance > 0 && (
                                   <div className="mt-4 pt-4 border-t border-indigo-500/30 flex items-center justify-between relative z-10">
                                       <div className="flex flex-col">
-                                          <span className="text-indigo-200 font-bold text-[10px] uppercase tracking-widest">Saldo na Carteira</span>
+                                          <span className="text-indigo-200 font-bold text-[10px] uppercase tracking-widest">Usar Saldo (1 = R$ 1)</span>
                                           <span className="text-white font-black text-sm">💰 {solanaBalance} $VFOOD</span>
                                       </div>
                                       <label className="relative inline-flex items-center cursor-pointer">
@@ -4760,7 +4760,7 @@ alert("Pagamento recusado pelo Mercado Pago. Tente outro cartão ou entre em con
                       )}
                       {/* --- FIM: MVP DE TOKENIZAÇÃO --- */}
 
-                      <div className="mt-4 p-6 bg-slate-900 rounded-[2.5rem] text-white shadow-xl">
+                      <div className="w-full shrink-0 mt-2 p-6 bg-slate-900 rounded-[2.5rem] text-white shadow-xl">
                         {!isWaiterMode && (
                           <div className="flex justify-between text-sm opacity-60 font-bold mb-2">
                               <span>Frete</span>
@@ -4771,7 +4771,7 @@ alert("Pagamento recusado pelo Mercado Pago. Tente outro cartão ou entre em con
                       )}
                       {actualDiscountAmount > 0 && <div className="flex justify-between text-sm font-bold text-green-400 mb-2"><span>Desconto do Cupom</span><span>- R$ {actualDiscountAmount.toFixed(2)}</span></div>}
                       {useCashback && cashbackDiscount > 0 && <div className="flex justify-between text-sm font-bold text-emerald-400 mb-2"><span>Cashback (R$)</span><span>- R$ {cashbackDiscount.toFixed(2)}</span></div>}
-                      {useSolanaTokens && solanaDiscount > 0 && <div className="flex justify-between text-sm font-bold text-indigo-400 mb-2"><span>Token $VELO</span><span>- R$ {solanaDiscount.toFixed(2)}</span></div>}
+                      {useSolanaTokens && solanaDiscount > 0 && <div className="flex justify-between text-sm font-bold text-indigo-400 mb-2"><span>Token $VFOOD</span><span>- R$ {solanaDiscount.toFixed(2)}</span></div>}
                       
                       <div className="flex justify-between text-xl font-black italic mt-2 border-t border-slate-700 pt-2"><span>TOTAL</span><span className={`${currentTheme.text} italic`}>R$ {finalTotal.toFixed(2)}</span></div>
                   </div>
