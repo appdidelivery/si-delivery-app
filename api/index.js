@@ -3418,6 +3418,9 @@ if (replyPayload.type === 'text' && replyPayload.text?.body) {
                                     paymentStatus: 'paid', status: 'preparing', paidAt: admin.firestore.FieldValue.serverTimestamp(), total: 0, mpPaymentStatus: 'paid_with_vfood'
                                 });
                                 batch.update(walletRef, { solanaTokenBalance: admin.firestore.FieldValue.increment(-safeTokenDiscount) });
+
+                                // 🚨 INJEÇÃO NOVA: Repassa os tokens para a Tesouraria da Loja
+                                batch.update(db.collection('stores').doc(storeId), { solanaTokenBalance: admin.firestore.FieldValue.increment(safeTokenDiscount) });
                                 batch.set(db.collection('solana_ledger').doc(`burn_${orderId}`), {
                                     storeId, customerPhone: cleanPhone, orderId, tokensBurned: safeTokenDiscount, type: 'payment_burn', createdAt: admin.firestore.FieldValue.serverTimestamp()
                                 });
@@ -3901,6 +3904,8 @@ if (replyPayload.type === 'text' && replyPayload.text?.body) {
                                     paymentStatus: 'paid', status: 'preparing', paidAt: admin.firestore.FieldValue.serverTimestamp(), total: 0, velopayStatus: 'paid_with_vfood'
                                 });
                                 batch.update(walletRef, { solanaTokenBalance: admin.firestore.FieldValue.increment(-safeTokenDiscount) });
+                                // 🚨 INJEÇÃO NOVA: Repassa os tokens para a Tesouraria da Loja
+                                batch.update(db.collection('stores').doc(storeId), { solanaTokenBalance: admin.firestore.FieldValue.increment(safeTokenDiscount) });
                                 batch.set(db.collection('solana_ledger').doc(`burn_${orderId}`), {
                                     storeId, customerPhone: cleanPhone, orderId, tokensBurned: safeTokenDiscount, type: 'payment_burn', createdAt: admin.firestore.FieldValue.serverTimestamp()
                                 });

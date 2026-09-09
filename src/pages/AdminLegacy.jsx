@@ -11331,15 +11331,14 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                             </div>
                         </div>
 
-                        <div className="max-w-md mx-auto mb-8">
-                            {/* Card da Fatura */}
-                            <div className="bg-slate-900 text-white p-10 rounded-[3rem] shadow-2xl relative overflow-hidden flex flex-col justify-center text-center">
+                        <div className={`grid grid-cols-1 ${storeStatus?.isTokenMVPActive ? 'lg:grid-cols-2 max-w-4xl' : 'max-w-md'} gap-6 mx-auto mb-8`}>
+                            {/* Card da Fatura (Original) */}
+                            <div className="bg-slate-900 text-white p-10 rounded-[3rem] shadow-2xl relative overflow-hidden flex flex-col justify-center text-center h-full">
                                 <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 opacity-[0.03] pointer-events-none"><Wallet size={300}/></div>
                                 
-                                <div className="relative z-10">
+                                <div className="relative z-10 flex-1 flex flex-col justify-center">
                                     {(() => {
-                                        // Usa o mesmo motor super blindado que criamos pro useEffect!
-                                        let diaVencimento = storeStatus?.billingDay || 10; 
+                                        let diaVencimento = storeStatus?.billingDay || 10; 
                                         if (storeStatus?.faturasHistorico && storeStatus.faturasHistorico.length > 0) {
                                             const faturaReferencia = storeStatus.faturasHistorico[storeStatus.faturasHistorico.length - 1];
                                             if (faturaReferencia.dueDate) {
@@ -11365,7 +11364,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                     </div>
                                 </div>
 
-                               <div className="relative z-10 w-full">
+                               <div className="relative z-10 w-full mt-auto">
                                     {(() => {
                                         const hasPending = (storeStatus?.faturasHistorico || []).some(f => f.status === 'PENDENTE' || f.status === 'pendente');
                                         const isFree = storeStatus?.billingStatus === 'gratis_vitalicio' || storeStatus?.billingStatus === 'isento';
@@ -11389,16 +11388,56 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                         return (
                                             <div className="flex flex-col md:flex-row gap-3 w-full">
                                                 <button onClick={() => handleGeneratePixInvoice()} className="flex-1 bg-emerald-500 hover:bg-emerald-400 text-white py-4 rounded-2xl font-black uppercase tracking-widest shadow-lg shadow-emerald-900/50 transition-all active:scale-95 flex items-center justify-center gap-2">
-                                                    <QrCode size={20}/> Pagar com PIX
+                                                    <QrCode size={20}/> PIX
                                                 </button>
                                                 <button onClick={() => handlePayOverdueInvoice()} className="flex-1 bg-blue-600 hover:bg-blue-500 text-white py-4 rounded-2xl font-black uppercase tracking-widest shadow-lg shadow-blue-900/50 transition-all active:scale-95 flex items-center justify-center gap-2">
-                                                    <CreditCard size={20}/> Pagar c/ Cartão
+                                                    <CreditCard size={20}/> Cartão
                                                 </button>
                                             </div>
                                         );
                                     })()}
                                 </div>
                             </div>
+
+                            {/* --- CARD NOVO: TESOURARIA WEB3 (SÓ MOSTRA SE MVP TIVER ON) --- */}
+                            {storeStatus?.isTokenMVPActive && (
+                                <div className="bg-linear-to-br from-indigo-900 to-purple-900 border border-indigo-500/50 p-10 rounded-[3rem] shadow-2xl relative overflow-hidden flex flex-col justify-center text-center h-full animate-in zoom-in-95">
+                                    <div className="absolute -top-10 -right-10 bg-purple-500 w-48 h-48 rounded-full blur-[80px] opacity-40 pointer-events-none"></div>
+                                    
+                                    <div className="relative z-10 flex-1 flex flex-col justify-center">
+                                        <div className="w-16 h-16 bg-indigo-500/20 text-indigo-300 rounded-full flex items-center justify-center mx-auto mb-4 border border-indigo-400/30">
+                                            <Bitcoin size={32} className="animate-pulse"/>
+                                        </div>
+                                        <p className="text-indigo-200 font-bold text-xs uppercase tracking-widest mb-2">Tesouraria Web3</p>
+                                        
+                                        {/* Lê o saldo direto do documento da loja (Atenção: precisa garantir que esse campo está sendo salvo no BD) */}
+                                        <h2 className="text-6xl md:text-7xl font-black italic tracking-tighter mb-4 text-white">
+                                            {storeStatus?.solanaTokenBalance || 0} <span className="text-2xl text-yellow-400 not-italic">$VFOOD</span>
+                                        </h2>
+                                        
+                                        <div className="bg-indigo-950/50 border border-indigo-800/50 p-4 rounded-2xl mb-8 mx-auto w-max">
+                                            <p className="text-[10px] uppercase font-black tracking-widest text-indigo-300 mb-1">Equivalente a</p>
+                                            <p className="text-sm font-bold text-green-400 uppercase tracking-widest">
+                                                R$ {((storeStatus?.solanaTokenBalance || 0) * 1.00).toFixed(2)}
+                                            </p>
+                                        </div>
+                                    </div>
+
+                                    <div className="relative z-10 w-full mt-auto">
+                                        <button
+                                            onClick={() => alert('Em breve! A integração de queima (burn) de tokens on-chain para abater a fatura da Velo Delivery será ativada no próximo deploy do Contrato Inteligente.')}
+                                            disabled={(storeStatus?.solanaTokenBalance || 0) <= 0}
+                                            className={`w-full py-4 rounded-2xl font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 shadow-lg ${
+                                                (storeStatus?.solanaTokenBalance || 0) > 0 
+                                                ? 'bg-yellow-500 hover:bg-yellow-400 text-slate-900 shadow-yellow-900/50 active:scale-95' 
+                                                : 'bg-slate-800 text-slate-500 cursor-not-allowed border border-slate-700'
+                                            }`}
+                                        >
+                                            <Sparkles size={18}/> Abater Fatura
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
                         </div>
 {/* --- SEÇÃO DE PLANOS (UPSELL INTERNO DO LOJISTA) --- */}
                         <div id="planos-saas-section" className="pt-8 mt-8 border-t border-slate-100 mb-8 animate-in fade-in">
