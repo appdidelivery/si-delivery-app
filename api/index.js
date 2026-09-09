@@ -3792,7 +3792,8 @@ if (replyPayload.type === 'text' && replyPayload.text?.body) {
                         const orderDoc = await orderRef.get();
 
                         if (orderDoc.exists && orderDoc.data().paymentStatus !== 'paid') {
-                            const storeId = orderDoc.data().storeId;
+                            const orderData = orderDoc.data();
+                            const storeId = orderData.storeId;
                             const batch = db.batch();
                             
                             batch.update(orderRef, {
@@ -3806,6 +3807,26 @@ if (replyPayload.type === 'text' && replyPayload.text?.body) {
                                 faturamentoTotal: admin.firestore.FieldValue.increment(valorPago),
                                 pedidosPagos: admin.firestore.FieldValue.increment(1)
                             }, { merge: true });
+
+                            // 🚨 INJEÇÃO: DÉBITO PARCIAL ASSÍNCRONO ($VFOOD)
+                            const usedSolanaTokens = Number(orderData.usedSolanaTokens || 0);
+                            
+                            if (usedSolanaTokens > 0 && orderData.customerPhone) {
+                                const cleanPhone = String(orderData.customerPhone).replace(/\D/g, '');
+                                const walletRef = db.collection('wallets').doc(`${storeId}_${cleanPhone}`);
+                                
+                                batch.set(walletRef, { 
+                                    solanaTokenBalance: admin.firestore.FieldValue.increment(-usedSolanaTokens) 
+                                }, { merge: true });
+
+                                batch.update(db.collection('stores').doc(storeId), { 
+                                    solanaTokenBalance: admin.firestore.FieldValue.increment(usedSolanaTokens) 
+                                });
+                                
+                                batch.set(db.collection('solana_ledger').doc(`burn_${orderId}`), {
+                                    storeId, customerPhone: cleanPhone, orderId, tokensBurned: usedSolanaTokens, type: 'payment_burn_partial', createdAt: admin.firestore.FieldValue.serverTimestamp()
+                                });
+                            }
 
                             await batch.commit();
                             console.log(`✅ Webhook MP Seguro: Pedido ${orderId} atualizado para PAGO!`);
@@ -4241,6 +4262,26 @@ if (replyPayload.type === 'text' && replyPayload.text?.body) {
                                     faturamentoTotal: admin.firestore.FieldValue.increment(Number(valorPagoReal)),
                                     pedidosPagos: admin.firestore.FieldValue.increment(1)
                                 }, { merge: true });
+
+                                // 🚨 INJEÇÃO: DÉBITO PARCIAL ASSÍNCRONO ($VFOOD)
+                                const usedSolanaTokens = Number(orderData.usedSolanaTokens || 0);
+                                
+                                if (usedSolanaTokens > 0 && orderData.customerPhone) {
+                                    const cleanPhone = String(orderData.customerPhone).replace(/\D/g, '');
+                                    const walletRef = db.collection('wallets').doc(`${storeId}_${cleanPhone}`);
+                                    
+                                    batch.set(walletRef, { 
+                                        solanaTokenBalance: admin.firestore.FieldValue.increment(-usedSolanaTokens) 
+                                    }, { merge: true });
+
+                                    batch.update(db.collection('stores').doc(storeId), { 
+                                        solanaTokenBalance: admin.firestore.FieldValue.increment(usedSolanaTokens) 
+                                    });
+                                    
+                                    batch.set(db.collection('solana_ledger').doc(`burn_${orderDoc.id}`), {
+                                        storeId, customerPhone: cleanPhone, orderId: orderDoc.id, tokensBurned: usedSolanaTokens, type: 'payment_burn_partial', createdAt: admin.firestore.FieldValue.serverTimestamp()
+                                    });
+                                }
 
                                 await batch.commit();
                                 console.log(`✅ [VeloPay] Pedido de Delivery ${orderDoc.id} atualizado para PAGO!`);
