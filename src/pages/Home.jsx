@@ -634,36 +634,41 @@ export default function Home() {
       localStorage.setItem(`veloCart_${storeId}`, JSON.stringify(cart));
   }, [cart, storeId]);
 
-  // 3. RECONCILIAÇÃO DE CACHE (NOVO): Atualiza preços defasados do carrinho com o Banco de Dados em tempo real
+  // 3. RECONCILIAÇÃO DE CACHE (BLINDADA CONTRA LOOP): Atualiza preços defasados do carrinho
   useEffect(() => {
-      if (products.length === 0 || cart.length === 0) return;
+      if (products.length === 0) return;
 
-      let cartNeedsUpdate = false;
-      const updatedCart = cart.map(cartItem => {
-          // Ignora brindes da gamificação para não cobrar o cliente por eles
-          if (cartItem.isReward) return cartItem;
+      setCart(prevCart => {
+          if (prevCart.length === 0) return prevCart;
 
-          const liveProduct = products.find(p => p.id === cartItem.id);
-          
-          if (liveProduct) {
-              // Recalcula o preço exato respeitando promoções vigentes e descontos de atacado (quantityDiscounts)
-              const expectedPrice = getPriceWithQuantityDiscount(liveProduct, cartItem.quantity);
-              
-              // Se o preço no cache do navegador divergir do banco de dados (Ex: Lojista alterou no Admin)
-              if (cartItem.price !== expectedPrice) {
-                  cartNeedsUpdate = true;
-                  return { ...cartItem, price: expectedPrice };
+          let cartNeedsUpdate = false;
+          const updatedCart = prevCart.map(cartItem => {
+              // 1. Ignora brindes (Gamificação)
+              if (cartItem.isReward) return cartItem;
+
+              const liveProduct = products.find(p => p.id === cartItem.id);
+              if (liveProduct) {
+                  // 2. Trava de Segurança: Verifica se o produto tem adicionais/variações no carrinho
+                  // (Itens simples não possuem cartItemId diferente do seu id original)
+                  const isCustomized = cartItem.cartItemId && cartItem.cartItemId !== cartItem.id;
+                  
+                  if (!isCustomized) {
+                      const expectedPrice = getPriceWithQuantityDiscount(liveProduct, cartItem.quantity);
+                      
+                      // 3. Compara com margem de segurança float (> 0.01) para evitar falso-positivos
+                      if (Math.abs(Number(cartItem.price) - expectedPrice) > 0.01) {
+                          cartNeedsUpdate = true;
+                          return { ...cartItem, price: expectedPrice };
+                      }
+                  }
               }
-          }
-          return cartItem;
-      });
+              return cartItem;
+          });
 
-      // Atualiza o state apenas se houve divergência, evitando Loops de Renderização
-      if (cartNeedsUpdate) {
-          setCart(updatedCart);
-          console.log("🔄 Velo: Preços do carrinho sincronizados com o Firestore.");
-      }
-  }, [products]); // Depende exclusivamente do load de products para não criar dependência circular com o cart
+          // Retorna o array antigo se nada mudou. Isso INVIABILIZA o loop infinito do React.
+          return cartNeedsUpdate ? updatedCart : prevCart;
+      });
+  }, [products]);
 
   // --- VELO INSIGHTS: Rastreia Termos de Busca (com Debounce para não explodir o banco) ---
   useEffect(() => {
