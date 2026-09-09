@@ -2602,6 +2602,15 @@ if (window.fbq) {
                       throw new Error(data.error || "Erro ao gerar Pix Nativo");
                   }
 
+                  // 🚨 INTERCEPTAÇÃO WEB3: Se pagou 100% com VFOOD, pula o PIX e vai pro Sucesso!
+                  if (data.bypassed) {
+                      localStorage.setItem('activeOrderId', orderId);
+                      setActiveOrderId(orderId);
+                      draftOrderIdRef.current = null; setCart([]); localStorage.removeItem(`veloCart_${storeId}`); setShowCheckout(false);
+                      window.location.href = `/track/${orderId}?payment=success`;
+                      return;
+                  }
+
                   // O Cliente fechou a compra online! Removemos dos abandonados
                   try { 
                       const vId = localStorage.getItem('veloVisitorId');
@@ -2818,6 +2827,15 @@ if (window.fbq) {
                   
                   if (!response.ok || !result.success) {
                       throw new Error(result.error || "Erro ao processar PIX no banco.");
+                  }
+
+                  // 🚨 INTERCEPTAÇÃO WEB3: Se pagou 100% com VFOOD, pula o PIX e vai pro Sucesso!
+                  if (result.bypassed) {
+                      localStorage.setItem('activeOrderId', orderId);
+                      setActiveOrderId(orderId);
+                      draftOrderIdRef.current = null; setCart([]); localStorage.removeItem(`veloCart_${storeId}`); setShowCheckout(false);
+                      window.location.href = `/track/${orderId}?payment=success`;
+                      return;
                   }
 
                   // Limpa carrinho e vai pra tela de Tracking (que já exibirá o PIX gerado)

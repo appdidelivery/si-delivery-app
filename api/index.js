@@ -3374,14 +3374,66 @@ if (replyPayload.type === 'text' && replyPayload.text?.body) {
             installments, payment_method_id, issuer_id, payer, customerData
         } = req.body;
 
-        if (!storeId || !payment_method_id || !payer) {
-            return res.status(400).json({ error: 'Faltam dados obrigatórios para processar o pagamento.' });
+        // 🛡️ BLINDAGEM ESTRITA DE PAYLOAD (OrderId é vital aqui)
+        if (!storeId || !orderId || !payment_method_id || !payer) {
+            return res.status(400).json({ error: 'Faltam dados obrigatórios (incluindo orderId) para processar o pagamento.' });
         }
         if (payment_method_id !== 'pix' && !token) {
             return res.status(400).json({ error: 'Token do cartão não fornecido.' });
         }
 
         try {
+            // === 🛡️ BLINDAGEM ZERO TRUST (FAIL-OPEN / WEB3 MVP) ===
+            let valor_a_cobrar = Number(transaction_amount);
+
+            try {
+                // 🛡️ ISOLAMENTO DE TENANT
+                const storeRefMVP = db.collection('stores').doc(storeId);
+                const storeSnapMVP = await storeRefMVP.get();
+                const isTokenMVPActive = storeSnapMVP.exists ? storeSnapMVP.data().isTokenMVPActive : false;
+
+                if (isTokenMVPActive) {
+                    const orderRef = db.collection('orders').doc(orderId);
+                    const orderSnap = await orderRef.get();
+                    
+                    if (orderSnap.exists) {
+                        const orderData = orderSnap.data();
+                        const intendedVfoodDiscount = Number(orderData.usedSolanaTokens || 0);
+
+                        if (intendedVfoodDiscount > 0) {
+                            const cleanPhone = String(orderData.customerPhone).replace(/\D/g, '');
+                            const walletRef = db.collection('wallets').doc(`${storeId}_${cleanPhone}`);
+                            const walletSnap = await walletRef.get();
+                            
+                            const realBalance = walletSnap.exists ? Number(walletSnap.data().solanaTokenBalance || 0) : 0;
+                            const baseTotal = Number(orderData.subtotal || 0) + Number(orderData.shippingFee || 0) - Number(orderData.discountAmount || 0) - Number(orderData.usedCashback || 0);
+                            
+                            const safeTokenDiscount = Math.min(realBalance, baseTotal);
+                            valor_a_cobrar = Math.max(0, baseTotal - safeTokenDiscount);
+
+                            // 🛑 TRAVA BYPASS (Pagamento Integral com Token)
+                            if (valor_a_cobrar <= 0) {
+                                const batch = db.batch();
+                                batch.update(orderRef, {
+                                    paymentStatus: 'paid', status: 'preparing', paidAt: admin.firestore.FieldValue.serverTimestamp(), total: 0, mpPaymentStatus: 'paid_with_vfood'
+                                });
+                                batch.update(walletRef, { solanaTokenBalance: admin.firestore.FieldValue.increment(-safeTokenDiscount) });
+                                batch.set(db.collection('solana_ledger').doc(`burn_${orderId}`), {
+                                    storeId, customerPhone: cleanPhone, orderId, tokensBurned: safeTokenDiscount, type: 'payment_burn', createdAt: admin.firestore.FieldValue.serverTimestamp()
+                                });
+                                await batch.commit();
+
+                                // Retorno especial para o Frontend pular o Brick do Mercado Pago
+                                return res.status(200).json({ success: true, bypassed: true, paymentId: 'vfood_integral', message: "Pagamento 100% concluído com $VFOOD." });
+                            }
+                        }
+                    }
+                }
+            } catch (bypassError) {
+                console.warn(`[Web3 Bypass Ignorado] Falha MP no pedido ${orderId}. Fluxo padrão.`, bypassError.message);
+            }
+            // ==========================================================
+
             const settingsDoc = await db.collection('settings').doc(storeId).get();
             const mpConfig = settingsDoc.data()?.integrations?.mercadopago;
 
@@ -3389,8 +3441,8 @@ if (replyPayload.type === 'text' && replyPayload.text?.body) {
                 return res.status(400).json({ error: 'Mercado Pago não está configurado.' });
             }
 
-            // 1. TAXA DA PLATAFORMA (Declarada apenas uma vez)
-            const marketplaceFee = Number((Number(transaction_amount) * 0.0499).toFixed(2));
+            // 1. TAXA DA PLATAFORMA baseada no valor recalculado seguro
+            const marketplaceFee = Number((Number(valor_a_cobrar) * 0.0499).toFixed(2));
 
             // 2. Limpeza Segura dos Nomes (Impede crash)
             let firstName = 'Cliente';
@@ -3403,8 +3455,6 @@ if (replyPayload.type === 'text' && replyPayload.text?.body) {
             }
 
             // 3. BLINDAGEM DO CPF E DADOS DO PAGADOR
-            // Como o CPF não é mais obrigatório no Frontend, o Mercado Pago rejeita o PIX.
-            // Injetamos um CPF genérico (padrão de API) para garantir a geração.
             let docType = "CPF";
             let docNumber = "19100000000"; 
 
@@ -3416,9 +3466,9 @@ if (replyPayload.type === 'text' && replyPayload.text?.body) {
                 }
             }
 
-            // Monta o Payload ESTRITO para o Mercado Pago
+            // Monta o Payload ESTRITO para o Mercado Pago enviando o valor recalculado e seguro
             const paymentPayload = {
-                transaction_amount: Number(Number(transaction_amount).toFixed(2)),
+                transaction_amount: Number(Number(valor_a_cobrar).toFixed(2)),
                 description: description || `Pedido #${orderId.slice(-5).toUpperCase()}`,
                 payment_method_id: payment_method_id,
                 payer: {
@@ -3796,8 +3846,7 @@ if (replyPayload.type === 'text' && replyPayload.text?.body) {
             return res.status(500).send('Erro interno');
         }
     }
-// ------------------------------------------------------------------------
-    // ------------------------------------------------------------------------
+/// ------------------------------------------------------------------------
     // 17. VELOPAY: GERAR PIX DINÂMICO (EFÍ BANK REAL)
     // ------------------------------------------------------------------------
     else if (path === '/api/velopay-pix') {
@@ -3811,32 +3860,84 @@ if (replyPayload.type === 'text' && replyPayload.text?.body) {
 
         const { storeId, orderId, totalAmount } = req.body;
 
+        // 🛡️ BLINDAGEM DE PAYLOAD
         if (!storeId || !orderId || !totalAmount) {
-            return res.status(400).json({ error: 'Dados insuficientes para gerar o Pix.' });
-        }
+            return res.status(400).json({ error: 'Dados insuficientes para gerar o Pix.' });
+        }
 
-        try {
-            // --- 1. BUSCA O PLANO DO LOJISTA PARA CALCULAR A TAXA ---
-            const storeDoc = await db.collection('stores').doc(storeId).get();
-            const pixPlan = storeDoc.data()?.velopayPixPlan || 'd30';
-            
-            let pixFeePercent = 0.0259; // Padrão D+30 (2,59%)
-            if (pixPlan === 'd14') pixFeePercent = 0.0299; // 2,99%
-            if (pixPlan === 'd1') pixFeePercent = 0.0359;  // 3,59%
-            if (pixPlan === 'd0') pixFeePercent = 0.0399;  // 3,99%
+        try {
+            // === 🛡️ BLINDAGEM ZERO TRUST (FAIL-OPEN / WEB3 MVP) ===
+            let valor_a_cobrar = Number(totalAmount);
 
-            const feeAmount = Number((Number(totalAmount) * pixFeePercent).toFixed(2));
-            const netAmount = Number((Number(totalAmount) - feeAmount).toFixed(2));
+            try {
+                // 🛡️ ISOLAMENTO DE TENANT: Só aciona lógica Web3 se o lojista for o do teste
+                const storeRefMVP = db.collection('stores').doc(storeId);
+                const storeSnapMVP = await storeRefMVP.get();
+                const isTokenMVPActive = storeSnapMVP.exists ? storeSnapMVP.data().isTokenMVPActive : false;
 
-            // Garante o caminho absoluto independente de onde o node está rodando
-            const certPath = pathModule.resolve(process.cwd(), 'api', 'certs', 'certificado-producao.p12');
+                if (isTokenMVPActive) {
+                    const orderRef = db.collection('orders').doc(orderId);
+                    const orderSnap = await orderRef.get();
+                    
+                    if (orderSnap.exists) {
+                        const orderData = orderSnap.data();
+                        const intendedVfoodDiscount = Number(orderData.usedSolanaTokens || 0);
+
+                        if (intendedVfoodDiscount > 0) {
+                            const cleanPhone = String(orderData.customerPhone).replace(/\D/g, '');
+                            const walletRef = db.collection('wallets').doc(`${storeId}_${cleanPhone}`);
+                            const walletSnap = await walletRef.get();
+                            
+                            const realBalance = walletSnap.exists ? Number(walletSnap.data().solanaTokenBalance || 0) : 0;
+                            const baseTotal = Number(orderData.subtotal || 0) + Number(orderData.shippingFee || 0) - Number(orderData.discountAmount || 0) - Number(orderData.usedCashback || 0);
+                            
+                            const safeTokenDiscount = Math.min(realBalance, baseTotal);
+                            valor_a_cobrar = Math.max(0, baseTotal - safeTokenDiscount);
+
+                            // 🛑 TRAVA BYPASS (Pagamento Integral com Token)
+                            if (valor_a_cobrar <= 0) {
+                                const batch = db.batch();
+                                batch.update(orderRef, {
+                                    paymentStatus: 'paid', status: 'preparing', paidAt: admin.firestore.FieldValue.serverTimestamp(), total: 0, velopayStatus: 'paid_with_vfood'
+                                });
+                                batch.update(walletRef, { solanaTokenBalance: admin.firestore.FieldValue.increment(-safeTokenDiscount) });
+                                batch.set(db.collection('solana_ledger').doc(`burn_${orderId}`), {
+                                    storeId, customerPhone: cleanPhone, orderId, tokensBurned: safeTokenDiscount, type: 'payment_burn', createdAt: admin.firestore.FieldValue.serverTimestamp()
+                                });
+                                await batch.commit();
+                                
+                                // Retorno especial mapeado para o Frontend pular a tela de QR Code
+                                return res.status(200).json({ success: true, bypassed: true, message: "Pagamento 100% concluído com $VFOOD." });
+                            }
+                        }
+                    }
+                }
+            } catch (bypassError) {
+                console.warn(`[Web3 Bypass Ignorado] Falha Efí no pedido ${orderId}. Fluxo padrão.`, bypassError.message);
+            }
+            // ==========================================================
+
+            // --- 1. BUSCA O PLANO DO LOJISTA PARA CALCULAR A TAXA ---
+            const storeDoc = await db.collection('stores').doc(storeId).get();
+            const pixPlan = storeDoc.data()?.velopayPixPlan || 'd30';
+            
+            let pixFeePercent = 0.0259;
+            if (pixPlan === 'd14') pixFeePercent = 0.0299;
+            if (pixPlan === 'd1') pixFeePercent = 0.0359;
+            if (pixPlan === 'd0') pixFeePercent = 0.0399;
+
+            // 🚨 Utiliza o valor_a_cobrar seguro
+            const feeAmount = Number((Number(valor_a_cobrar) * pixFeePercent).toFixed(2));
+            const netAmount = Number((Number(valor_a_cobrar) - feeAmount).toFixed(2));
+
+            const certPath = pathModule.resolve(process.cwd(), 'api', 'certs', 'certificado-producao.p12');
             console.log('🔍 [VeloPay] Caminho do certificado:', certPath);
 
             // ====================================================================
             // INTEGRAÇÃO REAL COM A EFÍ BANK
             // ====================================================================
             const efiOptions = {
-                sandbox: false, // false = MODO PRODUÇÃO (Requer chaves de produção no .env)
+                sandbox: false,
                 client_id: process.env.EFI_CLIENT_ID,
                 client_secret: process.env.EFI_CLIENT_SECRET,
                 pix_cert: certPath 
@@ -3846,8 +3947,8 @@ if (replyPayload.type === 'text' && replyPayload.text?.body) {
 
             const body = {
                 calendario: { expiracao: 3600 },
-                valor: { original: Number(totalAmount).toFixed(2) },
-                chave: process.env.EFI_PIX_KEY, // A chave cadastrada na Efí
+                valor: { original: Number(valor_a_cobrar).toFixed(2) }, // Valor recalculado seguro
+                chave: process.env.EFI_PIX_KEY,
                 solicitacaoPagador: `Pedido #${orderId.slice(-5).toUpperCase()} - Velo`
             };
 
