@@ -1,58 +1,52 @@
-import { Keypair, Connection, clusterApiUrl, LAMPORTS_PER_SOL } from '@solana/web3.js';
-import { createMint } from '@solana/spl-token';
-import 'dotenv/config'; // Garante que ele consiga ler o seu .env
+import { Keypair, Connection, clusterApiUrl, PublicKey, LAMPORTS_PER_SOL } from '@solana/web3.js';
+import { createMint, getOrCreateAssociatedTokenAccount, mintTo } from '@solana/spl-token';
+import 'dotenv/config';
 
 (async () => {
     try {
-        let treasury;
-
-        // Tenta carregar a chave do .env se ela já existir
-        if (process.env.SOLANA_TREASURY_SECRET) {
-            console.log("🔍 [1] Usando Chave da Tesouraria existente no .env...");
-            const secretKeyArray = JSON.parse(process.env.SOLANA_TREASURY_SECRET);
-            treasury = Keypair.fromSecretKey(Uint8Array.from(secretKeyArray));
-        } else {
-            console.log("🆕 [1] Gerando NOVA Chave da Tesouraria Velo...");
-            treasury = Keypair.generate();
-        }
-
-        const publicKey = treasury.publicKey.toBase58();
-        const secretKeyString = `[${treasury.secretKey.toString()}]`;
-
-        console.log(`\n✅ CARTEIRA DA TESOURARIA PRONTA:`);
-        console.log(`---------------------------------------------`);
-        console.log(`CHAVE PÚBLICA (Endereço): ${publicKey}`);
-        console.log(`SOLANA_TREASURY_SECRET=${secretKeyString}`);
-        console.log(`---------------------------------------------\n`);
-
         const connection = new Connection(clusterApiUrl('devnet'), 'confirmed');
-        const balance = await connection.getBalance(treasury.publicKey);
-
-        console.log(`💰 Saldo Atual: ${balance / LAMPORTS_PER_SOL} SOL`);
-
-        if (balance < 0.1 * LAMPORTS_PER_SOL) {
-            console.log("\n⚠️ SALDO INSUFICIENTE PARA CRIAR A MOEDA.");
-            console.log("Siga estas etapas:");
-            console.log(`1. Copie a 'SOLANA_TREASURY_SECRET' acima e cole no seu arquivo .env`);
-            console.log(`2. Acesse: https://faucet.solana.com`);
-            console.log(`3. Cole o endereço: ${publicKey}`);
-            console.log(`4. Solicite 1 SOL e, após receber, rode este script novamente.`);
-            return; // PARA O SCRIPT AQUI
+        const secretKey = Uint8Array.from(JSON.parse(process.env.SOLANA_TREASURY_SECRET));
+        const treasury = Keypair.fromSecretKey(secretKey);
+        
+        let mint;
+        if (process.env.SOLANA_VFOOD_MINT && process.env.SOLANA_VFOOD_MINT !== "0") {
+            console.log("🔍 [1] Contrato existente detectado. Preparando emissão...");
+            mint = new PublicKey(process.env.SOLANA_VFOOD_MINT);
+        } else {
+            console.log("🆕 [1] Criando novo contrato...");
+            mint = await createMint(connection, treasury, treasury.publicKey, null, 2);
         }
 
-        console.log("\n🚀 [2] Saldo detectado! Criando contrato do Token $VFOOD...");
-        const mint = await createMint(connection, treasury, treasury.publicKey, null, 2);
+        console.log(`📍 Mint Address: ${mint.toBase58()}`);
+
+        // 2. Cria a "Conta de Token" (Cofre) da Tesouraria
+        console.log("📦 [2] Criando cofre de tokens para a Tesouraria...");
+        const treasuryTokenAccount = await getOrCreateAssociatedTokenAccount(
+            connection,
+            treasury,
+            mint,
+            treasury.publicKey
+        );
+
+        // 3. Imprime 1.000.000 de $VFOOD (com 2 casas decimais)
+        console.log("🖨️ [3] Mintando 1.000.000 $VFOOD no cofre...");
+        await mintTo(
+            connection,
+            treasury,
+            mint,
+            treasuryTokenAccount.address,
+            treasury.publicKey,
+            1000000 * 100 // 1 milhão * 100 (devido às 2 casas decimais)
+        );
 
         console.log("\n=============================================");
-        console.log(" 🎉 SUCESSO! TOKEN $VFOOD CRIADO ON-CHAIN");
+        console.log(" ✅ SUCESSO! SEU COFRE ESTÁ CHEIO DE $VFOOD");
         console.log("=============================================\n");
         console.log(`SOLANA_VFOOD_MINT=${mint.toBase58()}`);
-        console.log("\nAtualize seu .env com o endereço do contrato acima.");
+        console.log(`Endereço do seu Cofre: ${treasuryTokenAccount.address.toBase58()}`);
+        console.log("\nAgora você já pode rodar o teste de transferência!");
         
     } catch (error) {
-        console.error("\n❌ Erro no Setup:", error.message);
-        if (error.message.includes("Unexpected token")) {
-            console.log("DICA: Verifique se você colou a SOLANA_TREASURY_SECRET corretamente no .env (deve ser um array [0,1,2...])");
-        }
+        console.error("\n❌ Erro no processo:", error.message);
     }
 })();
