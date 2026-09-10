@@ -6,10 +6,14 @@ import { Search, MoreVertical, Paperclip, Mic, Send, User, CheckCheck, Reply, X,
 import { motion, AnimatePresence } from 'framer-motion';
 import { authenticatedFetch } from '../utils/apiAuth';
 
-
-// Variáveis do Cloudinary
-const CLOUDINARY_CLOUD_NAME = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME;
-const CLOUDINARY_UPLOAD_PRESET = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET;
+// 1. Helper de segurança fora do componente para não ser recriado
+const safeEncode = (text) => {
+    try {
+        return encodeURIComponent(text || "");
+    } catch (e) {
+        return encodeURIComponent(String(text).replace(/[^\x00-\x7F]/g, "") || "C");
+    }
+};
 
 export default function AdminChat() {
     const { store } = useStore();
@@ -419,7 +423,8 @@ export default function AdminChat() {
                 initials = (parts[0][0] + parts[1][0]).toUpperCase();
             }
         }
-        return `https://ui-avatars.com/api/?name=${encodeURIComponent(initials)}&background=random&color=fff&size=128&font-size=0.4&bold=true`;
+        // Usando safeEncode para evitar quebra por caracteres URI malformados
+        return `https://ui-avatars.com/api/?name=${safeEncode(initials)}&background=random&color=fff&size=128&font-size=0.4&bold=true`;
     };
 
     const handleExportChat = () => {

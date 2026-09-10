@@ -358,7 +358,6 @@ export default async function handler(req, res) {
     // ========================================================================
     // Lista de rotas que NÃO exigem token do painel lojista (Webhooks, Cron, Público)
     const publicRoutes = [
-        '/api/test-solana',
         '/api/stripe-webhook',
         '/api/mp-webhook',
         '/api/google-order-webhook',
@@ -6851,10 +6850,22 @@ Retorne APENAS um JSON válido com 3 chaves:
                     const customerTokenAccount = await getOrCreateAssociatedTokenAccount(connection, treasuryKeypair, mintPublicKey, customerPublicKey);
                     const treasuryTokenAccount = await getOrCreateAssociatedTokenAccount(connection, treasuryKeypair, mintPublicKey, treasuryKeypair.publicKey);
 
-                    txSignature = await transfer(connection, treasuryKeypair, treasuryTokenAccount.address, customerTokenAccount.address, treasuryKeypair.publicKey, tokensToAward);
+                    // MVP REAL: O valor de tokensAwarded no banco é em VFOOD inteiro, 
+                    // a blockchain precisa disso multiplicado pelas casas decimais (2)
+                    const adjustedAmount = Math.round(tokensToAward * 100);
+
+                    txSignature = await transfer(
+                        connection, 
+                        treasuryKeypair, 
+                        treasuryTokenAccount.address, 
+                        customerTokenAccount.address, 
+                        treasuryKeypair.publicKey, 
+                        adjustedAmount
+                    );
                 } catch (web3Error) {
-                    console.error("Erro Web3, operando em modo simulação.", web3Error);
-                    txSignature = "failed_but_simulated_" + Date.now();
+                    console.error("🚨 [Blockchain Erro] Falha na rede Solana:", web3Error.message);
+                    // No MVP, se a blockchain falhar, carimbamos o erro mas deixamos o pedido seguir em Reais
+                    txSignature = "blockchain_error_" + Date.now();
                 }
             } else {
                 console.log("Variáveis de ambiente Solana ausentes. Modo simulação ativado.");
