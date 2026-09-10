@@ -10,7 +10,62 @@ import crypto from 'crypto'; // <-- OBRIGATÓRIO PARA A CAPI DA META
 const STRIPE_ENABLED = false;
 
 // ============================================================================
-// 🚀 MOTOR CAPI (META CONVERSIONS API) - Rastreio Invisível de Vendas
+//  MOTOR BLOCKCHAIN: SOLANA DEVNET (VFOOD TOKEN)
+// ============================================================================
+async function transferVfoodOnChain(senderSecretKeyJson, receiverPublicKeyString, amount) {
+    try {
+        if (!process.env.SOLANA_VFOOD_MINT) {
+            throw new Error("Mint Address do $VFOOD não configurado na Vercel.");
+        }
+
+        // Conecta à rede de testes (Devnet)
+        const connection = new Connection(clusterApiUrl('devnet'), 'confirmed');
+        
+        // Converte a chave privada (JSON Array) para um Keypair validado na Solana
+        const senderKeypair = Keypair.fromSecretKey(Uint8Array.from(JSON.parse(senderSecretKeyJson)));
+        const receiverPublicKey = new PublicKey(receiverPublicKeyString);
+        const mintPublicKey = new PublicKey(process.env.SOLANA_VFOOD_MINT);
+
+        // Define a proporção de casas decimais (MVP configurado para 2 casas, ex: 100 = 1.00 $VFOOD)
+        const decimals = 2; 
+        const adjustedAmount = Math.round(amount * Math.pow(10, decimals));
+
+        // Obtém ou cria a sub-carteira (ATA) do remente para este token específico
+        const senderATA = await getOrCreateAssociatedTokenAccount(
+            connection,
+            senderKeypair,
+            mintPublicKey,
+            senderKeypair.publicKey
+        );
+
+        // Obtém ou cria a sub-carteira (ATA) do destinatário para este token específico
+        const receiverATA = await getOrCreateAssociatedTokenAccount(
+            connection,
+            senderKeypair,
+            mintPublicKey,
+            receiverPublicKey
+        );
+
+        // Executa a transferência assinada criptograficamente
+        const signature = await transfer(
+            connection,
+            senderKeypair,
+            senderATA.address,
+            receiverATA.address,
+            senderKeypair.publicKey,
+            adjustedAmount
+        );
+
+        console.log(` [Solana] Transferência de ${amount} $VFOOD confirmada! Hash: ${signature}`);
+        return { success: true, signature };
+    } catch (error) {
+        console.error(" [Solana] Erro na transferência On-Chain:", error);
+        return { success: false, error: error.message };
+    }
+}
+
+// ============================================================================
+//  MOTOR CAPI (META CONVERSIONS API) - Rastreio Invisível de Vendas
 // ============================================================================
 async function sendMetaPurchaseEvent(storeId, orderData, dbRef) {
     try {
@@ -353,10 +408,37 @@ export default async function handler(req, res) {
     // FIM DA BLINDAGEM A2
     // ========================================================================
 
+   // ------------------------------------------------------------------------
+    // 0. ROTA DE TESTE BLOCKCHAIN (REMOVER EM PRODUÇÃO)
+    // ------------------------------------------------------------------------
+    if (path === '/api/test-solana') {
+        try {
+            // Substitua pela sua chave pública de teste da Phantom Wallet
+            const myTestWallet = "COLE_SUA_CHAVE_PUBLICA_AQUI"; 
+            const treasurySecret = process.env.SOLANA_TREASURY_SECRET; 
+            
+            if (!treasurySecret) return res.status(400).json({ error: "Falta SOLANA_TREASURY_SECRET no .env" });
+
+            // Tenta transferir 1 VFOOD
+            const result = await transferVfoodOnChain(treasurySecret, myTestWallet, 1);
+            
+            if (result.success) {
+                return res.status(200).json({ 
+                    success: true, 
+                    comprovante: `https://explorer.solana.com/tx/${result.signature}?cluster=devnet` 
+                });
+            } else {
+                return res.status(500).json({ error: result.error });
+            }
+        } catch (e) {
+            return res.status(500).json({ error: e.message });
+        }
+    }
+
     // ------------------------------------------------------------------------
     // 1. ACTIVATE PIX
     // ------------------------------------------------------------------------
-    if (path === '/api/activate-pix') {
+    else if (path === '/api/activate-pix') {
         if (!STRIPE_ENABLED) return res.status(404).json({ error: 'Stripe temporariamente desativada.' });
         if (req.method !== 'POST') return res.status(405).end();
         try {
