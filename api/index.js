@@ -2,8 +2,6 @@ import Stripe from 'stripe';
 import admin from 'firebase-admin';
 import Gerencianet from 'gn-api-sdk-node'; // <-- ADICIONADO AQUI
 import pathModule from 'path';
-import { Connection, Keypair, PublicKey, clusterApiUrl } from '@solana/web3.js'; // <-- NOVO: SOLANA WEB3
-import { getOrCreateAssociatedTokenAccount, transfer } from '@solana/spl-token'; // <-- NOVO: SOLANA TOKENS
 import { GoogleAuth } from 'google-auth-library'; // <-- NOVA AUTENTICAÇÃO SERVICE ACCOUNT
 import crypto from 'crypto'; // <-- OBRIGATÓRIO PARA A CAPI DA META
 
@@ -17,6 +15,10 @@ async function transferVfoodOnChain(senderSecretKeyJson, receiverPublicKeyString
         if (!process.env.SOLANA_VFOOD_MINT) {
             throw new Error("Mint Address do $VFOOD não configurado na Vercel.");
         }
+
+        // 🛡️ ISOLAMENTO ESM: Importação dinâmica apenas no momento do uso
+        const { Connection, Keypair, PublicKey, clusterApiUrl } = await import('@solana/web3.js');
+        const { getOrCreateAssociatedTokenAccount, transfer } = await import('@solana/spl-token');
 
         // Conecta à rede de testes (Devnet)
         const connection = new Connection(clusterApiUrl('devnet'), 'confirmed');
@@ -6771,6 +6773,9 @@ Retorne APENAS um JSON válido com 3 chaves:
                 return res.status(200).json({ success: true, message: 'Carteira Solana já existente.', address: walletSnap.data().solanaPublicKey });
             }
 
+            // 🛡️ ISOLAMENTO ESM: Importação dinâmica
+            const { Keypair } = await import('@solana/web3.js');
+
             const newWallet = Keypair.generate();
             const publicKey = newWallet.publicKey.toBase58();
             const secretKey = Array.from(newWallet.secretKey);
@@ -6829,6 +6834,10 @@ Retorne APENAS um JSON válido com 3 chaves:
 
             if (TREASURY_SECRET && MINT_ADDRESS) {
                 try {
+                    // 🛡️ ISOLAMENTO ESM: Importação dinâmica
+                    const { Connection, Keypair, PublicKey, clusterApiUrl } = await import('@solana/web3.js');
+                    const { getOrCreateAssociatedTokenAccount, transfer } = await import('@solana/spl-token');
+
                     const connection = new Connection(clusterApiUrl('devnet'), 'confirmed');
                     const treasuryKeypair = Keypair.fromSecretKey(Uint8Array.from(JSON.parse(TREASURY_SECRET)));
                     const mintPublicKey = new PublicKey(MINT_ADDRESS);
