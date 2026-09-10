@@ -6829,8 +6829,8 @@ Retorne APENAS um JSON válido com 3 chaves:
 
             let txSignature = "simulated_tx_" + Math.random().toString(36).substring(2, 15);
             
-            const TREASURY_SECRET = process.env.SOLANA_TREASURY_SECRET_KEY; 
-            const MINT_ADDRESS = process.env.SOLANA_TOKEN_MINT_ADDRESS; 
+            const TREASURY_SECRET = process.env.SOLANA_TREASURY_SECRET; 
+            const MINT_ADDRESS = process.env.SOLANA_VFOOD_MINT; 
 
             if (TREASURY_SECRET && MINT_ADDRESS) {
                 try {
