@@ -415,14 +415,33 @@ export default async function handler(req, res) {
     // ------------------------------------------------------------------------
     if (path === '/api/test-solana') {
         try {
-            // Substitua pela sua chave pública de teste da Phantom Wallet
-            const myTestWallet = "COLE_SUA_CHAVE_PUBLICA_AQUI"; 
+            // Usando a própria carteira da Tesouraria como destino do teste para evitar erro de chave inválida
             const treasurySecret = process.env.SOLANA_TREASURY_SECRET; 
-            
             if (!treasurySecret) return res.status(400).json({ error: "Falta SOLANA_TREASURY_SECRET no .env" });
 
-            // Tenta transferir 1 VFOOD
-            const result = await transferVfoodOnChain(treasurySecret, myTestWallet, 1);
+            const secretKeyArray = JSON.parse(treasurySecret);
+            const { Keypair } = await import('@solana/web3.js');
+            const myAddress = Keypair.fromSecretKey(Uint8Array.from(secretKeyArray)).publicKey.toBase58();
+
+            console.log(`🧪 [Teste] Enviando 1 $VFOOD para si mesmo: ${myAddress}`);
+
+            // Tenta transferir 1 VFOOD para o próprio endereço da tesouraria (auto-teste)
+            const result = await transferVfoodOnChain(treasurySecret, myAddress, 1);
+            
+            if (result.success) {
+                return res.status(200).json({ 
+                    success: true, 
+                    message: "Blockchain conectada com sucesso!",
+                    comprovante: `https://explorer.solana.com/tx/${result.signature}?cluster=devnet` 
+                });
+            } else {
+                return res.status(500).json({ error: result.error });
+            }
+        } catch (e) {
+            console.error("Erro na rota de teste:", e);
+            return res.status(500).json({ error: e.message });
+        }
+    }
             
             if (result.success) {
                 return res.status(200).json({ 
