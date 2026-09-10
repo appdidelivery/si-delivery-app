@@ -20,13 +20,14 @@ import 'dotenv/config';
         // Substitua esta URL pelo link público do seu arquivo JSON (instruções abaixo)
         const tokenMetadataUri = "https://velodelivery.com.br/vfood-metadata.json";
 
-        await metaplex.nfts().create({
+       await metaplex.nfts().create({
             useExistingMint: mintAddress,
             name: "Velo Food",
             symbol: "VFOOD",
             uri: tokenMetadataUri,
-            sellerFeeBasisPoints: 0, // Tokens fiduciários não têm royalties
-            isMutable: true, // Permite que você troque o logo no futuro se quiser
+            sellerFeeBasisPoints: 0, 
+            isMutable: true, 
+            tokenStandard: 2, // <-- A MÁGICA AQUI: Informa a rede que é uma moeda fungível (permite decimais)
         });
 
         console.log("\n=============================================");
