@@ -8,28 +8,27 @@ import 'dotenv/config';
         console.log("1. Conectando à Solana Devnet...");
         const connection = new Connection(clusterApiUrl('devnet'), 'confirmed');
         
-        // Carrega a Tesouraria que já possui saldo (SOL)
         const secretKeyArray = JSON.parse(process.env.SOLANA_TREASURY_SECRET);
         const treasury = Keypair.fromSecretKey(Uint8Array.from(secretKeyArray));
 
-        console.log("2. Gerando um novo contrato limpo ($VFOOD) com 2 casas decimais...");
+        console.log("2. Gerando o contrato definitivo ($VFOOD) com 2 casas decimais...");
         const mint = await createMint(connection, treasury, treasury.publicKey, null, 2);
         console.log(` -> Novo Mint gerado: ${mint.toBase58()}`);
 
-        console.log("3. Injetando a Identidade Visual definitiva...");
+        console.log("3. Injetando a Identidade Visual (Fungible Token)...");
         const metaplex = Metaplex.make(connection).use(keypairIdentity(treasury));
         
-        // Link do seu JSON público hospedado
         const tokenMetadataUri = "https://app.velodelivery.com.br/vfood-metadata.json";
 
-        await metaplex.nfts().create({
+        // A MÁGICA AQUI: Trocamos 'create()' por 'createSft()'
+        await metaplex.nfts().createSft({
             useExistingMint: mint,
             name: "Velo Food",
             symbol: "VFOOD",
             uri: tokenMetadataUri,
             sellerFeeBasisPoints: 0,
             isMutable: true,
-            tokenStandard: 2, // Garante que a rede o reconheça como Moeda Fungível
+            tokenStandard: 2, 
         });
 
         console.log("\n=============================================");
