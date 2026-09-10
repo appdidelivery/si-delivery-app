@@ -358,6 +358,7 @@ export default async function handler(req, res) {
     // ========================================================================
     // Lista de rotas que NÃO exigem token do painel lojista (Webhooks, Cron, Público)
     const publicRoutes = [
+        '/api/test-solana',
         '/api/stripe-webhook',
         '/api/mp-webhook',
         '/api/google-order-webhook',
