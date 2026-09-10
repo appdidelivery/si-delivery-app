@@ -6671,6 +6671,13 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
         if (m.includes('fiado')) return <span className="bg-orange-100 text-orange-800 px-2 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider border border-orange-200 flex items-center gap-1" title="Caderneta/Fiado">📒 FIADO</span>;
         return <span className="bg-slate-100 text-slate-600 px-2 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider border border-slate-200 flex items-center gap-1">💳 {o.paymentMethod}</span>;
     })()}
+    
+    {/* NOVA TAG: CASHBACK UTILIZADO */}
+    {o.usedCashback > 0 && (
+        <span className="bg-purple-100 text-purple-800 px-2 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider border border-purple-200 flex items-center gap-1 shadow-sm" title={`O cliente usou R$ ${Number(o.usedCashback).toFixed(2)} de saldo da carteira`}>
+            🎁 CASHBACK (-R$ {Number(o.usedCashback).toFixed(2)})
+        </span>
+    )}
                                                             
                                                             {(() => {
                                                                 const isPaid = o.paymentStatus === 'paid' || o.paymentStatus === 'approved' || o.paymentStatus === 'concluida' || o.paymentStatus === 'CONCLUIDA';
@@ -6906,10 +6913,17 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                                     {/* BLOCO 3: RODAPÉ (Total e Ações) */}
                                                     <div className="flex flex-col md:flex-row justify-between items-center gap-4 mt-2 pt-4 border-t border-slate-100"> 
                                                         
-                                                        <div className="flex items-center gap-3 w-full md:w-auto justify-center md:justify-start">
-                                                            <span className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Total:</span>
-                                                            <p className="text-3xl font-black text-green-600 italic leading-none whitespace-nowrap">R$ {Number(o.total).toFixed(2)}</p>
-                                                        </div>
+                                                        <div className="flex flex-col justify-center md:justify-start">
+    <div className="flex items-center gap-3 w-full md:w-auto justify-center md:justify-start">
+        <span className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Total:</span>
+        <p className="text-3xl font-black text-green-600 italic leading-none whitespace-nowrap">R$ {Number(o.total).toFixed(2)}</p>
+    </div>
+    {o.usedCashback > 0 && (
+        <p className="text-[10px] font-bold text-purple-600 mt-1 text-center md:text-left bg-purple-50 px-2 py-0.5 rounded-md w-fit mx-auto md:mx-0">
+            *Abateu R$ {Number(o.usedCashback).toFixed(2)} de Cashback
+        </p>
+    )}
+</div>
 
                                                         <div className="flex flex-wrap justify-center md:justify-end items-center gap-2 md:gap-3 w-full md:w-auto">
                                                             {/* RASTREIO */}
@@ -7101,7 +7115,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
         <span className="bg-slate-100 text-slate-500 px-2 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest border border-slate-200">
             #{o.id.slice(-5).toUpperCase()}
         </span>
-        {/* NOVA TAG DE IDENTIFICAÇÃO DO PAGAMENTO (KANBAN) */}
+       {/* NOVA TAG DE IDENTIFICAÇÃO DO PAGAMENTO (KANBAN) */}
         {(() => {
             const m = String(o.paymentMethod || '').toLowerCase();
             if (m.includes('pix')) return <span className="bg-teal-100 text-teal-800 px-2 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-wider border border-teal-200 flex items-center gap-1" title="Pago via PIX">💠 PIX</span>;
@@ -7110,6 +7124,13 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
             if (m.includes('fiado')) return <span className="bg-orange-100 text-orange-800 px-2 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-wider border border-orange-200 flex items-center gap-1" title="Caderneta/Fiado">📒 FIADO</span>;
             return null;
         })()}
+        
+        {/* TAG COMPACTA DE CASHBACK NO KANBAN */}
+        {o.usedCashback > 0 && (
+            <span className="bg-purple-100 text-purple-800 px-2 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-wider border border-purple-200 flex items-center gap-1" title={`Abateu R$ ${Number(o.usedCashback).toFixed(2)} de Cashback`}>
+                🎁 CASHBACK
+            </span>
+        )}
     </div>
     <span className={`px-2.5 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest border ${timerClass}`}>
                                                                 #{o.id.slice(-5).toUpperCase()}
