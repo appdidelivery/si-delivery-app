@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 500 500" width="500" height="500">
+  <defs>
+    <!-- Gradientes Oficiais Velo -->
+    <linearGradient id="bgCoin" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0f172a" />
+      <stop offset="100%" stop-color="#1e293b" />
+    </linearGradient>
+    <linearGradient id="wingV" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#3b82f6" />
+      <stop offset="100%" stop-color="#7c3aed" />
+    </linearGradient>
+    <linearGradient id="lightning" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#f97316" />
+      <stop offset="100%" stop-color="#fbbf24" />
+    </linearGradient>
+    <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="5" result="blur" />
+      <feComposite in="SourceGraphic" in2="blur" operator="over" />
+    </filter>
+  </defs>
+
+  <!-- Base da Moeda $VFOOD -->
+  <circle cx="250" cy="250" r="230" fill="url(#bgCoin)" stroke="#334155" stroke-width="12" />
+  <circle cx="250" cy="250" r="200" fill="none" stroke="#475569" stroke-width="3" stroke-dasharray="8,8" />
+
+  <!-- Asas do V (Velo) -->
+  <path d="M 130 180 C 180 230, 220 290, 250 350 C 280 290, 320 230, 370 180 C 330 220, 280 270, 250 310 C 220 270, 170 220, 130 180 Z" fill="url(#wingV)" filter="url(#glow)"/>
+  
+  <path d="M 90 140 C 150 200, 200 280, 230 330 C 180 250, 130 190, 90 140 Z" fill="url(#wingV)" opacity="0.7" />
+
+  <!-- Raio de Energia (Laranja) -->
+  <path d="M 275 110 L 210 230 L 255 230 L 225 350 L 305 200 L 260 200 Z" fill="url(#lightning)" filter="url(#glow)"/>
+
+  <!-- Reflexo Superior -->
+  <path d="M 250 35 Q 350 35 410 95 Q 250 70 90 95 Q 150 35 250 35 Z" fill="#ffffff" opacity="0.05" />
+</svg>
