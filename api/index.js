@@ -1932,13 +1932,14 @@ const aiResponse = await fetch(`https://generativelanguage.googleapis.com/v1beta
             };
 
             if (body.object === 'whatsapp_business_account') {
-                for (const entry of body.entry) {
-                    for (const change of entry.changes) {
-                        const value = change.value;
-                        const phoneNumberId = value.metadata?.phone_number_id;
+                for (const entry of body?.entry || []) {
+                    for (const change of entry?.changes || []) {
+                        const value = change?.value || {};
+                        const phoneNumberId = value?.metadata?.phone_number_id;
 
-                        if (value.messages && value.messages[0]) {
+                        if (value?.messages && value.messages[0]) {
                             const message = value.messages[0];
+                            const senderProfileName = value.contacts?.[0]?.profile?.name || '';
                             let messageText = '';
                             let interactivePayload = '';
                             const isMedia = ['image', 'audio', 'document', 'video', 'sticker'].includes(message.type);
@@ -2106,7 +2107,7 @@ const aiResponse = await fetch(`https://generativelanguage.googleapis.com/v1beta
                                     // 2. SALVA A MENSAGEM NO PAINEL DO LOJISTA COM A MÍDIA! (Só chega aqui se NÃO estiver bloqueado)
                                     await db.collection('whatsapp_inbound').add({
                                         storeId: storeId, phoneNumberId: phoneNumberId, from: message.from,
-                                        pushName: message.profile?.name || '', text: logText, 
+                                        pushName: senderProfileName, text: logText, 
                                         mediaUrl: uploadedMediaUrl, 
                                         mediaType: finalMediaType,  
                                         receivedAt: admin.firestore.FieldValue.serverTimestamp(), status: 'unread', direction: 'inbound'
@@ -2147,7 +2148,7 @@ const aiResponse = await fetch(`https://generativelanguage.googleapis.com/v1beta
 
                                         // CORREÇÃO: Só envia ausência se a loja estiver FECHADA e a automação estiver ATIVADA.
                                         if (!isStoreOpen && waSettings.autoAwayMessage && (nowMs - (sessionData.lastAwaySent || 0) > 60000)) { 
-                                                let firstName = message.profile?.name ? message.profile.name.split(' ')[0] : '';
+                                                let firstName = senderProfileName ? senderProfileName.split(' ')[0] : '';
                                                 let nomeFormatado = firstName ? ` ${firstName}` : '';
                                                 const awayMsg = waSettings.awayMessageText 
                                                     ? waSettings.awayMessageText.replace('Olá', `Olá${nomeFormatado}`) 
@@ -2159,7 +2160,7 @@ const aiResponse = await fetch(`https://generativelanguage.googleapis.com/v1beta
                                             }
                                         else if (isStoreOpen && waSettings.botEnabled) {
                                             
-                                            let customerName = message.profile?.name || '';
+                                            let customerName = senderProfileName;
                                             let lastOrder = null;
                                             
                                             try {
@@ -2305,7 +2306,7 @@ const paymentsStr = acceptedList.length > 0 ? acceptedList.join('\n') : 'Consult
                                                 const wifiPrize = storeDynamicData.wifiPrize || 'Uma surpresa no balcão!';
                                                 
                                                 // 2. Extrai o nome diretamente do WhatsApp do cliente (Fricção Zero)
-                                                const clientRealName = customerName || message.profile?.name || 'Cliente';
+                                                const clientRealName = customerName || senderProfileName || 'Cliente';
                                                 const firstNameOnly = clientRealName.split(' ')[0];
                                                 
                                                 // 3. Upsert Seguro: Salva o lead no Banco de Dados atrelando à loja
