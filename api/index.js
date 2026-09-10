@@ -415,7 +415,6 @@ export default async function handler(req, res) {
     // ------------------------------------------------------------------------
     if (path === '/api/test-solana') {
         try {
-            // Usando a própria carteira da Tesouraria como destino do teste para evitar erro de chave inválida
             const treasurySecret = process.env.SOLANA_TREASURY_SECRET; 
             if (!treasurySecret) return res.status(400).json({ error: "Falta SOLANA_TREASURY_SECRET no .env" });
 
@@ -425,7 +424,6 @@ export default async function handler(req, res) {
 
             console.log(`🧪 [Teste] Enviando 1 $VFOOD para si mesmo: ${myAddress}`);
 
-            // Tenta transferir 1 VFOOD para o próprio endereço da tesouraria (auto-teste)
             const result = await transferVfoodOnChain(treasurySecret, myAddress, 1);
             
             if (result.success) {
@@ -439,19 +437,6 @@ export default async function handler(req, res) {
             }
         } catch (e) {
             console.error("Erro na rota de teste:", e);
-            return res.status(500).json({ error: e.message });
-        }
-    }
-            
-            if (result.success) {
-                return res.status(200).json({ 
-                    success: true, 
-                    comprovante: `https://explorer.solana.com/tx/${result.signature}?cluster=devnet` 
-                });
-            } else {
-                return res.status(500).json({ error: result.error });
-            }
-        } catch (e) {
             return res.status(500).json({ error: e.message });
         }
     }
