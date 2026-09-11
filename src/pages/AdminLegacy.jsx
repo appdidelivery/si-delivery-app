@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { db, auth } from '../../src/services/firebase';
 import {
     collection, onSnapshot, doc, updateDoc, deleteDoc,
-    addDoc, query, orderBy, serverTimestamp, setDoc, getDoc, where, increment, writeBatch
+    addDoc, query, orderBy, serverTimestamp, setDoc, getDoc, where, increment, writeBatch, limit
 } from 'firebase/firestore';
 import {
     Store, ShoppingCart, LayoutDashboard, Clock, ShoppingBag, Package, Users, Plus, Trash2, Edit3,
@@ -2386,7 +2386,8 @@ const [vipMissions, setVipMissions] = useState([]);
 
         // Pedidos
         let initialOrders = true;
-        const unsubOrders = onSnapshot(query(collection(db, "orders"), where("storeId", "==", storeId), orderBy("createdAt", "desc")), async (s) => {
+        // OTIMIZAÇÃO EXTREMA: Limita aos 800 últimos pedidos. Impede o download de anos de histórico, destravando a RAM.
+        const unsubOrders = onSnapshot(query(collection(db, "orders"), where("storeId", "==", storeId), orderBy("createdAt", "desc"), limit(800)), async (s) => {
             if (!initialOrders) {
                 // Puxa as configurações da loja UMA VEZ por lote de atualizações (Otimização)
                 const stSnap = await getDoc(doc(db, "stores", storeId));
@@ -2590,10 +2591,11 @@ const [vipMissions, setVipMissions] = useState([]);
 
         // --- NOVO: BUSCAR INFLUENCIADORES ---
         const unsubInfluencers = onSnapshot(query(collection(db, "partners"), where("storeId", "==", storeId), where("category", "==", "Influenciadores")), (s) => {
-            setInfluencersList(s.docs.map(d => ({ id: d.id, ...d.data() })));
-        });
+            setInfluencersList(s.docs.map(d => ({ id: d.id, ...d.data() })));
+        });
 
-        const unsubPosLogs = onSnapshot(query(collection(db, "pos_logs"), where("storeId", "==", storeId), orderBy("timestamp", "desc")), (s) => setPosLogs(s.docs.map(d => ({ id: d.id, ...d.data() }))));
+        // OTIMIZAÇÃO: Limita a 100 logs de caixa para poupar processamento
+        const unsubPosLogs = onSnapshot(query(collection(db, "pos_logs"), where("storeId", "==", storeId), orderBy("timestamp", "desc"), limit(100)), (s) => setPosLogs(s.docs.map(d => ({ id: d.id, ...d.data() }))));
 // --- RESTAURANDO A LEITURA DA EQUIPE QUE SUMIU ---
         const unsubTeam = onSnapshot(query(collection(db, "team"), where("storeId", "==", storeId)), (s) => setTeamMembers(s.docs.map(d => ({ id: d.id, ...d.data() }))));
        // NOVO: Escuta as mensagens do WhatsApp para alertas de transbordo e som padrão

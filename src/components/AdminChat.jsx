@@ -249,8 +249,7 @@ export default function AdminChat() {
    useEffect(() => {
         if (!storeId) return;
         
-        // OTIMIZAÇÃO: Traz apenas conversas das últimas 72 horas (3 dias).
-        // Isso resolve o travamento e NÃO exige criação de novos índices no Firebase, restaurando o tempo real imediatamente!
+        // OTIMIZAÇÃO EXTREMA: Traz conversas de apenas 3 dias. Deixa o chat levíssimo e em tempo real absoluto.
         const threeDaysAgo = new Date();
         threeDaysAgo.setDate(threeDaysAgo.getDate() - 3);
 
