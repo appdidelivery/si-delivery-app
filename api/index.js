@@ -23,7 +23,7 @@ async function transferVfoodOnChain(senderSecretKeyJson, receiverPublicKeyString
         const splToken = await import('@solana/spl-token');
         const { Connection, Keypair, PublicKey, clusterApiUrl } = solanaWeb3;
         const { getOrCreateAssociatedTokenAccount, transfer, TOKEN_2022_PROGRAM_ID } = splToken;
-        
+
         const connection = new Connection(clusterApiUrl('devnet'), 'confirmed');
         const senderKeypair = Keypair.fromSecretKey(Uint8Array.from(JSON.parse(senderSecretKeyJson)));
         const receiverPublicKey = new PublicKey(receiverPublicKeyString);
@@ -6790,7 +6790,7 @@ Retorne APENAS um JSON válido com 3 chaves:
     }
 
     // ------------------------------------------------------------------------
-    // 33. SOLANA: TRANSFERIR TOKENS (RECOMPENSA DE PEDIDO)
+    // 33. SOLANA: TRANSFERIR TOKENS (RECOMPENSA DE PEDIDO E CASHBACK)
     // ------------------------------------------------------------------------
     else if (path === '/api/token-reward') {
         if (req.method !== 'POST') return res.status(405).json({ error: 'Método não permitido.' });
@@ -6798,8 +6798,26 @@ Retorne APENAS um JSON válido com 3 chaves:
         try {
             const { storeId, customerPhone, orderId, amountSpent } = req.body;
 
-            if (!storeId || !customerPhone || !orderId) {
+            if (!storeId || !customerPhone || !orderId || amountSpent === undefined) {
                 return res.status(400).json({ success: false, error: 'Dados obrigatórios ausentes.' });
+            }
+
+            // 1. 🛡️ BLINDAGEM DE IDEMPOTÊNCIA: Previne duplo-gasto verificando se o pedido já foi recompensado
+            const orderRef = db.collection('orders').doc(orderId);
+            const orderSnap = await orderRef.get();
+
+            if (!orderSnap.exists) {
+                return res.status(404).json({ success: false, error: 'Pedido não encontrado.' });
+            }
+
+            const orderData = orderSnap.data();
+            if (orderData.tokenRewarded === true) {
+                return res.status(200).json({ 
+                    success: true, 
+                    tokens: orderData.tokensAwarded || 0,
+                    message: 'Este pedido já foi recompensado anteriormente.',
+                    txHash: orderData.rewardTxHash || null
+                });
             }
 
             const cleanPhone = String(customerPhone).replace(/\D/g, '');
@@ -6813,45 +6831,64 @@ Retorne APENAS um JSON válido com 3 chaves:
 
             const customerPubKeyString = walletSnap.data().solanaPublicKey;
             
-            // 💰 Lógica B2C de Recompensa: (Ex: 1 $VFOOD a cada R$ 10 gastos)
-            const tokensToAward = Math.floor(Number(amountSpent) / 10);
+            // 2. 💰 MOTOR DE CÁLCULO: 10% do valor total gasto vira token (1 $VFOOD = R$ 1,00 para fins visuais no painel)
+            const tokensToAward = Math.floor(Number(amountSpent) * 0.10);
             
+            // Se a compra for muito baixa (< R$ 10, dependendo da regra), marca como recompensado com 0 tokens e avança
             if (tokensToAward <= 0) {
-                return res.status(200).json({ success: true, tokens: 0, message: 'Valor insuficiente para gerar tokens.' });
+                await orderRef.update({ 
+                    tokenRewarded: true, 
+                    tokensAwarded: 0,
+                    rewardTxHash: 'valor_insuficiente'
+                });
+                return res.status(200).json({ success: true, tokens: 0, message: 'Valor gasto insuficiente para gerar tokens (mínimo exigido não atingido).' });
             }
 
             const TREASURY_SECRET = process.env.SOLANA_TREASURY_SECRET; 
             const MINT_ADDRESS = process.env.SOLANA_VFOOD_MINT; 
             let txSignature = null;
 
-            if (TREASURY_SECRET && MINT_ADDRESS) {
-                try {
-                    const result = await transferVfoodOnChain(TREASURY_SECRET, customerPubKeyString, tokensToAward);
-                    if (result.success) {
-                        txSignature = result.signature;
-                    } else {
-                        throw new Error(result.error);
-                    }
-                } catch (web3Error) {
-                    console.error("🚨 [Web3 Reward] Falha on-chain:", web3Error.message);
-                    txSignature = "blockchain_error_" + Date.now();
-                }
-            } else {
-                return res.status(500).json({ success: false, error: 'Credenciais da Tesouraria (SOLANA_TREASURY_SECRET ou MINT) não configuradas na Vercel.' });
+            if (!TREASURY_SECRET || !MINT_ADDRESS) {
+                return res.status(500).json({ success: false, error: 'Credenciais da Tesouraria Solana não configuradas na Vercel.' });
             }
 
-            // 🛡️ Atualiza saldo local do Firebase e Deduz da Tesouraria da Loja (Virtual)
+            // 3. ⛓️ EXECUÇÃO ON-CHAIN: Chama a função global via Web3
+            try {
+                const result = await transferVfoodOnChain(TREASURY_SECRET, customerPubKeyString, tokensToAward);
+                if (result.success) {
+                    txSignature = result.signature;
+                } else {
+                    throw new Error(result.error);
+                }
+            } catch (web3Error) {
+                console.error("🚨 [Web3 Reward] Falha on-chain (Timeout/Devnet instável):", web3Error.message);
+                // Retornamos 500 para não marcar o Firebase, permitindo o Retry automático/manual da loja
+                return res.status(500).json({ success: false, error: 'Falha de comunicação com a rede Solana. Tente novamente.', details: web3Error.message });
+            }
+
+            // 4. 🔥 SINCRONIA FIREBASE: Grava todas as movimentações e trava o pedido em um ÚNICO Batch!
             const batch = db.batch();
             
+            // Adiciona na carteira do Cliente
             batch.set(walletRef, {
                 solanaTokenBalance: admin.firestore.FieldValue.increment(tokensToAward),
                 solanaUpdatedAt: admin.firestore.FieldValue.serverTimestamp()
             }, { merge: true });
 
+            // Deduz da Tesouraria da Loja (Virtual/Ledger B2B)
             batch.set(db.collection('stores').doc(storeId), {
                 solanaTokenBalance: admin.firestore.FieldValue.increment(-tokensToAward)
             }, { merge: true });
 
+            // Trava o Pedido
+            batch.update(orderRef, {
+                tokenRewarded: true,
+                tokensAwarded: tokensToAward,
+                rewardTxHash: txSignature,
+                rewardedAt: admin.firestore.FieldValue.serverTimestamp()
+            });
+
+            // Lança no Livro Razão
             batch.set(db.collection('solana_ledger').doc(`reward_${orderId}`), {
                 storeId,
                 customerPhone: cleanPhone,
@@ -6867,8 +6904,8 @@ Retorne APENAS um JSON válido com 3 chaves:
             return res.status(200).json({ success: true, tokens: tokensToAward, txHash: txSignature });
 
         } catch (error) {
-            console.error('🚨 [API_TOKEN_REWARD]', error);
-            return res.status(500).json({ success: false, error: 'Erro interno ao recompensar tokens.' });
+            console.error('🚨 [API_TOKEN_REWARD] Falha Global:', error);
+            return res.status(500).json({ success: false, error: 'Erro interno ao processar a recompensa em tokens.' });
         }
     }
 
