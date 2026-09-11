@@ -20,7 +20,7 @@
     "@metaplex-foundation/js": "^0.20.1",
     "@react-google-maps/api": "^2.20.8",
     "@solana/spl-token": "0.4.8",
-    "@solana/web3.js": "1.95.3",
+    "@solana/web3.js": "1.87.6",
     "@tailwindcss/postcss": "^4.0.0",
     "dotenv": "^17.4.2",
     "firebase": "^11.0.0",
