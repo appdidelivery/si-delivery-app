@@ -1162,18 +1162,20 @@ export default function Home() {
                       setSolanaBalance(0);
                   }
 
-                  // --- INÍCIO: INTEGRAÇÃO MVP TOKENIZAÇÃO (SOLANA) ---
-                  // Dispara a criação da carteira invisível silenciosamente se a Flag estiver ativa
+                 // --- INÍCIO: INTEGRAÇÃO MVP TOKENIZAÇÃO (SOLANA) ---
                   if (storeSettings?.isTokenMVPActive && !sessionStorage.getItem(`solana_wallet_checked_${cleanPhone}`)) {
-                      sessionStorage.setItem(`solana_wallet_checked_${cleanPhone}`, 'true'); // Trava para chamar API 1x por sessão
+                      sessionStorage.setItem(`solana_wallet_checked_${cleanPhone}`, 'true');
+                      console.log("🔐 [Web3] Ativando protocolo VFOOD para o cliente...");
                       try {
-                          await fetch('/api/wallet-create', {
+                          const res = await fetch('/api/wallet-create', {
                               method: 'POST',
                               headers: { 'Content-Type': 'application/json' },
                               body: JSON.stringify({ storeId, customerPhone: cleanPhone })
                           });
+                          const data = await res.json();
+                          if (data.success) console.log("✅ [Web3] Carteira Custodial vinculada:", data.address);
                       } catch (err) {
-                          console.error("Falha silenciosa ao gerar carteira Solana:", err);
+                          console.error("🚨 [Web3] Erro na ativação:", err);
                       }
                   }
                   // --- FIM: INTEGRAÇÃO MVP TOKENIZAÇÃO ---
