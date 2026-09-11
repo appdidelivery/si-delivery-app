@@ -3523,23 +3523,33 @@ const handleGenerateProductCopy = async () => {
 
         // --- INÍCIO: MVP TOKENIZAÇÃO (SOLANA) - TRANSFERÊNCIA DE RECOMPENSA ---
         if (newStatus === 'completed' && storeStatus?.isTokenMVPActive && order.customerPhone) {
-            try {
-                const cleanPhone = String(order.customerPhone).replace(/\D/g, '');
-                
-                // Dispara a API em background (fire-and-forget) para não travar a tela do Lojista
-                // enquanto a blockchain da Solana processa a transação.
-                authenticatedFetch('/api/token-reward', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ 
-                        storeId: storeId, 
-                        customerPhone: cleanPhone,
-                        orderId: order.id,
-                        amountSpent: Number(order.total) || 0
-                    })
-                }).catch(e => console.error("Aviso Token MVP: ", e));
-                
-            } catch(e) { console.error("Erro ao disparar Token MVP: ", e); }
+            const processWeb3Reward = async () => {
+                try {
+                    const cleanPhone = String(order.customerPhone).replace(/\D/g, '');
+                    console.log(`📡 [Web3] Solicitando transferência de $VFOOD para pedido ${order.id}...`);
+
+                    const res = await authenticatedFetch('/api/token-reward', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ 
+                            storeId: storeId, 
+                            customerPhone: cleanPhone,
+                            orderId: order.id,
+                            amountSpent: Number(order.total) || 0
+                        })
+                    });
+
+                    const data = await res.json();
+                    if (data.success) {
+                        console.log(`✅ [Web3] Sucesso! ${data.tokens} $VFOOD enviados. Hash: ${data.txHash}`);
+                    } else {
+                        console.warn(`⚠️ [Web3] A recompensa em tokens falhou: ${data.error}`);
+                    }
+                } catch(e) { 
+                    console.error("🚨 [Web3] Erro crítico no disparo da recompensa Solana:", e.message); 
+                }
+            };
+            processWeb3Reward(); // Executa em paralelo para não travar a UI
         }
         // --- FIM: MVP TOKENIZAÇÃO ---
 

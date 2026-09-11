@@ -12,56 +12,38 @@ const STRIPE_ENABLED = false;
 // ============================================================================
 async function transferVfoodOnChain(senderSecretKeyJson, receiverPublicKeyString, amount) {
     try {
-        if (!process.env.SOLANA_VFOOD_MINT) {
-            throw new Error("Mint Address do $VFOOD não configurado na Vercel.");
-        }
+        if (!process.env.SOLANA_VFOOD_MINT) throw new Error("MINT_NOT_CONFIGURED");
 
-        // 🛡️ ISOLAMENTO ESM: Importação dinâmica apenas no momento do uso
         const { Connection, Keypair, PublicKey, clusterApiUrl } = await import('@solana/web3.js');
-        const { getOrCreateAssociatedTokenAccount, transfer } = await import('@solana/spl-token');
+        const { getOrCreateAssociatedTokenAccount, transfer, TOKEN_2022_PROGRAM_ID } = await import('@solana/spl-token');
 
-        // Conecta à rede de testes (Devnet)
         const connection = new Connection(clusterApiUrl('devnet'), 'confirmed');
-        
-        // Converte a chave privada (JSON Array) para um Keypair validado na Solana
         const senderKeypair = Keypair.fromSecretKey(Uint8Array.from(JSON.parse(senderSecretKeyJson)));
         const receiverPublicKey = new PublicKey(receiverPublicKeyString);
         const mintPublicKey = new PublicKey(process.env.SOLANA_VFOOD_MINT);
 
-        // Define a proporção de casas decimais (MVP configurado para 2 casas, ex: 100 = 1.00 $VFOOD)
-        const decimals = 2; 
-        const adjustedAmount = Math.round(amount * Math.pow(10, decimals));
+        const adjustedAmount = Math.round(amount * 100);
 
-        // Obtém ou cria a sub-carteira (ATA) do remente para este token específico
+        // 🚀 CRÍTICO: getOrCreate... e transfer agora passam o TOKEN_2022_PROGRAM_ID
         const senderATA = await getOrCreateAssociatedTokenAccount(
-            connection,
-            senderKeypair,
-            mintPublicKey,
-            senderKeypair.publicKey
+            connection, senderKeypair, mintPublicKey, senderKeypair.publicKey, 
+            undefined, 'confirmed', undefined, TOKEN_2022_PROGRAM_ID
         );
 
-        // Obtém ou cria a sub-carteira (ATA) do destinatário para este token específico
         const receiverATA = await getOrCreateAssociatedTokenAccount(
-            connection,
-            senderKeypair,
-            mintPublicKey,
-            receiverPublicKey
+            connection, senderKeypair, mintPublicKey, receiverPublicKey, 
+            undefined, 'confirmed', undefined, TOKEN_2022_PROGRAM_ID
         );
 
-        // Executa a transferência assinada criptograficamente
         const signature = await transfer(
-            connection,
-            senderKeypair,
-            senderATA.address,
-            receiverATA.address,
-            senderKeypair.publicKey,
-            adjustedAmount
+            connection, senderKeypair, senderATA.address, receiverATA.address, 
+            senderKeypair.publicKey, adjustedAmount, [], undefined, TOKEN_2022_PROGRAM_ID
         );
 
-        console.log(` [Solana] Transferência de ${amount} $VFOOD confirmada! Hash: ${signature}`);
+        console.log(` ✅ [Solana] Sucesso! ${amount} $VFOOD enviados. Hash: ${signature}`);
         return { success: true, signature };
     } catch (error) {
-        console.error(" [Solana] Erro na transferência On-Chain:", error);
+        console.error(" ❌ [Solana] Erro na transferência:", error.message);
         return { success: false, error: error.message };
     }
 }
@@ -6802,88 +6784,19 @@ Retorne APENAS um JSON válido com 3 chaves:
     // ------------------------------------------------------------------------
     // 33. SOLANA: TRANSFERIR TOKENS (RECOMPENSA DE PEDIDO)
     // ------------------------------------------------------------------------
-    else if (path === '/api/token-reward') {
-        if (req.method !== 'POST') return res.status(405).json({ error: 'Método não permitido.' });
-
-        try {
-            const { storeId, customerPhone, orderId, amountSpent } = req.body;
-
-            if (!storeId || !customerPhone || !orderId || !amountSpent) {
-                return res.status(400).json({ success: false, error: 'Dados insuficientes para a recompensa.' });
-            }
-
-            const cleanPhone = String(customerPhone).replace(/\D/g, '');
-            const walletId = `${storeId}_${cleanPhone}`;
-            const walletRef = db.collection('wallets').doc(walletId);
-            const walletSnap = await walletRef.get();
-
-            if (!walletSnap.exists || !walletSnap.data().solanaPublicKey) {
-                return res.status(404).json({ success: false, error: 'Carteira Solana do cliente não encontrada.' });
-            }
-
-            const customerPubKeyString = walletSnap.data().solanaPublicKey;
-            const tokensToAward = Math.floor(amountSpent);
-
-            // TRAVA DE IDEMPOTÊNCIA: Evita dar tokens duplicados se o lojista clicar em "Concluído" 2 vezes
-            const ledgerRef = db.collection('solana_ledger').doc(`reward_${orderId}`);
-            const ledgerSnap = await ledgerRef.get();
-            if (ledgerSnap.exists) {
-                return res.status(200).json({ success: true, message: 'Recompensa já processada.' });
-            }
-
-            let txSignature = "simulated_tx_" + Math.random().toString(36).substring(2, 15);
-            
-            const TREASURY_SECRET = process.env.SOLANA_TREASURY_SECRET; 
+    const TREASURY_SECRET = process.env.SOLANA_TREASURY_SECRET; 
             const MINT_ADDRESS = process.env.SOLANA_VFOOD_MINT; 
 
             if (TREASURY_SECRET && MINT_ADDRESS) {
                 try {
-                    // 🛡️ ISOLAMENTO ESM: Importação dinâmica
-                    const { Connection, Keypair, PublicKey, clusterApiUrl } = await import('@solana/web3.js');
-                    const { getOrCreateAssociatedTokenAccount, transfer } = await import('@solana/spl-token');
-
-                    const connection = new Connection(clusterApiUrl('devnet'), 'confirmed');
-                    const treasuryKeypair = Keypair.fromSecretKey(Uint8Array.from(JSON.parse(TREASURY_SECRET)));
-                    const mintPublicKey = new PublicKey(MINT_ADDRESS);
-                    const customerPublicKey = new PublicKey(customerPubKeyString);
-
-                    const customerTokenAccount = await getOrCreateAssociatedTokenAccount(connection, treasuryKeypair, mintPublicKey, customerPublicKey);
-                    const treasuryTokenAccount = await getOrCreateAssociatedTokenAccount(connection, treasuryKeypair, mintPublicKey, treasuryKeypair.publicKey);
-
-                    // MVP REAL: O valor de tokensAwarded no banco é em VFOOD inteiro, 
-                    // a blockchain precisa disso multiplicado pelas casas decimais (2)
-                    const adjustedAmount = Math.round(tokensToAward * 100);
-
-                    txSignature = await transfer(
-                        connection, 
-                        treasuryKeypair, 
-                        treasuryTokenAccount.address, 
-                        customerTokenAccount.address, 
-                        treasuryKeypair.publicKey, 
-                        adjustedAmount
-                    );
+                    const result = await transferVfoodOnChain(TREASURY_SECRET, customerPubKeyString, tokensToAward);
+                    if (result.success) txSignature = result.signature;
+                    else throw new Error(result.error);
                 } catch (web3Error) {
-                    console.error("🚨 [Blockchain Erro] Falha na rede Solana:", web3Error.message);
-                    // No MVP, se a blockchain falhar, carimbamos o erro mas deixamos o pedido seguir em Reais
+                    console.error("🚨 [Web3 Reward] Falha on-chain:", web3Error.message);
                     txSignature = "blockchain_error_" + Date.now();
                 }
-            } else {
-                console.log("Variáveis de ambiente Solana ausentes. Modo simulação ativado.");
             }
-
-            await ledgerRef.set({
-                storeId, customerPhone: cleanPhone, orderId, tokensAwarded: tokensToAward, txHash: txSignature, network: 'devnet', createdAt: admin.firestore.FieldValue.serverTimestamp()
-            });
-
-            await walletRef.set({ solanaTokenBalance: admin.firestore.FieldValue.increment(tokensToAward) }, { merge: true });
-
-            return res.status(200).json({ success: true, message: 'Tokens transferidos com sucesso!', txHash: txSignature, tokens: tokensToAward });
-
-        } catch (error) {
-            console.error('🚨 [API_TOKEN_REWARD]', error);
-            return res.status(500).json({ success: false, error: 'Erro interno ao processar recompensa.' });
-        }
-    }
 
     // ============================================================================
     // ROTA NÃO ENCONTRADA att
