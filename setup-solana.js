@@ -1,5 +1,12 @@
-import { Keypair, Connection, clusterApiUrl, PublicKey, LAMPORTS_PER_SOL, Transaction, sendAndConfirmTransaction } from '@solana/web3.js';
-import { getAssociatedTokenAddressSync, createAssociatedTokenAccountInstruction, createMintToInstruction, getAccount } from '@solana/spl-token';
+import { Keypair, Connection, clusterApiUrl, PublicKey, Transaction, sendAndConfirmTransaction } from '@solana/web3.js';
+import { 
+    getAssociatedTokenAddressSync, 
+    createAssociatedTokenAccountInstruction, 
+    createMintToInstruction, 
+    TOKEN_2022_PROGRAM_ID, 
+    TOKEN_PROGRAM_ID,
+    getAccount
+} from '@solana/spl-token';
 import 'dotenv/config';
 
 (async () => {
@@ -9,45 +16,45 @@ import 'dotenv/config';
         const treasury = Keypair.fromSecretKey(secretKey);
         const mint = new PublicKey(process.env.SOLANA_VFOOD_MINT);
 
-        console.log(`\n🚀 INICIANDO ABASTECIMENTO VFOOD`);
-        console.log(`Tesouraria: ${treasury.publicKey.toBase58()}`);
-        console.log(`Token: ${mint.toBase58()}`);
+        console.log(`\n🚀 INICIANDO ABASTECIMENTO VFOOD (MODO HÍBRIDO)`);
+        
+        // 1. Descobrir qual programa manda no seu Token (Standard ou 2022)
+        const mintInfo = await connection.getAccountInfo(mint);
+        const programId = mintInfo.owner.equals(TOKEN_2022_PROGRAM_ID) ? TOKEN_2022_PROGRAM_ID : TOKEN_PROGRAM_ID;
+        
+        console.log(`PADRÃO: ${programId.equals(TOKEN_2022_PROGRAM_ID) ? 'Token-2022 (Moderno)' : 'Token-Standard (Antigo)'}`);
+        console.log(`Mint: ${mint.toBase58()}`);
 
-        // 1. Calcular endereço do cofre (ATA)
-        const ata = getAssociatedTokenAddressSync(mint, treasury.publicKey);
+        // 2. Calcular endereço do cofre (ATA) respeitando o Programa correto
+        const ata = getAssociatedTokenAddressSync(mint, treasury.publicKey, false, programId);
         console.log(`Cofre (ATA): ${ata.toBase58()}`);
-
-        // 2. Verificar se o cofre já existe
-        let accountExists = false;
-        try {
-            await getAccount(connection, ata);
-            accountExists = true;
-            console.log("✅ Cofre já existe na rede.");
-        } catch (e) {
-            console.log("📦 Cofre não encontrado. Criando novo registro...");
-        }
 
         const transaction = new Transaction();
 
-        // 3. Se não existe, adiciona instrução de criação
-        if (!accountExists) {
+        // 3. Verificar se o cofre já existe
+        try {
+            await getAccount(connection, ata, 'confirmed', programId);
+            console.log("✅ Cofre já existe.");
+        } catch (e) {
+            console.log("📦 Criando cofre compatível...");
             transaction.add(
                 createAssociatedTokenAccountInstruction(
                     treasury.publicKey,
                     ata,
                     treasury.publicKey,
-                    mint
+                    mint,
+                    programId
                 )
             );
         }
 
-        // 4. Adiciona instrução de impressão (Mintagem) de 1.000.000 tokens
-        const amount = 1000000 * 100; // 1 milhão com 2 casas decimais
+        // 4. Imprimir 1.000.000 tokens
+        console.log("🖨️  Preparando impressão de 1.000.000 $VFOOD...");
         transaction.add(
-            createMintToInstruction(mint, ata, treasury.publicKey, amount)
+            createMintToInstruction(mint, ata, treasury.publicKey, 1000000 * 100, [], programId)
         );
 
-        console.log("⏳ Enviando transação para a Blockchain...");
+        console.log("⏳ Enviando para a rede...");
         const signature = await sendAndConfirmTransaction(connection, transaction, [treasury]);
 
         console.log("\n=============================================");
@@ -58,9 +65,9 @@ import 'dotenv/config';
         console.log("=============================================\n");
 
     } catch (error) {
-        console.error("\n❌ ERRO CRÍTICO:");
+        console.error("\n❌ ERRO NA OPERAÇÃO:");
         console.error("---------------------------------------------");
         console.error(error.message);
-        if (error.stack) console.log("\nRastro do erro:", error.stack);
+        console.log("\nDICA: Se o erro persistir, a rede pode estar instável. Tente novamente em 10 segundos.");
     }
 })();
