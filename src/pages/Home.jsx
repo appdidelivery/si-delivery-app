@@ -1778,6 +1778,7 @@ export default function Home() {
         // Correção: Executa o 'unsub' apenas dos listeners que ainda usam onSnapshot em tempo real
         if (typeof unsubStoreSettings === 'function') unsubStoreSettings(); 
         if (typeof unsubMarketingSettings === 'function') unsubMarketingSettings();
+        if (typeof unsubBanners === 'function') unsubBanners(); // <-- BLINDAGEM ANTI-VAZAMENTO INJETADA AQUI
     };
   },[storeId]);
 
@@ -3068,18 +3069,18 @@ if (window.fbq) {
                         setSelectedOptions({});
                         setItemObservation('');
                     } else {
-                        // Se realmente não existe no banco (foi excluído de verdade), aí sim limpa a URL.
-                        window.history.pushState(null, '', '/');
+                        // Se realmente não existe no banco (foi excluído de verdade), usa o React Router para atualizar o estado e matar o loop
+                        navigate('/', { replace: true });
                     }
                 } catch (e) {
-                    window.history.pushState(null, '', '/');
+                    navigate('/', { replace: true });
                 }
             };
             
             fetchMissingProduct();
         }
     }
-}, [selectedProduct?.id, productSlug, products, storeId]);
+}, [selectedProduct?.id, productSlug, products, storeId, navigate]);
 
   // --- INÍCIO: IA DE MENU DE ENGENHARIA (Personalização de Vitrine) ---
   const favoriteCategory = React.useMemo(() => {

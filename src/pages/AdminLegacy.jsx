@@ -2740,11 +2740,12 @@ const [vipMissions, setVipMissions] = useState([]);
             unsubOrders(); unsubAbandoned(); unsubProducts(); unsubCategories(); unsubIngredients(); unsubGeneralBanners();
             unsubShipping(); unsubMk(); unsubSt(); unsubCoupons(); unsubLoyalty(); unsubReviews(); unsubMissions(); unsubTeam(); unsubSystem(); unsubWithdrawals(); unsubWhatsApp(); unsubPosLogs();
             if (unsubFleet) unsubFleet();
-            if (unsubAnalyticsHistory) unsubAnalyticsHistory(); // <-- LIMPEZA DO LISTENER DE IA
-            if (unsubStoreCustomers) unsubStoreCustomers(); // <-- LIMPEZA DA CADERNETA
-            if (typeof unsubInfluencers === 'function') unsubInfluencers(); // <-- LIMPEZA DOS INFLUENCIADORES
-        };
-    },[storeId]);
+            if (unsubAnalyticsHistory) unsubAnalyticsHistory(); // <-- LIMPEZA DO LISTENER DE IA
+            if (unsubStoreCustomers) unsubStoreCustomers(); // <-- LIMPEZA DA CADERNETA
+            if (typeof unsubInfluencers === 'function') unsubInfluencers(); // <-- LIMPEZA DOS INFLUENCIADORES
+            if (typeof unsubVisitas === 'function') unsubVisitas(); // <-- BLINDAGEM DO LISTENER FANTASMA DE ANALYTICS INJETADA AQUI
+        };
+    },[storeId]);
 
     // --- 🧹 ANTI-GHOST: LIXEIRO AUTOMÁTICO DE CARRINHOS FALSOS ---
     // BLINDAGEM CONTRA LOOP INFINITO (MEMORY LEAK FIX)

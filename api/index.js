@@ -6832,7 +6832,7 @@ Retorne APENAS um JSON válido com 3 chaves:
             const customerPubKeyString = walletSnap.data().solanaPublicKey;
             
             // 2. 💰 MOTOR DE CÁLCULO: 10% do valor total gasto vira token (1 $VFOOD = R$ 1,00 para fins visuais no painel)
-            const tokensToAward = Math.floor(Number(amountSpent) * 0.10);
+            const tokensToAward = Math.floor(Number(amountSpent));
             
             // Se a compra for muito baixa (< R$ 10, dependendo da regra), marca como recompensado com 0 tokens e avança
             if (tokensToAward <= 0) {
