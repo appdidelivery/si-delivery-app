@@ -1,55 +1,47 @@
 import { Keypair, Connection, clusterApiUrl, PublicKey } from '@solana/web3.js';
-import { getOrCreateAssociatedTokenAccount, mintTo, TOKEN_2022_PROGRAM_ID } from '@solana/spl-token';
 import 'dotenv/config';
 
 (async () => {
+    console.log("🔍 === INICIANDO AUDITORIA DE AMBIENTE VELO ===\n");
+
     try {
-        console.log("🚀 Iniciando abastecimento simplificado...");
+        // 1. Validar Variáveis do .env
+        const rawMint = process.env.SOLANA_VFOOD_MINT;
+        const rawSecret = process.env.SOLANA_TREASURY_SECRET;
+
+        if (!rawMint) console.error("❌ ERRO: SOLANA_VFOOD_MINT não encontrada no .env");
+        if (!rawSecret) console.error("❌ ERRO: SOLANA_TREASURY_SECRET não encontrada no .env");
+
+        console.log(`📍 Mint lido do .env: "${rawMint}"`);
         
-        const connection = new Connection(clusterApiUrl('devnet'), 'confirmed');
-        const secretKey = Uint8Array.from(JSON.parse(process.env.SOLANA_TREASURY_SECRET));
+        const mint = new PublicKey(rawMint.trim());
+        const secretKey = Uint8Array.from(JSON.parse(rawSecret));
         const treasury = Keypair.fromSecretKey(secretKey);
-        const mint = new PublicKey(process.env.SOLANA_VFOOD_MINT);
 
-        // 1. Criar ou buscar o cofre (ATA) avisando que o programa é o Token-2022
-        console.log("📦 Criando/Buscando cofre de tokens...");
-        const treasuryTokenAccount = await getOrCreateAssociatedTokenAccount(
-            connection,
-            treasury,
-            mint,
-            treasury.publicKey,
-            undefined,
-            'confirmed',
-            undefined,
-            TOKEN_2022_PROGRAM_ID // <-- A ÚNICA DIFERENÇA QUE IMPORTA
-        );
+        console.log(`✅ Endereço da Tesouraria: ${treasury.publicKey.toBase58()}`);
 
-        console.log(`✅ Cofre: ${treasuryTokenAccount.address.toBase58()}`);
+        // 2. Testar Conexão e Existência do Token
+        const connection = new Connection(clusterApiUrl('devnet'), 'confirmed');
+        console.log("\n⏳ Consultando a Blockchain Solana Devnet...");
 
-        // 2. Imprimir os tokens
-        console.log("🖨️  Mintando 1.000.000 $VFOOD...");
-        const txId = await mintTo(
-            connection,
-            treasury,
-            mint,
-            treasuryTokenAccount.address,
-            treasury.publicKey,
-            1000000 * 100, // 1 milhão com 2 casas decimais
-            [],
-            undefined,
-            TOKEN_2022_PROGRAM_ID // <-- AVISANDO O PROGRAMA CORRETO NOVAMENTE
-        );
+        const info = await connection.getAccountInfo(mint);
 
-        console.log("\n=============================================");
-        console.log(" 🎉 SUCESSO! SEU COFRE ESTÁ CHEIO");
-        console.log("=============================================");
-        console.log(`Transação: ${txId}`);
-        console.log(`Saldo: 1.000.000 $VFOOD`);
-        console.log("=============================================\n");
+        if (info === null) {
+            console.error("\n🚨 ALERTA CRÍTICO: O Token NÃO existe na Devnet!");
+            console.log("Causa Provável: O endereço no .env está errado ou o token nunca foi criado na Devnet.");
+            console.log("SOLUÇÃO: Rode o script 'node setup-metadata.js' novamente para gerar um token válido.");
+        } else {
+            console.log("✅ Token ENCONTRADO na rede!");
+            console.log(`Dono do Programa: ${info.owner.toBase58()}`);
+            console.log("\nO Token está ok. O problema anterior foi apenas instabilidade da rede.");
+            console.log("DICA: Rode o script de abastecimento simplificado novamente.");
+        }
 
     } catch (error) {
-        console.error("\n❌ Falha no processo:");
+        console.error("\n💥 ERRO DE SINTAXE NO CÓDIGO OU .ENV:");
         console.error(error.message);
-        console.log("\nSe o erro for 'Connection Refused', aguarde 5 segundos e rode novamente.");
+        console.log("\nDICA: Verifique se o SOLANA_VFOOD_MINT no .env não tem aspas nem espaços.");
     }
+    
+    console.log("\n=== FIM DA AUDITORIA ===");
 })();
