@@ -6784,19 +6784,85 @@ Retorne APENAS um JSON válido com 3 chaves:
     // ------------------------------------------------------------------------
     // 33. SOLANA: TRANSFERIR TOKENS (RECOMPENSA DE PEDIDO)
     // ------------------------------------------------------------------------
-    const TREASURY_SECRET = process.env.SOLANA_TREASURY_SECRET; 
+    else if (path === '/api/token-reward') {
+        if (req.method !== 'POST') return res.status(405).json({ error: 'Método não permitido.' });
+
+        try {
+            const { storeId, customerPhone, orderId, amountSpent } = req.body;
+
+            if (!storeId || !customerPhone || !orderId) {
+                return res.status(400).json({ success: false, error: 'Dados obrigatórios ausentes.' });
+            }
+
+            const cleanPhone = String(customerPhone).replace(/\D/g, '');
+            const walletId = `${storeId}_${cleanPhone}`;
+            const walletRef = db.collection('wallets').doc(walletId);
+            
+            const walletSnap = await walletRef.get();
+            if (!walletSnap.exists || !walletSnap.data().solanaPublicKey) {
+                return res.status(400).json({ success: false, error: 'Cliente não possui carteira Solana vinculada.' });
+            }
+
+            const customerPubKeyString = walletSnap.data().solanaPublicKey;
+            
+            // 💰 Lógica B2C de Recompensa: (Ex: 1 $VFOOD a cada R$ 10 gastos)
+            const tokensToAward = Math.floor(Number(amountSpent) / 10);
+            
+            if (tokensToAward <= 0) {
+                return res.status(200).json({ success: true, tokens: 0, message: 'Valor insuficiente para gerar tokens.' });
+            }
+
+            const TREASURY_SECRET = process.env.SOLANA_TREASURY_SECRET; 
             const MINT_ADDRESS = process.env.SOLANA_VFOOD_MINT; 
+            let txSignature = null;
 
             if (TREASURY_SECRET && MINT_ADDRESS) {
                 try {
                     const result = await transferVfoodOnChain(TREASURY_SECRET, customerPubKeyString, tokensToAward);
-                    if (result.success) txSignature = result.signature;
-                    else throw new Error(result.error);
+                    if (result.success) {
+                        txSignature = result.signature;
+                    } else {
+                        throw new Error(result.error);
+                    }
                 } catch (web3Error) {
                     console.error("🚨 [Web3 Reward] Falha on-chain:", web3Error.message);
                     txSignature = "blockchain_error_" + Date.now();
                 }
+            } else {
+                return res.status(500).json({ success: false, error: 'Credenciais da Tesouraria (SOLANA_TREASURY_SECRET ou MINT) não configuradas na Vercel.' });
             }
+
+            // 🛡️ Atualiza saldo local do Firebase e Deduz da Tesouraria da Loja (Virtual)
+            const batch = db.batch();
+            
+            batch.set(walletRef, {
+                solanaTokenBalance: admin.firestore.FieldValue.increment(tokensToAward),
+                solanaUpdatedAt: admin.firestore.FieldValue.serverTimestamp()
+            }, { merge: true });
+
+            batch.set(db.collection('stores').doc(storeId), {
+                solanaTokenBalance: admin.firestore.FieldValue.increment(-tokensToAward)
+            }, { merge: true });
+
+            batch.set(db.collection('solana_ledger').doc(`reward_${orderId}`), {
+                storeId,
+                customerPhone: cleanPhone,
+                orderId,
+                tokensAwarded: tokensToAward,
+                type: 'order_reward',
+                txHash: txSignature,
+                createdAt: admin.firestore.FieldValue.serverTimestamp()
+            });
+
+            await batch.commit();
+
+            return res.status(200).json({ success: true, tokens: tokensToAward, txHash: txSignature });
+
+        } catch (error) {
+            console.error('🚨 [API_TOKEN_REWARD]', error);
+            return res.status(500).json({ success: false, error: 'Erro interno ao recompensar tokens.' });
+        }
+    }
 
     // ============================================================================
     // ROTA NÃO ENCONTRADA att
