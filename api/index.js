@@ -14,6 +14,7 @@ async function transferVfoodOnChain(senderSecretKeyJson, receiverPublicKeyString
     try {
         if (!process.env.SOLANA_VFOOD_MINT) throw new Error("MINT_NOT_CONFIGURED");
 
+        // 🛡️ ISOLAMENTO ESM: Importação dinâmica para não pesar a memória global da Vercel
         const { Connection, Keypair, PublicKey, clusterApiUrl } = await import('@solana/web3.js');
         const { getOrCreateAssociatedTokenAccount, transfer, TOKEN_2022_PROGRAM_ID } = await import('@solana/spl-token');
 
@@ -6759,15 +6760,8 @@ Retorne APENAS um JSON válido com 3 chaves:
                 return res.status(200).json({ success: true, message: 'Carteira Solana já existente.', address: walletSnap.data().solanaPublicKey });
             }
 
-            // 🛡️ ISOLAMENTO ESM BLINDADO: Captura o erro exato se a lib faltar
-            let Keypair;
-            try {
-                const solanaWeb3 = await import('@solana/web3.js');
-                Keypair = solanaWeb3.Keypair;
-            } catch (importErr) {
-                console.error("Erro de Importação Web3:", importErr);
-                throw new Error("Módulo '@solana/web3.js' não encontrado. Rode 'npm install @solana/web3.js' no servidor.");
-            }
+            // 🛡️ ISOLAMENTO ESM: Importação dinâmica blindada
+            const { Keypair } = await import('@solana/web3.js');
 
             const newWallet = Keypair.generate();
             const publicKey = newWallet.publicKey.toBase58();
@@ -6786,7 +6780,6 @@ Retorne APENAS um JSON válido com 3 chaves:
 
         } catch (error) {
             console.error('🚨 [API_WALLET_CREATE]', error.message);
-            // Agora retornamos a mensagem real para você ler no F12
             return res.status(500).json({ success: false, error: `Falha técnica: ${error.message}` });
         }
     }
