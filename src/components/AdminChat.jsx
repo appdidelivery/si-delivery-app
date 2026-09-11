@@ -249,13 +249,15 @@ export default function AdminChat() {
    useEffect(() => {
         if (!storeId) return;
         
-        // OTIMIZAÇÃO APLICADA: Restaura o limite e a ordenação decrescente real.
-        // Isso impede a asfixia da memória do navegador e garante o funcionamento do WebSocket (Tempo Real).
+        // OTIMIZAÇÃO: Traz apenas conversas das últimas 72 horas (3 dias).
+        // Isso resolve o travamento e NÃO exige criação de novos índices no Firebase, restaurando o tempo real imediatamente!
+        const threeDaysAgo = new Date();
+        threeDaysAgo.setDate(threeDaysAgo.getDate() - 3);
+
         const q = query(
             collection(db, 'whatsapp_inbound'),
             where('storeId', '==', storeId),
-            orderBy('receivedAt', 'desc'),
-            limit(800)
+            where('receivedAt', '>=', threeDaysAgo)
         );
 
         const unsubscribe = onSnapshot(q, (snapshot) => {

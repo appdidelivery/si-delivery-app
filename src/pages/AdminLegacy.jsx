@@ -2598,9 +2598,17 @@ const [vipMissions, setVipMissions] = useState([]);
         const unsubTeam = onSnapshot(query(collection(db, "team"), where("storeId", "==", storeId)), (s) => setTeamMembers(s.docs.map(d => ({ id: d.id, ...d.data() }))));
        // NOVO: Escuta as mensagens do WhatsApp para alertas de transbordo e som padrão
         let initialChat = true;
-        const sessionCache = new Map();
+        const sessionCache = new Map();
         
-        const unsubWhatsApp = onSnapshot(query(collection(db, "whatsapp_inbound"), where("storeId", "==", storeId)), async (s) => {
+        // OTIMIZAÇÃO: Lê apenas as mensagens das últimas 24h para notificações. Libera a RAM e acelera a abertura do painel.
+        const oneDayAgo = new Date();
+        oneDayAgo.setDate(oneDayAgo.getDate() - 1);
+
+        const unsubWhatsApp = onSnapshot(query(
+            collection(db, "whatsapp_inbound"), 
+            where("storeId", "==", storeId),
+            where("receivedAt", ">=", oneDayAgo)
+        ), async (s) => {
             let shouldPlaySound = false;
             let isHandoffAlert = false; 
             let senderName = "Cliente";
