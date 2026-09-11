@@ -6,8 +6,8 @@ import { GoogleAuth } from 'google-auth-library'; // <-- NOVA AUTENTICAÇÃO SER
 import crypto from 'crypto'; // <-- OBRIGATÓRIO PARA A CAPI DA META
 
 // --- IMPORTAÇÕES OFICIAIS SOLANA ---
-import { Connection, Keypair, PublicKey, clusterApiUrl } from '@solana/web3.js';
-import { getOrCreateAssociatedTokenAccount, transfer, TOKEN_2022_PROGRAM_ID } from '@solana/spl-token';
+// 🛡️ REMOVIDO: Imports estáticos da Solana causam Erro 500 (ERR_REQUIRE_ESM) na Vercel.
+// Todas as chamadas Web3 devem usar o bypass de importação dinâmica nas rotas específicas.
 
 const STRIPE_ENABLED = false;
 
@@ -6765,7 +6765,10 @@ Retorne APENAS um JSON válido com 3 chaves:
                 return res.status(200).json({ success: true, message: 'Carteira Solana já existente.', address: walletSnap.data().solanaPublicKey });
             }
 
-            // Usando a importação do topo diretamente!
+            // 🛡️ ISOLAMENTO ESM: Importação dinâmica para não quebrar a Vercel
+            const solanaWeb3 = await new Function('return import("@solana/web3.js")')();
+            const { Keypair } = solanaWeb3;
+
             const newWallet = Keypair.generate();
             const publicKey = newWallet.publicKey.toBase58();
             const secretKey = Array.from(newWallet.secretKey);
