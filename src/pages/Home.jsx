@@ -2517,8 +2517,74 @@ if (window.fbq) {
               });
           }
       }
+
+      // ======================================================================
+      // 🚀 1. BYPASS SUPREMO (WEB3): PAGAMENTO 100% COM TOKEN VFOOD
+      // Se o saldo cobrir todo o pedido, pulamos gateway, cartão e maquininha!
+      // ======================================================================
+      if (finalTotal === 0 && solanaDiscount > 0) {
+          try {
+              const bypassOrderData = {
+                  ...orderData,
+                  paymentMethod: 'vfood_token',
+                  paymentStatus: 'paid',
+                  status: 'preparing', // Manda direto pra cozinha
+                  paidAt: serverTimestamp()
+              };
+              
+              await setDoc(newOrderRef, bypassOrderData);
+
+              // Queima os tokens utilizados no Firebase imediatamente
+              const cleanPhone = customer.phone.replace(/\D/g, '');
+              await updateDoc(doc(db, "wallets", `${storeId}_${cleanPhone}`), { 
+                  solanaTokenBalance: increment(-solanaDiscount) 
+              });
+
+              // Limpeza de Rascunhos e Abandono
+              try { 
+                  const vId = localStorage.getItem('veloVisitorId');
+                  if(vId) await deleteDoc(doc(db, "abandoned_carts", `cart_${storeId}_${vId}`));
+                  if(customer.phone) await deleteDoc(doc(db, "abandoned_carts", `cart_${storeId}_${cleanPhone}`)); 
+              } catch(e){}
+              
+              localStorage.setItem('activeOrderId', orderId);
+              setActiveOrderId(orderId);
+              draftOrderIdRef.current = null; setCart([]); localStorage.removeItem(`veloCart_${storeId}`); setShowCheckout(false);
+              
+              // Dispara direto pra tela de Sucesso sem chamar nenhuma API bancária!
+              window.location.href = `/track/${orderId}?payment=success&bypassed=true`;
+              return; // 🛑 INTERROMPE O FLUXO: Nenhum Gateway será chamado!
+          } catch (err) {
+              alert("Erro ao processar pagamento com Tokens. Tente novamente.");
+              setIsFinalizing(false); submitLock.current = false;
+              return;
+          }
+      }
+
+      // ======================================================================
+      // 🚀 2. GATILHO DE CASHBACK WEB3 (PREPARO DO PAYLOAD)
+      // Disparado nas compras mistas em que o cliente GASTOU dinheiro real
+      // ======================================================================
+      const triggerWeb3Reward = async () => {
+          if (storeSettings?.isTokenMVPActive && finalTotal > 0) {
+              const rewardPayload = {
+                  storeId: storeId,
+                  customerPhone: customer.phone.replace(/\D/g, ''),
+                  orderId: orderId,
+                  amountSpent: finalTotal // O backend usará isso para calcular (Ex: finalTotal / 10)
+              };
+              // Esse payload está isolado e pronto. A chamada real deverá ser feita pelo 
+              // seu Webhook do MP/VeloPay ou na rota /track quando o pagamento confirmar.
+              console.log("📦 Payload de Recompensa Web3 Preparado e Aguardando Gateway:", rewardPayload);
+              return rewardPayload;
+          }
+      };
+
       if (isOfflinePayment) {
           await setDoc(newOrderRef, orderData);
+
+          // Se for pagamento na entrega (offline), não tem webhook. Engatilhamos a recompensa agora!
+          triggerWeb3Reward();
 
           // --- GAMIFICAÇÃO: ABATER SALDO REAL DA CARTEIRA E TOKENS ---
           if (cashbackDiscount > 0 || solanaDiscount > 0) {
@@ -4832,14 +4898,24 @@ alert("Pagamento recusado pelo Mercado Pago. Tente outro cartão ou entre em con
                       <div className="flex justify-between text-xl font-black italic mt-2 border-t border-slate-700 pt-2"><span>TOTAL</span><span className={`${currentTheme.text} italic`}>R$ {finalTotal.toFixed(2)}</span></div>
                   </div>
 
-                  {/* Esconde o botão padrão se o MP Transparent estiver ativo (pois o formulário gerado pelo MP tem o próprio botão dele) */}
-                  {customer.payment !== 'mp_transparent' && (
+                  {/* 🚀 ALERTA VISUAL DE BYPASS: UI UX para pagamento 100% Token */}
+                  {finalTotal === 0 && solanaDiscount > 0 && (
+                      <div className="w-full mt-4 bg-indigo-900 border border-indigo-500 text-indigo-100 p-4 rounded-3xl text-center shadow-lg animate-pulse">
+                          <p className="font-black uppercase tracking-widest text-xs flex items-center justify-center gap-2">
+                              <Sparkles size={16} className="text-yellow-400"/> Pedido 100% com $VFOOD
+                          </p>
+                          <p className="text-[10px] font-bold mt-1">Nenhum cartão ou banco será acionado. O pedido será aprovado e enviado para a cozinha instantaneamente!</p>
+                      </div>
+                  )}
+
+                  {/* Esconde o botão padrão se o MP Transparent estiver ativo, EXCETO se o Total for zerado pela Solana */}
+                  {(customer.payment !== 'mp_transparent' || (finalTotal === 0 && solanaDiscount > 0)) && (
                       <button 
                           onClick={finalizeOrder} 
                           disabled={!isStoreOpenNow || isCepLoading || isFinalizing} 
-                          className={`w-full ${currentTheme.primary} text-white py-6 rounded-4xl font-black mt-6 uppercase text-xl shadow-xl ${currentTheme.hoverPrimary} disabled:opacity-50`}
+                          className={`w-full py-6 rounded-4xl font-black mt-4 uppercase text-xl shadow-xl disabled:opacity-50 transition-all ${finalTotal === 0 && solanaDiscount > 0 ? 'bg-indigo-600 hover:bg-indigo-700 text-white border-2 border-indigo-400' : `${currentTheme.primary} text-white ${currentTheme.hoverPrimary}`}`}
                       >
-                          {isFinalizing ? 'Processando...' : (isCepLoading ? 'Calculando...' : 'Confirmar Pedido')}
+                          {isFinalizing ? 'Processando...' : (isCepLoading ? 'Calculando...' : (finalTotal === 0 && solanaDiscount > 0 ? 'Resgatar Pedido Grátis' : 'Confirmar Pedido'))}
                       </button>
                   )}
 
