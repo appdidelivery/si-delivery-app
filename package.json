@@ -60,6 +60,7 @@
   },
   "overrides": {
     "react": "$react",
-    "react-dom": "$react-dom"
+    "react-dom": "$react-dom",
+    "uuid": "9.0.1"
   }
 }
