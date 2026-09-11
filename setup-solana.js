@@ -1,59 +1,60 @@
 import { Keypair, Connection, clusterApiUrl, PublicKey } from '@solana/web3.js';
-import { getOrCreateAssociatedTokenAccount, mintTo, TOKEN_2022_PROGRAM_ID } from '@solana/spl-token';
+import { getOrCreateAssociatedTokenAccount, mintTo, transfer, TOKEN_2022_PROGRAM_ID } from '@solana/spl-token';
 import 'dotenv/config';
 
 (async () => {
     try {
-        console.log("🚀 Iniciando abastecimento do cofre VFOOD...");
+        console.log("🚀 [BLOCKCHAIN] Iniciando Operação de Abastecimento e Envio...");
         
         const connection = new Connection(clusterApiUrl('devnet'), 'confirmed');
         const secretKey = Uint8Array.from(JSON.parse(process.env.SOLANA_TREASURY_SECRET));
         const treasury = Keypair.fromSecretKey(secretKey);
         const mint = new PublicKey(process.env.SOLANA_VFOOD_MINT);
+        const myPhantomWallet = new PublicKey("7cPFaLtQ3H2GRr1wHaoGeG9hhDDgPWBQGqJ6aXe5Ghsk");
 
-        console.log(`📍 Token: ${mint.toBase58()}`);
+        console.log(`📍 Token Mint: ${mint.toBase58()}`);
 
-        // 1. Criar ou buscar o cofre (ATA) da Tesouraria usando o Programa Token-2022
-        console.log("📦 Abrindo cofre de segurança na blockchain...");
-        const treasuryTokenAccount = await getOrCreateAssociatedTokenAccount(
-            connection,
-            treasury,
-            mint,
-            treasury.publicKey,
-            undefined,
-            'confirmed',
-            undefined,
-            TOKEN_2022_PROGRAM_ID
+        // 1. Criar/Buscar Cofre da Tesouraria
+        console.log("📦 Abrindo cofre da Tesouraria...");
+        const treasuryATA = await getOrCreateAssociatedTokenAccount(
+            connection, treasury, mint, treasury.publicKey, undefined, 'confirmed', undefined, TOKEN_2022_PROGRAM_ID
         );
 
-        console.log(`✅ Endereço do Cofre: ${treasuryTokenAccount.address.toBase58()}`);
+        // 2. Mintar 1 Milhão de tokens para a Tesouraria
+        console.log("🖨️  Mintando 1.000.000 $VFOOD na Tesouraria...");
+        await mintTo(
+            connection, treasury, mint, treasuryATA.address, treasury.publicKey, 1000000 * 100, [], undefined, TOKEN_2022_PROGRAM_ID
+        );
 
-        // 2. Imprimir 1.000.000 de tokens
-        const supply = 1000000;
-        console.log(`🖨️  Imprimindo ${supply.toLocaleString()} $VFOOD...`);
-        
-        const txId = await mintTo(
+        // 3. ENVIAR 1.000 TOKENS PARA SUA PHANTOM
+        console.log(`💸 Enviando 1.000 $VFOOD para sua Phantom (${myPhantomWallet.toBase58()})...`);
+        const destinationATA = await getOrCreateAssociatedTokenAccount(
+            connection, treasury, mint, myPhantomWallet, undefined, 'confirmed', undefined, TOKEN_2022_PROGRAM_ID
+        );
+
+        const signature = await transfer(
             connection,
             treasury,
-            mint,
-            treasuryTokenAccount.address,
+            treasuryATA.address,
+            destinationATA.address,
             treasury.publicKey,
-            supply * 100, // Valor com 2 casas decimais
+            1000 * 100, // 1.000 tokens * 100 (decimais)
             [],
             undefined,
             TOKEN_2022_PROGRAM_ID
         );
 
         console.log("\n=============================================");
-        console.log(" 🎉 SUCESSO! TESOURARIA ABASTECIDA");
+        console.log(" 🎉 OPERAÇÃO CONCLUÍDA COM SUCESSO!");
         console.log("=============================================");
-        console.log(`Saldo Atual: ${supply.toLocaleString()} $VFOOD`);
-        console.log(`Hash da Transação: ${txId}`);
+        console.log(`Saldo Tesouraria: ~999.000 $VFOOD`);
+        console.log(`Enviado para Phantom: 1.000 $VFOOD`);
+        console.log(`Hash da Transação: ${signature}`);
         console.log("=============================================\n");
-        console.log("DICA: Agora abra sua Phantom e veja a mágica acontecer!");
+        console.log("ABRA SUA PHANTOM AGORA E VEJA O SALDO!");
 
     } catch (error) {
-        console.error("\n❌ Falha no abastecimento:");
-        console.error(error.message);
+        console.error("\n❌ Erro na operação:", error.message);
+        console.log("DICA: Verifique se o Mint Address no .env está correto.");
     }
 })();
