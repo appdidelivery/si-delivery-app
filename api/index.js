@@ -5,6 +5,10 @@ import pathModule from 'path';
 import { GoogleAuth } from 'google-auth-library'; // <-- NOVA AUTENTICAÇÃO SERVICE ACCOUNT
 import crypto from 'crypto'; // <-- OBRIGATÓRIO PARA A CAPI DA META
 
+// --- IMPORTAÇÕES OFICIAIS SOLANA ---
+import { Connection, Keypair, PublicKey, clusterApiUrl } from '@solana/web3.js';
+import { getOrCreateAssociatedTokenAccount, transfer, TOKEN_2022_PROGRAM_ID } from '@solana/spl-token';
+
 const STRIPE_ENABLED = false;
 
 // ============================================================================
@@ -6757,15 +6761,11 @@ Retorne APENAS um JSON válido com 3 chaves:
             
             const walletSnap = await walletRef.get();
 
-            // TRAVA DE IDEMPOTÊNCIA: Se já tem a chave da Solana, aborta
             if (walletSnap.exists && walletSnap.data().solanaPublicKey) {
                 return res.status(200).json({ success: true, message: 'Carteira Solana já existente.', address: walletSnap.data().solanaPublicKey });
             }
 
-            // 🛡️ ISOLAMENTO ESM BLINDADO: Esconde o import da Vercel
-            const solanaWeb3 = await new Function('return import("@solana/web3.js")')();
-            const { Keypair } = solanaWeb3;
-
+            // Usando a importação do topo diretamente!
             const newWallet = Keypair.generate();
             const publicKey = newWallet.publicKey.toBase58();
             const secretKey = Array.from(newWallet.secretKey);
@@ -6774,7 +6774,7 @@ Retorne APENAS um JSON válido com 3 chaves:
                 storeId: storeId,
                 customerPhone: cleanPhone,
                 solanaPublicKey: publicKey,
-                solanaSecretKey: secretKey, // MVP Devnet
+                solanaSecretKey: secretKey,
                 solanaNetwork: 'devnet',
                 solanaUpdatedAt: admin.firestore.FieldValue.serverTimestamp()
             }, { merge: true });
