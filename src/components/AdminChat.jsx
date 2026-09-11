@@ -246,19 +246,16 @@ export default function AdminChat() {
         }
     };
 
-    useEffect(() => {
+   useEffect(() => {
         if (!storeId) return;
-        // OTIMIZAÇÃO: Busca apenas as 800 mensagens mais recentes para não travar a memória
-        // Tiramos o limite para parar de esconder as mensagens novas
-        // OTIMIZAÇÃO: Traz apenas conversas ativas das últimas 2 semanas.
-        // Salva banda, memória RAM e dinheiro no Firebase.
-        const fifteenDaysAgo = new Date();
-        fifteenDaysAgo.setDate(fifteenDaysAgo.getDate() - 15);
-
+        
+        // OTIMIZAÇÃO APLICADA: Restaura o limite e a ordenação decrescente real.
+        // Isso impede a asfixia da memória do navegador e garante o funcionamento do WebSocket (Tempo Real).
         const q = query(
             collection(db, 'whatsapp_inbound'),
             where('storeId', '==', storeId),
-            where('receivedAt', '>=', fifteenDaysAgo)
+            orderBy('receivedAt', 'desc'),
+            limit(800)
         );
 
         const unsubscribe = onSnapshot(q, (snapshot) => {
