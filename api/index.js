@@ -6759,16 +6759,25 @@ Retorne APENAS um JSON válido com 3 chaves:
                 return res.status(200).json({ success: true, message: 'Carteira Solana já existente.', address: walletSnap.data().solanaPublicKey });
             }
 
-            // 🛡️ ISOLAMENTO ESM: Importação dinâmica
-            const { Keypair } = await import('@solana/web3.js');
+            // 🛡️ ISOLAMENTO ESM BLINDADO: Captura o erro exato se a lib faltar
+            let Keypair;
+            try {
+                const solanaWeb3 = await import('@solana/web3.js');
+                Keypair = solanaWeb3.Keypair;
+            } catch (importErr) {
+                console.error("Erro de Importação Web3:", importErr);
+                throw new Error("Módulo '@solana/web3.js' não encontrado. Rode 'npm install @solana/web3.js' no servidor.");
+            }
 
             const newWallet = Keypair.generate();
             const publicKey = newWallet.publicKey.toBase58();
             const secretKey = Array.from(newWallet.secretKey);
 
             await walletRef.set({
+                storeId: storeId,
+                customerPhone: cleanPhone,
                 solanaPublicKey: publicKey,
-                solanaSecretKey: secretKey, // MVP Devnet: Array salvo no banco. Mainnet: Necessário KMS/AES256.
+                solanaSecretKey: secretKey, // MVP Devnet
                 solanaNetwork: 'devnet',
                 solanaUpdatedAt: admin.firestore.FieldValue.serverTimestamp()
             }, { merge: true });
@@ -6776,8 +6785,9 @@ Retorne APENAS um JSON válido com 3 chaves:
             return res.status(201).json({ success: true, message: 'Carteira gerada com sucesso!', address: publicKey });
 
         } catch (error) {
-            console.error('🚨 [API_WALLET_CREATE]', error);
-            return res.status(500).json({ success: false, error: 'Erro interno ao gerar carteira.' });
+            console.error('🚨 [API_WALLET_CREATE]', error.message);
+            // Agora retornamos a mensagem real para você ler no F12
+            return res.status(500).json({ success: false, error: `Falha técnica: ${error.message}` });
         }
     }
 
