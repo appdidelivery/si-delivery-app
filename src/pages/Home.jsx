@@ -2209,10 +2209,22 @@ export default function Home() {
   // Zera o frete se for Modo Garçom, Retirada na Loja ou Autoatendimento na Mesa
   const finalShippingFee = (isFreeShipping || isWaiterMode || isPickup || tableSession) ? 0 : Number(shippingFee || 0);
   
-  // LÓGICA DINÂMICA DE DESCONTO (Protege o Frete Grátis se o cliente trocar o CEP depois de aplicar o cupom)
-  let actualDiscountAmount = Number(discountAmount || 0);
-  if (appliedCoupon && appliedCoupon.type === 'free_shipping') {
-      actualDiscountAmount = finalShippingFee;
+  // LÓGICA DINÂMICA DE DESCONTO (Recalcula na hora para evitar descontos congelados/fantasmas)
+  let actualDiscountAmount = 0;
+  if (appliedCoupon) {
+      const eligibleItems = cart.filter(item => !appliedCoupon.applicableProducts || appliedCoupon.applicableProducts.length === 0 || appliedCoupon.applicableProducts.includes(item.id));
+      const eligibleSubtotal = eligibleItems.reduce((acc, i) => acc + (Number(i.price) * Number(i.quantity)), 0);
+
+      if (eligibleSubtotal >= Number(appliedCoupon.minimumOrderValue || 0)) {
+          if (appliedCoupon.type === 'percentage') actualDiscountAmount = eligibleSubtotal * (appliedCoupon.value / 100);
+          else if (appliedCoupon.type === 'fixed_amount') actualDiscountAmount = Math.min(appliedCoupon.value, eligibleSubtotal);
+          else if (appliedCoupon.type === 'free_shipping') actualDiscountAmount = finalShippingFee;
+          else if (appliedCoupon.type === 'bogo_50') {
+              eligibleItems.forEach(item => {
+                  actualDiscountAmount += Math.floor(item.quantity / 2) * (item.price * 0.5);
+              });
+          }
+      }
   }
   
   const baseTotal = Number(subtotal) + finalShippingFee - actualDiscountAmount;
@@ -4634,7 +4646,6 @@ alert("Pagamento recusado pelo Mercado Pago. Tente outro cartão ou entre em con
                                                     type="button"
                                                     onClick={() => {
                                                         handleCustomerChange('deliveryMethod', 'pickup');
-                                                        setShippingFee(0); // Zera o frete ao clicar em retirada
                                                     }}
                                                     className={`flex-1 py-4 rounded-4xl font-black text-[10px] uppercase tracking-widest transition-all ${customer.deliveryMethod === 'pickup' ? 'bg-blue-600 text-white shadow-md' : 'bg-slate-50 text-slate-400 hover:bg-slate-100'}`}
                                                 >
@@ -4666,8 +4677,9 @@ alert("Pagamento recusado pelo Mercado Pago. Tente outro cartão ou entre em con
 
                   
 
-                  {!isWaiterMode && !tableSession && cepError && <p className="text-red-500 text-xs font-bold text-center mb-4">{cepError}</p>}
-                  {!isWaiterMode && !tableSession && deliveryAreaMessage && !cepError && <p className={`${currentTheme.text} text-xs font-bold text-center mb-4`}>{deliveryAreaMessage}</p>}
+                  {/* Fix Visual: Só exibe mensagens de erro ou taxa de CEP se o método de entrega for 'delivery' */}
+                  {!isWaiterMode && !tableSession && customer.deliveryMethod === 'delivery' && cepError && <p className="text-red-500 text-xs font-bold text-center mb-4">{cepError}</p>}
+                  {!isWaiterMode && !tableSession && customer.deliveryMethod === 'delivery' && deliveryAreaMessage && !cepError && <p className={`${currentTheme.text} text-xs font-bold text-center mb-4`}>{deliveryAreaMessage}</p>}
 
                   <p className="font-black text-xs text-slate-400 uppercase mt-8 ml-4 tracking-widest">Cupom de Desconto:</p>
                   <div className="flex gap-2 mt-2">
