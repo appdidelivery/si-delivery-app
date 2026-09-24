@@ -14,6 +14,8 @@ export const getStoreIdFromHostname = () => {
 
     // 2. Caso de domínio provisório do Vercel
     if (hostname.endsWith('.vercel.app')) {
+      const previewStore = import.meta.env.VITE_PREVIEW_STORE_ID;
+      if (previewStore) return previewStore;
       const parts = hostname.split('.');
       if (parts.length >= 3) {
         return parts[0]; 

@@ -38,6 +38,18 @@ export const StoreProvider = ({ children }) => {
         
         unsubscribeStore(); 
         
+        // Lojas legadas de teste podem ter apenas o ID do documento, sem slug.
+        if (hostname.endsWith('.vercel.app') && import.meta.env.VITE_PREVIEW_STORE_ID) {
+          unsubscribeStore = onSnapshot(doc(db, 'stores', slugToLoad), (snapshot) => {
+            setStore(snapshot.exists() ? { ...snapshot.data(), id: snapshot.id } : null);
+            setLoading(false);
+          }, () => {
+            setStore(null);
+            setLoading(false);
+          });
+          return;
+        }
+
         const q = query(collection(db, 'stores'), where('slug', '==', slugToLoad));
         unsubscribeStore = onSnapshot(q, (querySnapshot) => {
           if (!querySnapshot.empty) {

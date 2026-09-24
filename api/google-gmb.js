@@ -1,5 +1,6 @@
 import admin from 'firebase-admin';
 import { GoogleAuth } from 'google-auth-library';
+import { fetchGeminiWithRetry } from '../lib/gemini.js';
 
 // Inicializa o Firebase Admin (Singleton para evitar erros de múltiplas conexões)
 if (!admin.apps.length) {
@@ -439,7 +440,7 @@ Regras Absolutas:
 
             const fullPrompt = `${systemPrompt}\n\nSolicitação do Lojista: "${promptUser}"`;
 
-            const aiRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key=${GEMINI_KEY}`, {
+            const aiRes = await fetchGeminiWithRetry(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key=${GEMINI_KEY}`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({

@@ -1,5 +1,6 @@
 import admin from 'firebase-admin';
 import crypto from 'crypto';
+import { fetchGeminiWithRetry } from '../lib/gemini.js';
 
 // =========================================================================
 // INICIALIZAÇÃO FIREBASE ADMIN
@@ -96,7 +97,7 @@ Formato exigido:
         console.log(`🟡 [API CALL] Acionando motor raiz para: ${productName}`);
 
         // 🚀 CÓDIGO DE DIAGNÓSTICO E AUTO-CURA (Apenas Flash Gratuito)
-        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key=${GEMINI_KEY}`, {
+        const response = await fetchGeminiWithRetry(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key=${GEMINI_KEY}`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -106,14 +107,20 @@ Formato exigido:
 
         const aiData = await response.json();
 
-        // SE O GOOGLE BLOQUEAR, IMPRIME A VERDADE NUA E CRUA NO LOG DA VERCEL
         if (!response.ok) {
-            console.error("🚨 ERRO REAL DO GOOGLE (FLASH):", {
-                statusHttp: response.status,
-                chaveUsada: GEMINI_KEY ? GEMINI_KEY.substring(0, 8) + '...' : 'CHAVE_AUSENTE',
-                erroDetalhado: aiData
+            const messages = {
+                403: 'A chave do Gemini não tem permissão ou faturamento ativo.',
+                429: 'O limite de uso da inteligência artificial foi atingido. Tente novamente em instantes.',
+                503: 'A inteligência artificial está temporariamente sobrecarregada. Tente novamente.',
+            };
+            console.error('[Gemini] Falha após as tentativas', {
+                status: response.status,
+                code: aiData?.error?.status || aiData?.error?.code || 'UNKNOWN',
             });
-            return res.status(200).json({ success: false, error: "Erro de permissão na chave do Google. Olhe o log da Vercel." });
+            return res.status(response.status).json({
+                success: false,
+                error: messages[response.status] || 'Não foi possível gerar o conteúdo agora.',
+            });
         }
 
         const rawJsonText = aiData.candidates?.[0]?.content?.parts?.[0]?.text;

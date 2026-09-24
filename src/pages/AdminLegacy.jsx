@@ -364,7 +364,7 @@ export default function Admin() {
             
             setStoreStatus(prev => ({...prev, plan: newPlanId, billingBasePrice: planPrice, billingCycle: cycle}));
             
-            const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+            const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' || window.location.hostname.endsWith('.vercel.app');
             const apiUrl = isLocal ? '/api/pay-subscription-mp' : 'https://app.velodelivery.com.br/api/pay-subscription-mp';
 
             // Muda o texto do botão clicado para dar feedback visual
@@ -372,10 +372,10 @@ export default function Admin() {
             const originalText = btn.innerHTML;
             if(btn.tagName === 'BUTTON') { btn.innerHTML = '<span class="animate-pulse">Gerando Link...</span>'; btn.disabled = true; }
 
-            const response = await fetch(apiUrl, {
+            const response = await authenticatedFetch(apiUrl, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ storeId: storeId, amount: planPrice })
+                body: JSON.stringify({ storeId, plan: newPlanId, cycle })
             });
             
             const data = await response.json();
@@ -396,10 +396,9 @@ export default function Admin() {
     const handlePayOverdueInvoice = async (invoiceIdOverride = null) => {
         if (!storeId) return alert("Erro: Loja não identificada.");
         try {
-            const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+            const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' || window.location.hostname.endsWith('.vercel.app');
             const apiUrl = isLocal ? '/api/pay-subscription-mp' : 'https://app.velodelivery.com.br/api/pay-subscription-mp';
 
-            const amountToPay = invoiceData?.total || 49.90;
             
             let targetInvoiceId = invoiceIdOverride;
             if (!targetInvoiceId && storeStatus?.faturasHistorico) {
@@ -411,12 +410,13 @@ export default function Admin() {
             const originalText = btn.innerHTML;
             if(btn.tagName === 'BUTTON') { btn.innerHTML = 'Gerando link...'; btn.disabled = true; }
 
-            const response = await fetch(apiUrl, {
+            const response = await authenticatedFetch(apiUrl, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ 
                     storeId: storeId, 
-                    amount: amountToPay,
+                    plan: storeStatus?.plan,
+                    cycle: storeStatus?.billingCycle || 'monthly',
                     invoiceId: targetInvoiceId || 'avulsa'
                 })
             });
@@ -443,11 +443,10 @@ export default function Admin() {
         setPixData({ qrCodeBase64: null, copiaECola: null });
 
         try {
-            const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+            const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' || window.location.hostname.endsWith('.vercel.app');
             // 🛡️ API Redirecionada para a Efí Bank (Bypass definitivo do MP)
             const apiUrl = isLocal ? '/api/pay-subscription-efi-pix' : 'https://app.velodelivery.com.br/api/pay-subscription-efi-pix';
 
-            const amountToPay = invoiceData?.total || 49.90;
             
             let targetInvoiceId = invoiceIdOverride;
             if (!targetInvoiceId && storeStatus?.faturasHistorico) {
@@ -455,12 +454,13 @@ export default function Admin() {
                 if (pendentes.length > 0) targetInvoiceId = pendentes[0].id;
             }
 
-            const response = await fetch(apiUrl, {
+            const response = await authenticatedFetch(apiUrl, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ 
                     storeId: storeId, 
-                    amount: amountToPay,
+                    plan: storeStatus?.plan,
+                    cycle: storeStatus?.billingCycle || 'monthly',
                     invoiceId: targetInvoiceId || 'avulsa'
                 })
             });
@@ -580,7 +580,9 @@ export default function Admin() {
     };
 
     let currentSubdomain = null;
-    if (domainMap[cleanHost]) {
+    if (cleanHost.endsWith('.vercel.app') && import.meta.env.VITE_PREVIEW_STORE_ID) {
+        currentSubdomain = getStoreIdFromHostname();
+    } else if (domainMap[cleanHost]) {
         currentSubdomain = domainMap[cleanHost];
     } else if (cleanHost !== 'localhost' && cleanHost.includes('.')) {
         currentSubdomain = cleanHost.split('.')[0];

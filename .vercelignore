@@ -1,3 +1,7 @@
 firebase-functions/
 firebase-functions/**/*
 firebase-functions/node_modules/**
+
+# Credenciais locais não devem integrar o deployment.
+.env
+.env.*

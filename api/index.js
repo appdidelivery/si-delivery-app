@@ -4,6 +4,7 @@ import Gerencianet from 'gn-api-sdk-node'; // <-- ADICIONADO AQUI
 import pathModule from 'path';
 import { GoogleAuth } from 'google-auth-library'; // <-- NOVA AUTENTICAÇÃO SERVICE ACCOUNT
 import crypto from 'crypto'; // <-- OBRIGATÓRIO PARA A CAPI DA META
+import { fetchGeminiWithRetry } from '../lib/gemini.js';
 
 // --- IMPORTAÇÕES OFICIAIS SOLANA ---
 // 🛡️ REMOVIDO: Imports estáticos da Solana causam Erro 500 (ERR_REQUIRE_ESM) na Vercel.
@@ -266,6 +267,47 @@ function generateNonce(length = 32) {
 }
 
 /// ============================================================================
+const PLAN_PRICES = {
+    start: { monthly: 49.90, semestral: 254.49 },
+    pro: { monthly: 149.90, semestral: 764.49 },
+    infinity: { monthly: 249.90, semestral: 1274.49 },
+};
+
+async function assertStoreAccess(user, storeId) {
+    if (!user || !storeId) throw new Error('Acesso inválido.');
+    if (user.admin === true || user.superAdmin === true) return;
+    const [userDoc, storeDoc] = await Promise.all([
+        db.collection('users').doc(user.uid).get(),
+        db.collection('stores').doc(storeId).get(),
+    ]);
+    const userStoreId = userDoc.exists ? userDoc.data().storeId : null;
+    const ownerUid = storeDoc.exists ? storeDoc.data().ownerUid : null;
+    if (userStoreId !== storeId && ownerUid !== user.uid) {
+        const error = new Error('Usuário sem acesso a esta loja.');
+        error.statusCode = 403;
+        throw error;
+    }
+}
+
+async function resolveSubscriptionAmount({ storeId, invoiceId, plan, cycle }) {
+    const storeDoc = await db.collection('stores').doc(storeId).get();
+    if (!storeDoc.exists) throw new Error('Loja não encontrada.');
+    if (invoiceId && invoiceId !== 'avulsa') {
+        const invoices = storeDoc.data().faturasHistorico || [];
+        const invoice = invoices.find((item) => item.id === invoiceId);
+        if (!invoice || !['PENDENTE', 'pendente'].includes(invoice.status)) {
+            throw new Error('Fatura pendente não encontrada.');
+        }
+        const value = Number(invoice.amount ?? invoice.total);
+        if (!Number.isFinite(value) || value <= 0) throw new Error('Valor da fatura inválido.');
+        return value;
+    }
+    const normalizedCycle = cycle === 'semestral' ? 'semestral' : 'monthly';
+    const value = PLAN_PRICES[plan]?.[normalizedCycle];
+    if (!value) throw new Error('Plano ou ciclo inválido.');
+    return value;
+}
+
 // INÍCIO DO ROTEADOR CENTRAL (O MAESTRO DA SUA API)
 // ============================================================================
 export default async function handler(req, res) {
@@ -280,7 +322,7 @@ export default async function handler(req, res) {
         const queryStore = req.query.store;
         storeId = queryStore || 'loja-teste';
     } else if (cleanHost.endsWith('.vercel.app')) {
-        storeId = cleanHost.split('.')[0];
+        storeId = (process.env.VERCEL_ENV === 'preview' && process.env.PREVIEW_STORE_ID) || cleanHost.split('.')[0];
     } else if (cleanHost === baseDomain) {
         storeId = 'main-app';
     } else if (cleanHost.endsWith(`.${baseDomain}`)) {
@@ -368,9 +410,6 @@ export default async function handler(req, res) {
         '/api/binance-checkout',
         '/api/google-order-feed',
         '/api/og',
-        '/api/pay-subscription-mp',      // <-- ADICIONADO P/ LIBERAR O CARTÃO DA FATURA
-        '/api/pay-subscription-mp-pix',  // <-- ADICIONADO P/ LIBERAR O PIX DA FATURA
-        '/api/pay-subscription-efi-pix', // 🟢 NOVA ROTA ADICIONADA AQUI (Libera o PIX da Efí)
         '/api/velopay-webhook/pix',      // 🛡️ ADICIONADO: Exceção para o sufixo obrigatório da Efí
         '/api/wallet-create'             // 🟢 NOVO: Libera a criação de carteira B2C (Sem Token Admin)
     ];
@@ -465,8 +504,15 @@ export default async function handler(req, res) {
     else if (path === '/api/pay-subscription-mp') {
         if (req.method !== 'POST') return res.status(405).json({ error: 'Método não permitido.' });
 
-        const { storeId, amount, invoiceId } = req.body;
-        if (!storeId || !amount) return res.status(400).json({ error: 'Dados incompletos para faturamento.' });
+        const { storeId, invoiceId, plan, cycle } = req.body;
+        if (!storeId) return res.status(400).json({ error: 'Loja não informada.' });
+        let amount;
+        try {
+            await assertStoreAccess(req.user, storeId);
+            amount = await resolveSubscriptionAmount({ storeId, invoiceId, plan, cycle });
+        } catch (error) {
+            return res.status(error.statusCode || 400).json({ error: error.message });
+        }
 
         try {
             const ACCESS_TOKEN = process.env.MP_ACCESS_TOKEN; 
@@ -524,8 +570,15 @@ export default async function handler(req, res) {
     else if (path === '/api/pay-subscription-mp-pix') {
         if (req.method !== 'POST') return res.status(405).json({ error: 'Método não permitido.' });
 
-        const { storeId, amount, invoiceId } = req.body;
-        if (!storeId || !amount) return res.status(400).json({ error: 'Dados incompletos para PIX.' });
+        const { storeId, invoiceId, plan, cycle } = req.body;
+        if (!storeId) return res.status(400).json({ error: 'Loja não informada.' });
+        let amount;
+        try {
+            await assertStoreAccess(req.user, storeId);
+            amount = await resolveSubscriptionAmount({ storeId, invoiceId, plan, cycle });
+        } catch (error) {
+            return res.status(error.statusCode || 400).json({ error: error.message });
+        }
 
         try {
             const ACCESS_TOKEN = process.env.MP_ACCESS_TOKEN; 
@@ -604,8 +657,15 @@ export default async function handler(req, res) {
     else if (path === '/api/pay-subscription-efi-pix') {
         if (req.method !== 'POST') return res.status(405).json({ error: 'Método não permitido.' });
 
-        const { storeId, amount, invoiceId } = req.body;
-        if (!storeId || !amount) return res.status(400).json({ error: 'Dados incompletos para PIX.' });
+        const { storeId, invoiceId, plan, cycle } = req.body;
+        if (!storeId) return res.status(400).json({ error: 'Loja não informada.' });
+        let amount;
+        try {
+            await assertStoreAccess(req.user, storeId);
+            amount = await resolveSubscriptionAmount({ storeId, invoiceId, plan, cycle });
+        } catch (error) {
+            return res.status(error.statusCode || 400).json({ error: error.message });
+        }
 
         try {
             const finalInvoiceId = invoiceId || 'avulsa';
@@ -824,7 +884,7 @@ export default async function handler(req, res) {
                                 if (GEMINI_KEY && cartItems) {
                                     const prompt = `Atue como um vendedor persuasivo de delivery no WhatsApp. O cliente ${firstName} deixou estes itens no carrinho e não pagou: ${cartItems}. Crie uma ÚNICA MENSAGEM curta (máximo 3 parágrafos curtos), magnética e usando gatilho de escassez/urgência para ele finalizar a compra agora. OFEREÇA O CUPOM DE DESCONTO: ${cupom}. O link de checkout é: https://${storeId}.velodelivery.com.br - NÃO use formatações estranhas (apenas *negrito* do whatsapp), use emojis com moderação, seja direto e simpático. NÃO FAÇA SAUDAÇÕES LONGAS.`;
 
-const aiResponse = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key=${GEMINI_KEY}`, {
+const aiResponse = await fetchGeminiWithRetry(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key=${GEMINI_KEY}`, {
                                             method: 'POST',
                                         headers: { 'Content-Type': 'application/json' },
                                         body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
@@ -4522,7 +4582,7 @@ if (replyPayload.type === 'text' && replyPayload.text?.body) {
             - Produtos Clicados: ${topProducts.join(', ') || 'Nenhum'}.`;
 
             // Chamada restaurada para a versão estável do Gemini
-const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key=${GEMINI_KEY}`, {
+const response = await fetchGeminiWithRetry(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key=${GEMINI_KEY}`, {
                                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -4638,7 +4698,7 @@ const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/m
             - Use emojis, seja cordial e não faça saudações muito longas.
             - Responda apenas com o texto final do relatório, que será lido diretamente pelo lojista.`;
 
-const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key=${GEMINI_KEY}`, {
+const response = await fetchGeminiWithRetry(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key=${GEMINI_KEY}`, {
                                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ contents: [{ parts: [{ text: fullPrompt }] }] })
@@ -4692,7 +4752,7 @@ const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/m
 const prompt = `Atue como Especialista em SEO (E-E-A-T) para Delivery. Produto: "${termoRaw}". Loja: ${lojaNome} (${lojaNicho || 'Delivery'}), localizada em ${lojaLocalizacao || 'sua região'}. Crie um nome otimizado para buscas e uma descrição comercial persuasiva (máximo de 40 palavras). A descrição DEVE ter alta densidade factual: inclua o estado ideal de consumo (ex: trincando de gelado, recém-preparado), os principais atributos do produto e reforce a autoridade citando o nome da loja sutilmente no texto. Retorne APENAS um JSON válido. Formato exigido: {"nome": "...", "descricao": "..."}`;
 
 // ☢️ OPÇÃO NUCLEAR: Chumbando a chave direto no código para driblar o bug da Vercel
-            const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key=${process.env.GEMINI_API_KEY}`, {
+            const response = await fetchGeminiWithRetry(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key=${process.env.GEMINI_API_KEY}`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -4778,7 +4838,7 @@ const prompt = `Atue como Especialista em SEO (E-E-A-T) para Delivery. Produto: 
             ]`;
 
             // 🚀 MOTOR BLINDADO E ECONÔMICO (Apenas Flash - Custo Zero)
-            const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key=${GEMINI_KEY}`, {
+            const response = await fetchGeminiWithRetry(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key=${GEMINI_KEY}`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ 
@@ -5036,7 +5096,7 @@ Retorne APENAS um JSON válido com 3 chaves:
             console.log(`🟡 [API CALL] Acionando motor de IA (GMB) para: ${productName}`);
 
             // 🚀 MOTOR BLINDADO E ECONÔMICO (Apenas Flash - Custo Zero)
-            const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key=${GEMINI_KEY}`, {
+            const response = await fetchGeminiWithRetry(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key=${GEMINI_KEY}`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ 
@@ -6286,7 +6346,7 @@ Retorne APENAS um JSON válido com 3 chaves:
               {"question": "Pergunta 2?", "answer": "Resposta 2."}
             ]`;
 
-            const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key=${GEMINI_KEY}`, {
+            const response = await fetchGeminiWithRetry(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key=${GEMINI_KEY}`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ 

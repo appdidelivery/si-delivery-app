@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
     signInWithEmailAndPassword,
     createUserWithEmailAndPassword,
@@ -50,34 +50,79 @@ export default function Login() {
     // O modo de operação é "cadastro" se vier da landing page OU se o usuário alternar manualmente
     const isRegistering = isRegisteringFromLanding || !isLoginMode;
 
+    // --- CRIA A LOJA NO FIRESTORE (SEM ALTERAÇÕES) ---
+    const createStoreInDb = useCallback(async (user) => {
+        if (!urlStoreSlug) return;
+        const normalizedSlug = urlStoreSlug.toLowerCase().trim().replace(/[^a-z0-9-]/g, '');
+        if (!normalizedSlug || normalizedSlug !== urlStoreSlug.toLowerCase().trim()) {
+            throw new Error('Slug de loja inválido.');
+        }
+
+        const storeRef = doc(db, 'stores', normalizedSlug);
+        const existingStore = await getDoc(storeRef);
+        if (existingStore.exists() && existingStore.data().ownerUid !== user.uid) {
+            throw new Error('Este endereço de loja já está em uso.');
+        }
+
+        await setDoc(storeRef, {
+            slug: normalizedSlug,
+            name: urlOwnerName || normalizedSlug,
+            ownerUid: user.uid,
+            ownerEmail: user.email || '',
+            ownerPhone: urlOwnerPhone || '',
+            active: true,
+            updatedAt: serverTimestamp(),
+            ...(existingStore.exists() ? {} : { createdAt: serverTimestamp() }),
+        }, { merge: true });
+
+        await setDoc(doc(db, 'users', user.uid), {
+            email: user.email || '',
+            name: user.displayName || urlOwnerName || '',
+            phone: urlOwnerPhone || '',
+            role: 'owner',
+            storeId: normalizedSlug,
+            updatedAt: serverTimestamp(),
+        }, { merge: true });
+    }, [urlStoreSlug, urlOwnerName, urlOwnerPhone]);
+
     // --- EFEITO: Verifica Login e Redireciona (SEM ALTERAÇÕES) ---
     useEffect(() => {
         const unsubscribe = auth.onAuthStateChanged(async (user) => {
-            if (user) {
-                if (isRegisteringFromLanding) {
-                    await createStoreInDb(user);
-                    if (!window.location.hostname.includes('localhost')) {
-                        const newUrl = `https://${urlStoreSlug}.velodelivery.com.br/admin`;
-                        window.location.href = newUrl;
-                        return;
+            try {
+                if (user) {
+                    if (isRegisteringFromLanding) {
+                        await createStoreInDb(user);
+                        if (!window.location.hostname.includes('localhost') && !window.location.hostname.endsWith('.vercel.app')) {
+                            const newUrl = `https://${urlStoreSlug}.velodelivery.com.br/admin`;
+                            window.location.href = newUrl;
+                            return;
+                        }
                     }
+                    navigate('/admin');
                 }
-                navigate('/admin');
-            } else {
+            } catch (err) {
+                setError(err.code ? 'Não foi possível concluir o cadastro da loja. Tente novamente.' : err.message);
+            } finally {
                 setCheckingAuth(false);
             }
         });
         return () => unsubscribe();
-    }, [navigate, isRegisteringFromLanding, urlStoreSlug]);
-
-    // --- CRIA A LOJA NO FIRESTORE (SEM ALTERAÇÕES) ---
-    const createStoreInDb = async (user) => {
-        // ... (seu código original aqui)
-    };
+    }, [navigate, isRegisteringFromLanding, urlStoreSlug, createStoreInDb]);
 
     // --- LOGIN GOOGLE (SEM ALTERAÇÕES) ---
     const handleGoogleLogin = async () => {
-       // ... (seu código original aqui)
+        setLoading(true);
+        setError('');
+        try {
+            const provider = new GoogleAuthProvider();
+            await signInWithPopup(auth, provider);
+        } catch (err) {
+            if (err.code !== 'auth/popup-closed-by-user') {
+                setError('Não foi possível entrar com o Google. Tente novamente.');
+            }
+        } finally {
+            setLoading(false);
+        }
     };
 
     // --- LÓGICA DE AUTENTICAÇÃO HÍBRIDA (LOGIN/CADASTRO) ---
