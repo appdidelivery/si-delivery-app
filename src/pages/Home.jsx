@@ -1,3 +1,4 @@
+import { initMetaPixel, trackMetaEvent, trackMetaPurchase, getMetaContext } from '../utils/metaPixel.js';
 import React, { useState, useEffect, useRef, Suspense } from 'react';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import { db } from '../services/firebase';
@@ -1492,6 +1493,11 @@ export default function Home() {
       localStorage.setItem('dismissediOSInstallPrompt', 'true');
   };
 
+  useEffect(() => {
+      const pixelId = marketingSettings?.integrations?.meta?.pixelId;
+      if (initMetaPixel(pixelId)) trackMetaEvent(pixelId, 'PageView');
+  }, [marketingSettings?.integrations?.meta?.pixelId, storeId]);
+
   // --- INÍCIO: SISTEMA INTEGRADO DE PIXELS E ANALYTICS (OTIMIZADO PAGESPEED 100) ---
   useEffect(() => {
       // O Googlebot (SEO) e o Lighthouse não disparam eventos de scroll/touch.
@@ -1509,14 +1515,6 @@ export default function Home() {
               const script = document.createElement('script');
               script.id = 'gtm-script';
               script.innerHTML = `(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start': new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0], j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src= 'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f); })(window,document,'script','dataLayer','${integrations.gtm.containerId}');`;
-              document.head.appendChild(script);
-          }
-
-          // 2. Meta Pixel (Facebook)
-          if (integrations?.meta?.pixelId && !document.getElementById('meta-pixel-script')) {
-              const script = document.createElement('script');
-              script.id = 'meta-pixel-script';
-              script.innerHTML = `!function(f,b,e,v,n,t,s){if(f.fbq)return;n=f.fbq=function(){n.callMethod?n.callMethod.apply(n,arguments):n.queue.push(arguments)};if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';n.queue=[];t=b.createElement(e);t.async=!0;t.src=v;s=b.getElementsByTagName(e)[0];s.parentNode.insertBefore(t,s)}(window, document,'script','https://connect.facebook.net/en_US/fbevents.js'); fbq('init', '${integrations.meta.pixelId}'); fbq('track', 'PageView');`;
               document.head.appendChild(script);
           }
 
@@ -2120,7 +2118,7 @@ export default function Home() {
 
       // 2. SEGUNDO: Disparamos os Pixels (Agora a variável finalPricePerUnit já existe!)
       if (window.fbq) { 
-          window.fbq('track', 'AddToCart', { content_name: p.name, content_ids: [p.id], value: finalPricePerUnit, currency: 'BRL' }); 
+          trackMetaEvent(marketingSettings?.integrations?.meta?.pixelId, 'AddToCart', { content_name: p.name, content_ids: [p.id], value: finalPricePerUnit, currency: 'BRL' });
       }
       if (window.gtag) { 
           window.gtag('event', 'add_to_cart', { currency: 'BRL', value: finalPricePerUnit, items:[{ item_id: p.id, item_name: p.name, price: finalPricePerUnit, quantity: quantity }] }); 
@@ -2409,6 +2407,7 @@ const upsellTotal = sanitizedCart.filter(i => i.isUpsell === true).reduce((acc, 
       const isOfflinePayment = isWaiterMode ||['dinheiro', 'motoboy_card', 'offline_credit_card', 'offline_pix', 'cardPickup', 'cashPickup', 'voucherDelivery', 'voucherPickup'].includes(customer.payment);
 
     const orderData = {
+        metaTracking: getMetaContext(marketingSettings?.integrations?.meta?.pixelId),
         customerName: customer.name || "", 
         customerAddress: isWaiterMode ? `Mesa ${tableNumber}` : (isPickup ? "Retirada no Balcão" : (fullAddress || "")), 
         customerPhone: customer.phone || "",
@@ -2507,9 +2506,7 @@ upsellAmount: upsellTotal, // Mantido por retrocompatibilidade com painéis anti
           }
       });
       // =========================================================
-if (window.fbq) { 
-          window.fbq('track', 'Purchase', { value: finalTotal, currency: 'BRL' }); 
-      }
+
       if (window.gtag) { 
           window.gtag('event', 'purchase', { 
               transaction_id: orderId, 
@@ -2546,6 +2543,7 @@ if (window.fbq) {
               };
               
               await setDoc(newOrderRef, bypassOrderData);
+              trackMetaPurchase(orderId, bypassOrderData);
 
               // Queima os tokens utilizados no Firebase imediatamente
               const cleanPhone = customer.phone.replace(/\D/g, '');
@@ -2595,6 +2593,7 @@ if (window.fbq) {
 
       if (isOfflinePayment) {
           await setDoc(newOrderRef, orderData);
+          if (!isWaiterMode) trackMetaPurchase(orderId, orderData);
 
           // Se for pagamento na entrega (offline), não tem webhook. Engatilhamos a recompensa agora!
           triggerWeb3Reward();

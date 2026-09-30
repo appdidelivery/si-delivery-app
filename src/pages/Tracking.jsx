@@ -1,3 +1,4 @@
+import { trackMetaPurchase } from '../utils/metaPixel.js';
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { db, auth } from '../../src/services/firebase'; 
@@ -62,6 +63,12 @@ export default function Tracking() {
     });
     return () => unsubOrder();
   },[orderId]);
+
+  useEffect(() => {
+    if (order?.paymentStatus === 'paid' && order?.orderType !== 'garcom') {
+      trackMetaPurchase(order.id, order);
+    }
+  }, [order]);
 
   // MOTOR 1: OUVINTE DO REALTIME DATABASE
   useEffect(() => {

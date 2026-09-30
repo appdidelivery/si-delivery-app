@@ -1,3 +1,4 @@
+import { sendMetaPurchaseEvent } from '../lib/metaConversions.js';
 import Stripe from 'stripe';
 import admin from 'firebase-admin';
 import Gerencianet from 'gn-api-sdk-node'; // <-- ADICIONADO AQUI
@@ -59,52 +60,6 @@ async function transferVfoodOnChain(senderSecretKeyJson, receiverPublicKeyString
 // ============================================================================
 //  MOTOR CAPI (META CONVERSIONS API) - Rastreio Invisível de Vendas
 // ============================================================================
-async function sendMetaPurchaseEvent(storeId, orderData, dbRef) {
-    try {
-        const settingsDoc = await dbRef.collection('settings').doc(storeId).get();
-        const metaConfig = settingsDoc.data()?.integrations?.meta;
-
-        // Só dispara se o lojista colou o Pixel e o Token CAPI no painel
-        if (!metaConfig?.pixelId || !metaConfig?.apiToken) return;
-
-        // A Meta exige que o telefone (se existir) seja enviado em formato SHA-256
-        let hashedPhone = null;
-        if (orderData.customerPhone) {
-            const cleanPhone = String(orderData.customerPhone).replace(/\D/g, '');
-            const formattedPhone = cleanPhone.startsWith('55') ? cleanPhone : `55${cleanPhone}`;
-            hashedPhone = crypto.createHash('sha256').update(formattedPhone).digest('hex');
-        }
-
-        const eventPayload = {
-            data: [
-                {
-                    event_name: 'Purchase',
-                    event_time: Math.floor(Date.now() / 1000),
-                    action_source: 'website',
-                    user_data: {
-                        ph: hashedPhone ? [hashedPhone] : [],
-                    },
-                    custom_data: {
-                        currency: 'BRL',
-                        value: Number(orderData.total || 0),
-                        order_id: String(orderData.id || 'N/A')
-                    }
-                }
-            ]
-        };
-
-        const res = await fetch(`https://graph.facebook.com/v19.0/${metaConfig.pixelId}/events?access_token=${metaConfig.apiToken}`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(eventPayload)
-        });
-        
-        if (res.ok) console.log(`🎯 [Meta CAPI] Venda de R$ ${orderData.total} rastreada com sucesso na loja ${storeId}`);
-    } catch (error) {
-        console.error('❌ [Meta CAPI] Erro ao enviar evento de conversão:', error);
-    }
-}
-
 // Helper Híbrido: Tenta usar o OAuth do Lojista (Firebase) ou o Robô (Service Account)
 async function getGoogleAuthToken(storeId = null) {
     try {
@@ -3970,9 +3925,8 @@ if (replyPayload.type === 'text' && replyPayload.text?.body) {
                             console.log(`✅ Webhook MP Seguro: Pedido ${orderId} atualizado para PAGO!`);
                             
                             await sendMetaPurchaseEvent(storeId, { 
-                                id: orderId, 
-                                total: valorPago, 
-                                customerPhone: orderDoc.data().customerPhone 
+                                ...orderData,
+                                id: orderId
                             }, db);
                         }
                     }
