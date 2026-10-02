@@ -14,11 +14,20 @@ export default function SEO({ title, description, image, productData }) {
     const finalTitle = title ? `${title}` : `${siteName} - App`;
     const finalDesc = description || store?.aboutText || store?.slogan || store?.description || defaultDesc;
     
-    const finalImage = image || store?.storeLogoUrl || store?.logoUrl || defaultImage;
+    const finalImage = image || store?.storeLogoUrl || store?.logoUrl || store?.logo || defaultImage;
     
     const currentUrl = typeof window !== 'undefined' ? window.location.href : "https://app.velodelivery.com.br";
     const safeOrigin = typeof window !== 'undefined' ? window.location.origin : "https://app.velodelivery.com.br";
-    const baseUrl = currentUrl.split('?')[0]; 
+    const baseUrl = currentUrl.split('?')[0];
+
+    const absoluteHeadUrl = (value) => {
+        if (!value) return safeOrigin + defaultImage;
+        return /^https?:\/\//i.test(value) ? value : safeOrigin + (String(value).startsWith('/') ? '' : '/') + value;
+    };
+    const headImage = absoluteHeadUrl(productData?.imageUrl || finalImage);
+    const faviconImage = headImage.includes('cloudinary.com') && headImage.includes('/upload/')
+        ? headImage.replace('/upload/', '/upload/c_pad,w_96,h_96,b_white,f_png,q_auto/')
+        : headImage; 
 
     // O MOTOR ORIGINAL DO SEU SITE VOLTOU (Agora limpo e no formato de Menu!)
     useEffect(() => {
@@ -50,11 +59,11 @@ export default function SEO({ title, description, image, productData }) {
                     data = {
                         fields: {
                             name: { stringValue: store?.name || siteName },
-                            storeLogoUrl: { stringValue: store?.storeLogoUrl || store?.logoUrl || finalImage },
+                            storeLogoUrl: { stringValue: store?.storeLogoUrl || store?.logoUrl || store?.logo || finalImage },
                             slogan: { stringValue: store?.slogan || store?.message || finalDesc },
-                            priceRange: { stringValue: store?.priceRange || "$$" },
+                            priceRange: { stringValue: store?.priceRange || "" },
                             seoCategory: { stringValue: store?.seoCategory || store?.storeNiche || "" },
-                            address: { stringValue: fallbackAddress },
+                            address: { stringValue: fallbackAddress === "Endereço não informado" ? "" : fallbackAddress },
                             rating_aggregate: { doubleValue: store?.rating_aggregate || 0 },
                             rating_count: { integerValue: store?.rating_count || 0 }
                         }
@@ -65,16 +74,26 @@ export default function SEO({ title, description, image, productData }) {
                 const fetchedName = fields.name?.stringValue || siteName;
                 const fetchedImage = fields.storeLogoUrl?.stringValue || fields.logoUrl?.stringValue || finalImage;
                 const fetchedDesc = fields.slogan?.stringValue || fields.message?.stringValue || finalDesc;
-                const fetchedPriceRange = fields.priceRange?.stringValue || "$$";
+                const fetchedPriceRange = fields.priceRange?.stringValue || store?.priceRange || "";
                 const ratingAvg = fields.rating_aggregate?.doubleValue || fields.rating_aggregate?.integerValue || 0;
                 const ratingCount = fields.rating_count?.integerValue || 0;
                 
                 const ensureAbsoluteUrl = (path) => path?.startsWith('http') ? path : `${safeOrigin}${path}`;
                 const absoluteFetchedImage = ensureAbsoluteUrl(fetchedImage);
 
-                let niche = fields.seoCategory?.stringValue || fields.storeNiche?.stringValue || '';
-                const schemaTypes = { 'burger': 'FastFoodRestaurant', 'pizza': 'Restaurant', 'sweet': 'IceCreamShop', 'restaurant': 'Restaurant' };
-                const googleBusinessType = schemaTypes[niche] || 'Restaurant';
+                let niche = fields.seoCategory?.stringValue || fields.storeNiche?.stringValue || store?.seoCategory || store?.storeNiche || '';
+                const normalizedNiche = String(niche).toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+                const typeRules = [
+                    ["burger", "FastFoodRestaurant"], ["hamburg", "FastFoodRestaurant"],
+                    ["pizza", "Restaurant"], ["restaur", "Restaurant"], ["sushi", "Restaurant"],
+                    ["acai", "IceCreamShop"], ["sorvete", "IceCreamShop"], ["sweet", "IceCreamShop"],
+                    ["padaria", "Bakery"], ["bakery", "Bakery"], ["cafeteria", "CafeOrCoffeeShop"],
+                    ["bar", "BarOrPub"], ["bebida", "LiquorStore"], ["adega", "LiquorStore"],
+                    ["convenien", "ConvenienceStore"], ["mercado", "GroceryStore"], ["market", "GroceryStore"]
+                ];
+                const matchedType = typeRules.find(([key]) => normalizedNiche.includes(key));
+                const googleBusinessType = matchedType ? matchedType[1] : "LocalBusiness";
+                const isFoodBusiness = ["Restaurant", "FastFoodRestaurant", "IceCreamShop", "Bakery", "CafeOrCoffeeShop", "BarOrPub"].includes(googleBusinessType);
 
                let addressObj = { "@type": "PostalAddress", "addressCountry": "BR" };
                 if (store?.address && typeof store.address === 'object') {
@@ -132,7 +151,7 @@ export default function SEO({ title, description, image, productData }) {
 
                 // O GRANDE SEGREDO DO MENU (O que faltava no seu site original)
                 let menuData = {};
-                if (seoProducts.length > 0 && !productData) {
+                if (seoProducts.length > 0 && !productData && isFoodBusiness) {
                     menuData = {
                         "hasMenu": {
                             "@type": "Menu",
@@ -168,7 +187,7 @@ export default function SEO({ title, description, image, productData }) {
                     const rawPrice = productData.promotionalPrice > 0 ? productData.promotionalPrice : (productData.price || 0);
                     structuredData = {
                         "@context": "https://schema.org",
-                        "@type": ["Product", "MenuItem"], // Força a compatibilidade
+                        "@type": isFoodBusiness ? ["Product", "MenuItem"] : "Product",
                         "@id": `${baseUrl}#product`,
                         "name": productData.name || "Produto",
                         "description": productData.description || "Produto oficial da loja.",
@@ -222,12 +241,23 @@ export default function SEO({ title, description, image, productData }) {
                         "image": absoluteFetchedImage,
                         "description": fetchedDesc,
                         "url": safeOrigin,
-                        "telephone": store?.phone || store?.whatsapp || "+5500000000000",
-                        "servesCuisine": store?.seoCategory || store?.storeNiche || "Fast Food",
-                        "priceRange": fetchedPriceRange,
                         "address": addressObj,
                         ...menuData
                     };
+
+                    if (fetchedPriceRange) structuredData.priceRange = fetchedPriceRange;
+
+                    const realTelephone = store?.phone || store?.whatsapp;
+                    if (realTelephone) structuredData.telephone = realTelephone;
+
+                    const cuisine = store?.servesCuisine || store?.seoCategory || store?.storeNiche || niche;
+                    if (["Restaurant", "FastFoodRestaurant", "IceCreamShop", "Bakery", "CafeOrCoffeeShop", "BarOrPub"].includes(googleBusinessType) && cuisine) {
+                        structuredData.servesCuisine = cuisine;
+                    }
+
+                    if (menuData.hasMenu) {
+                        structuredData.menu = safeOrigin + "/";
+                    }
 
                     // Recoloca as estrelinhas da loja
                     if (ratingCount > 0) {
@@ -238,64 +268,22 @@ export default function SEO({ title, description, image, productData }) {
                         };
                     }
                     
-                    // SINAIS E-E-A-T (Update Muvera): Transparência Operacional
-                    structuredData.paymentAccepted = "Dinheiro, Cartão de Crédito, Pix";
+                    // Transparência operacional: só marca horários reais cadastrados.
                     if (store?.socialLinks?.instagram) {
                         structuredData.sameAs = [store.socialLinks.instagram];
                     }
-                    structuredData.openingHoursSpecification = [
-                        {
+                    if (store?.openingTime && store?.closingTime) {
+                        structuredData.openingHoursSpecification = [{
                             "@type": "OpeningHoursSpecification",
                             "dayOfWeek": ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"],
-                            "opens": store?.openingTime || "18:00",
-                            "closes": store?.closingTime || "23:59"
-                        }
-                    ];
+                            "opens": store.openingTime,
+                            "closes": store.closingTime
+                        }];
+                    }
                 }
 
                 if (isMounted) {
-                    // CONSTRUÇÃO DO FAQ DINÂMICO (Densidade Factual para SERP)
-                    let finalSchema = structuredData;
-                    
-                    // Prepara o FAQ apenas se estivermos na Home da loja (não nos produtos individuais)
-                    if (!productData) {
-                        const localName = addressObj.addressLocality || "toda a região";
-                        const faqSchema = {
-                            "@type": "FAQPage",
-                            "mainEntity": [
-                                {
-                                    "@type": "Question",
-                                    "name": `Qual o horário de funcionamento do ${fetchedName}?`,
-                                    "acceptedAnswer": {
-                                        "@type": "Answer",
-                                        "text": `Atendemos todos os dias das ${store?.openingTime || "18:00"} às ${store?.closingTime || "23:59"}.`
-                                    }
-                                },
-                                {
-                                    "@type": "Question",
-                                    "name": `O ${fetchedName} faz entrega em ${localName}?`,
-                                    "acceptedAnswer": {
-                                        "@type": "Answer",
-                                        "text": `Sim! Entregamos rapidamente em ${localName}. Peça direto pelo nosso cardápio digital.`
-                                    }
-                                },
-                                {
-                                    "@type": "Question",
-                                    "name": "Quais são as formas de pagamento aceitas pelo delivery?",
-                                    "acceptedAnswer": {
-                                        "@type": "Answer",
-                                        "text": "Aceitamos Pix, cartões de crédito e débito, além de pagamento em dinheiro na entrega para sua maior comodidade."
-                                    }
-                                }
-                            ]
-                        };
-                        
-                        // Envelopa o Restaurante + Menu + FAQ no padrão @graph do Google
-                        finalSchema = {
-                            "@context": "https://schema.org",
-                            "@graph": [structuredData, faqSchema]
-                        };
-                    }
+                    const finalSchema = structuredData;
 
                     const safeJsonLd = JSON.stringify(finalSchema).replace(/</g, '\\u003c');
                     let scriptTag = document.getElementById('velo-seo-schema');
@@ -325,19 +313,21 @@ export default function SEO({ title, description, image, productData }) {
             <title>{finalTitle}</title>
             <meta name="description" content={finalDesc} />
             <link rel="canonical" href={baseUrl} />
+            <link rel="icon" type="image/png" sizes="96x96" href={faviconImage} />
+            <link rel="apple-touch-icon" href={faviconImage} />
             {store?.primaryColor && <meta name="theme-color" content={store.primaryColor} />}
 
             <meta property="og:type" content={productData ? "product" : "website"} />
             <meta property="og:title" content={finalTitle} />
             <meta property="og:description" content={finalDesc} />
-            <meta property="og:image" content={productData ? (productData.imageUrl || finalImage) : finalImage} />
+            <meta property="og:image" content={headImage} />
             <meta property="og:url" content={currentUrl} />
             <meta property="og:site_name" content={siteName} />
 
             <meta name="twitter:card" content="summary_large_image" />
             <meta name="twitter:title" content={finalTitle} />
             <meta name="twitter:description" content={finalDesc} />
-            <meta name="twitter:image" content={productData ? (productData.imageUrl || finalImage) : finalImage} />
+            <meta name="twitter:image" content={headImage} />
         </Helmet>
     );
 }
