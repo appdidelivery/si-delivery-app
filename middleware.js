@@ -202,7 +202,8 @@ export default async function middleware(request) {
     return Response.redirect('https://www.velodelivery.com.br', 301);
   }
 
-  const storeId = resolveStoreId(cleanHost);
+  const previewStore = cleanHost.endsWith('.vercel.app') ? url.searchParams.get('store') : '';
+  const storeId = previewStore || resolveStoreId(cleanHost);
   const origin = url.protocol + '//' + host;
   const canonical = origin + (url.pathname || '/');
 
