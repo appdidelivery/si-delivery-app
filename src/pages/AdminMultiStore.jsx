@@ -5,6 +5,12 @@ import { useNavigate } from 'react-router-dom';
 import { db } from '../services/firebase';
 import { useStore } from '../context/StoreContext';
 
+const parseNullableNumber = (value) => {
+  if (value === '' || value === null || value === undefined) return null;
+  const parsed = Number(String(value).replace(',', '.'));
+  return Number.isFinite(parsed) ? parsed : null;
+};
+
 const maxRadiusFromZones = (zones = []) => {
   if (!Array.isArray(zones) || !zones.length) return '';
   const values = zones
@@ -217,9 +223,9 @@ export default function AdminMultiStore() {
         frontendUrl: unit.frontendUrl.trim(),
         description: unit.description.trim(),
         address: unit.address.trim(),
-        lat: Number(String(unit.lat).replace(',', '.')),
-        lng: Number(String(unit.lng).replace(',', '.')),
-        radiusKm: Number(String(unit.radiusKm).replace(',', '.')),
+        lat: parseNullableNumber(unit.lat),
+        lng: parseNullableNumber(unit.lng),
+        radiusKm: parseNullableNumber(unit.radiusKm),
         enabled: unit.enabled !== false,
       }));
 
@@ -230,9 +236,13 @@ export default function AdminMultiStore() {
 
     const invalidGeo = validUnits.find(
       (unit) =>
-        !Number.isFinite(unit.lat) ||
-        !Number.isFinite(unit.lng) ||
-        !Number.isFinite(unit.radiusKm) ||
+        unit.lat === null ||
+        unit.lng === null ||
+        unit.radiusKm === null ||
+        unit.lat < -90 ||
+        unit.lat > 90 ||
+        unit.lng < -180 ||
+        unit.lng > 180 ||
         unit.radiusKm <= 0
     );
 
