@@ -91,6 +91,10 @@
       "destination": "/api/llms"
     },
     {
+      "source": "/manifest.json",
+      "destination": "/api/manifest"
+    },
+    {
       "source": "/api/velopay/(.*)",
       "destination": "/api/velopay/$1"
     },

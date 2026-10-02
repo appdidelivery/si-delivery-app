@@ -72,9 +72,32 @@ export default function SEO({ title, description, image, productData }) {
                 const ensureAbsoluteUrl = (path) => path?.startsWith('http') ? path : `${safeOrigin}${path}`;
                 const absoluteFetchedImage = ensureAbsoluteUrl(fetchedImage);
 
-                let niche = fields.seoCategory?.stringValue || fields.storeNiche?.stringValue || '';
-                const schemaTypes = { 'burger': 'FastFoodRestaurant', 'pizza': 'Restaurant', 'sweet': 'IceCreamShop', 'restaurant': 'Restaurant' };
-                const googleBusinessType = schemaTypes[niche] || 'Restaurant';
+                let niche = (fields.seoCategory?.stringValue || fields.storeNiche?.stringValue || '').toLowerCase().trim();
+                const schemaTypes = {
+                    burger: 'FastFoodRestaurant',
+                    hamburguer: 'FastFoodRestaurant',
+                    hamburgueria: 'FastFoodRestaurant',
+                    fastfood: 'FastFoodRestaurant',
+                    lanches: 'FastFoodRestaurant',
+                    pizza: 'Restaurant',
+                    pizzaria: 'Restaurant',
+                    restaurant: 'Restaurant',
+                    restaurante: 'Restaurant',
+                    sweet: 'IceCreamShop',
+                    sorveteria: 'IceCreamShop',
+                    bakery: 'Bakery',
+                    padaria: 'Bakery',
+                    convenience: 'ConvenienceStore',
+                    conveniencia: 'ConvenienceStore',
+                    drinks: 'LiquorStore',
+                    adega: 'LiquorStore',
+                    bebidas: 'LiquorStore',
+                    market: 'GroceryStore',
+                    mercado: 'GroceryStore',
+                    floricultura: 'Florist'
+                };
+                const googleBusinessType = schemaTypes[niche] || 'LocalBusiness';
+                const isFoodBusiness = ['Restaurant', 'FastFoodRestaurant', 'IceCreamShop', 'Bakery'].includes(googleBusinessType);
 
                let addressObj = { "@type": "PostalAddress", "addressCountry": "BR" };
                 if (store?.address && typeof store.address === 'object') {
@@ -124,41 +147,57 @@ export default function SEO({ title, description, image, productData }) {
                                 imageUrl: pf.imageUrl?.stringValue || '',
                                 price: pf.price?.doubleValue || pf.price?.integerValue || 0,
                                 promotionalPrice: pf.promotionalPrice?.doubleValue || pf.promotionalPrice?.integerValue || pf.promoPrice?.doubleValue || 0,
-                                stock: pf.stock?.integerValue !== undefined ? pf.stock.integerValue : 1
+                                stock: pf.stock?.integerValue !== undefined ? pf.stock.integerValue : 1,
+                                category: pf.category?.stringValue || 'Destaques'
                             };
                         }).filter(Boolean);
                     }
                 } catch (e) { }
 
-                // O GRANDE SEGREDO DO MENU (O que faltava no seu site original)
+                // Cardápio semântico para estabelecimentos de alimentação.
+                // O Google documenta "menu" como URL em LocalBusiness; hasMenu aprofunda a semântica Schema.org.
                 let menuData = {};
-                if (seoProducts.length > 0 && !productData) {
+                if (!productData && isFoodBusiness) {
+                    const sections = Object.entries(
+                        seoProducts.reduce((acc, prod) => {
+                            const category = prod.category || 'Destaques';
+                            if (!acc[category]) acc[category] = [];
+                            acc[category].push(prod);
+                            return acc;
+                        }, {})
+                    ).map(([category, products]) => ({
+                        "@type": "MenuSection",
+                        "name": category,
+                        "hasMenuItem": products.map((prod) => {
+                            const price = Number(prod.promotionalPrice > 0 ? prod.promotionalPrice : (prod.price || 0)).toFixed(2);
+                            return {
+                                "@type": "MenuItem",
+                                "@id": `${safeOrigin}/p/${prod.id}#menu-item`,
+                                "name": prod.name || "Produto",
+                                "description": prod.description || fetchedDesc,
+                                "image": ensureAbsoluteUrl(prod.imageUrl || fetchedImage),
+                                "offers": {
+                                    "@type": "Offer",
+                                    "price": price,
+                                    "priceCurrency": "BRL",
+                                    "availability": (prod.stock === undefined || Number(prod.stock) > 0) ? "https://schema.org/InStock" : "https://schema.org/OutOfStock",
+                                    "url": `${safeOrigin}/p/${prod.id}`
+                                }
+                            };
+                        })
+                    }));
+
                     menuData = {
-                        "hasMenu": {
-                            "@type": "Menu",
-                            "name": `Cardápio - ${fetchedName}`,
-                            "url": `${safeOrigin}`,
-                            "hasMenuSection": [{
-                                "@type": "MenuSection",
-                                "name": "Destaques do Cardápio",
-                                "hasMenuItem": seoProducts.map((prod) => {
-                                    const price = Number(prod.promotionalPrice > 0 ? prod.promotionalPrice : (prod.price || 0)).toFixed(2);
-                                    return {
-                                        "@type": "MenuItem",
-                                        "name": prod.name || "Produto",
-                                        "description": prod.description || fetchedDesc,
-                                        "image": ensureAbsoluteUrl(prod.imageUrl || fetchedImage),
-                                        "offers": {
-                                            "@type": "Offer",
-                                            "price": price,
-                                            "priceCurrency": "BRL",
-                                            "availability": (prod.stock === undefined || Number(prod.stock) > 0) ? "https://schema.org/InStock" : "https://schema.org/OutOfStock",
-                                            "url": `${safeOrigin}/p/${prod.id}`
-                                        }
-                                    };
-                                })
-                            }]
-                        }
+                        "menu": safeOrigin,
+                        ...(sections.length > 0 ? {
+                            "hasMenu": {
+                                "@type": "Menu",
+                                "@id": `${safeOrigin}/#menu`,
+                                "name": `Cardápio - ${fetchedName}`,
+                                "url": safeOrigin,
+                                "hasMenuSection": sections
+                            }
+                        } : {})
                     };
                 }
 
@@ -168,13 +207,13 @@ export default function SEO({ title, description, image, productData }) {
                     const rawPrice = productData.promotionalPrice > 0 ? productData.promotionalPrice : (productData.price || 0);
                     structuredData = {
                         "@context": "https://schema.org",
-                        "@type": ["Product", "MenuItem"], // Força a compatibilidade
+                        "@type": isFoodBusiness ? "MenuItem" : "Product",
                         "@id": `${baseUrl}#product`,
                         "name": productData.name || "Produto",
                         "description": productData.description || "Produto oficial da loja.",
                         "image": productData.imageUrl ? [ensureAbsoluteUrl(productData.imageUrl)] : [absoluteFetchedImage],
                         "sku": productData.sku || productData.id || "SKU-PADRAO",
-                        "brand": { "@type": "Brand", "name": productData.brand || fetchedName || "Marca Própria" },
+                        ...(!isFoodBusiness ? { "brand": { "@type": "Brand", "name": productData.brand || fetchedName || "Marca Própria" } } : {}),
                         "offers": {
                             "@type": "Offer",
                             "url": currentUrl,
@@ -226,6 +265,7 @@ export default function SEO({ title, description, image, productData }) {
                         "servesCuisine": store?.seoCategory || store?.storeNiche || "Fast Food",
                         "priceRange": fetchedPriceRange,
                         "address": addressObj,
+                        ...(isFoodBusiness ? { "menu": safeOrigin } : {}),
                         ...menuData
                     };
 

@@ -298,7 +298,8 @@ export default async function handler(req, res) {
             let menuInjected = false;
             let menuError = null;
             
-            // --- PARTE A: ISOLAMENTO TOTAL DA INJEÇÃO DO CARDÁPIO (Risco Zero para o Legado) ---
+            // --- PARTE A: CARDÁPIO NATIVO DO GOOGLE BUSINESS PROFILE (FoodMenus) ---
+            // A API oficial exige FoodMenus; priceLists no Location não é o endpoint correto para cardápio.
             try {
                 const categoriesMap = {};
                 products.forEach(p => {
@@ -307,68 +308,75 @@ export default async function handler(req, res) {
                     categoriesMap[catName].push(p);
                 });
 
-                const sections = Object.keys(categoriesMap).map((catName, index) => {
-                    const items = categoriesMap[catName].map((p) => {
-                        const finalPrice = Number(p.promotionalPrice > 0 ? p.promotionalPrice : (p.price || 0));
-                        const units = Math.floor(finalPrice);
-                        const nanos = Math.round((finalPrice - units) * 1000000000);
+                const sections = Object.entries(categoriesMap)
+                    .map(([catName, categoryProducts]) => ({
+                        labels: [{
+                            displayName: catName.substring(0, 140),
+                            languageCode: "pt-BR"
+                        }],
+                        items: categoryProducts.slice(0, 100).map((p) => {
+                            const finalPrice = Number(p.promotionalPrice > 0 ? p.promotionalPrice : (p.price || 0));
+                            const units = Math.floor(finalPrice);
+                            const nanos = Math.round((finalPrice - units) * 1000000000);
 
-                        const itemPayload = {
-                            itemId: `item_${p.id}`,
-                            labels: {
-                                displayName: (p.name || '').substring(0, 140),
-                                description: (p.description || '').substring(0, 1000)
-                            },
-                            price: { currencyCode: "BRL", units: String(units), nanos: nanos }
-                        };
+                            return {
+                                labels: [{
+                                    displayName: (p.name || 'Item').substring(0, 140),
+                                    description: (p.description || 'Item do cardápio').substring(0, 1000),
+                                    languageCode: "pt-BR"
+                                }],
+                                attributes: {
+                                    price: {
+                                        currencyCode: "BRL",
+                                        units: String(units),
+                                        nanos
+                                    }
+                                }
+                            };
+                        })
+                    }))
+                    .filter(section => section.items.length > 0);
 
-                        if (p.imageUrl) itemPayload.photoUrl = encodeURI(p.imageUrl);
-                        return itemPayload;
-                    });
-
-                    return {
-                        sectionId: `sec_${index}`,
-                        sectionType: "FOOD_AND_DRINK",
-                        labels: { displayName: catName.substring(0, 140) },
-                        items: items.slice(0, 100) 
-                    };
-                });
-
-                const priceListsPayload = {
-                    priceLists: [{
-                        priceListId: "menu_velo_delivery",
-                        labels: {
+                const foodMenusPayload = {
+                    name: `${accountLocationName}/foodMenus`,
+                    menus: [{
+                        labels: [{
                             displayName: "Cardápio Principal",
-                            description: "Nosso cardápio atualizado. Faça seu pedido diretamente conosco!"
-                        },
-                        sections: sections.slice(0, 100)
+                            description: "Cardápio atualizado pelo Velo Delivery.",
+                            languageCode: "pt-BR"
+                        }],
+                        sourceUrl: params.menuUrl || params.storeUrl || undefined,
+                        sections
                     }]
                 };
 
-                // SE O PARÂMETRO 'dryRun' FOR ENVIADO, ELE NÃO BATE NO GOOGLE, APENAS TESTA O PAYLOAD
+                // Remove undefined para não enviar campos inválidos.
+                if (!foodMenusPayload.menus[0].sourceUrl) delete foodMenusPayload.menus[0].sourceUrl;
+
                 if (params.dryRun === 'true') {
-                    console.log("DRY RUN PAYLOAD (Não enviado ao Google):", JSON.stringify(priceListsPayload, null, 2));
-                    menuInjected = true; 
+                    console.log("DRY RUN FOOD MENUS PAYLOAD:", JSON.stringify(foodMenusPayload, null, 2));
+                    menuInjected = sections.length > 0;
                 } else {
-                    const menuRes = await fetch(`https://mybusiness.googleapis.com/v4/${accountLocationName}?updateMask=priceLists`, {
+                    const menuRes = await fetch(`https://mybusiness.googleapis.com/v4/${accountLocationName}/foodMenus`, {
                         method: 'PATCH',
-                        headers: { 
-                            'Authorization': `Bearer ${accessToken}`, 
-                            'Content-Type': 'application/json' 
+                        headers: {
+                            'Authorization': `Bearer ${accessToken}`,
+                            'Content-Type': 'application/json'
                         },
-                        body: JSON.stringify(priceListsPayload)
+                        body: JSON.stringify(foodMenusPayload)
                     });
 
                     const menuData = await menuRes.json();
                     if (!menuRes.ok) {
-                        menuError = menuData.error?.message || "Falha desconhecida";
-                        console.error("GMB API (Menu) retornou erro, mas o fluxo continuará:", menuData);
+                        const apiMessage = menuData.error?.message || "Falha desconhecida";
+                        menuError = apiMessage;
+                        console.error("Google Business Profile FoodMenus retornou erro:", menuData);
                     } else {
                         menuInjected = true;
                     }
                 }
             } catch (err) {
-                console.error("Erro interno ao montar/enviar PriceLists:", err);
+                console.error("Erro interno ao montar/enviar FoodMenus:", err);
                 menuError = err.message;
             }
 

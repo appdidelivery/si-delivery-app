@@ -18,6 +18,31 @@ const generateSlug = (text) => {
     return text.toString().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9 -]/g, '').replace(/\s+/g, '-').replace(/-+/g, '-').replace(/^-+/, '').replace(/-+$/, '');
 };
 
+const SCHEMA_TYPES = {
+    burger: 'FastFoodRestaurant',
+    hamburguer: 'FastFoodRestaurant',
+    hamburgueria: 'FastFoodRestaurant',
+    fastfood: 'FastFoodRestaurant',
+    lanches: 'FastFoodRestaurant',
+    pizza: 'Restaurant',
+    pizzaria: 'Restaurant',
+    restaurant: 'Restaurant',
+    restaurante: 'Restaurant',
+    sweet: 'IceCreamShop',
+    sorveteria: 'IceCreamShop',
+    bakery: 'Bakery',
+    padaria: 'Bakery',
+    convenience: 'ConvenienceStore',
+    conveniencia: 'ConvenienceStore',
+    drinks: 'LiquorStore',
+    adega: 'LiquorStore',
+    bebidas: 'LiquorStore',
+    market: 'GroceryStore',
+    mercado: 'GroceryStore',
+    floricultura: 'Florist',
+};
+const FOOD_TYPES = new Set(['Restaurant', 'FastFoodRestaurant', 'IceCreamShop', 'Bakery']);
+
 export default async function handler(req, res) {
     const host = req.headers['x-forwarded-host'] || req.headers.host || '';
     const cleanHost = host.toLowerCase().trim().replace(/^www\./, '');
@@ -85,9 +110,9 @@ export default async function handler(req, res) {
                     image = fetchedImage.startsWith('http') ? fetchedImage : `https://${host}/${fetchedImage.startsWith('/') ? fetchedImage.substring(1) : fetchedImage}`;
                 }
 
-                const niche = data.fields.storeNiche?.stringValue || 'restaurant';
-                const schemaTypes = { 'burger': 'FastFoodRestaurant', 'pizza': 'Restaurant', 'sweet': 'IceCreamShop', 'restaurant': 'Restaurant' };
-                const googleBusinessType = schemaTypes[niche] || 'Restaurant';
+                const niche = (data.fields.seoCategory?.stringValue || data.fields.storeNiche?.stringValue || '').toLowerCase().trim();
+                const googleBusinessType = SCHEMA_TYPES[niche] || 'LocalBusiness';
+                const isFoodBusiness = FOOD_TYPES.has(googleBusinessType);
                 const safeTelephone = data.fields.whatsapp?.stringValue ? `+55${data.fields.whatsapp.stringValue.replace(/\D/g, '')}` : "";
                 
                 let addressObj = { "@type": "PostalAddress", "addressCountry": "BR" };
@@ -186,41 +211,57 @@ export default async function handler(req, res) {
                 // LÓGICA 2: PÁGINA INICIAL / CARDÁPIO (A MÁGICA DA VITRINE GOOGLE)
                 // -------------------------------------------------------------------------
                 else {
-                    let menuItemsSchema = [];
-                    productsData.forEach(item => {
-                        if (item.document && item.document.fields && item.document.fields.isActive?.booleanValue !== false) {
-                            const pName = item.document.fields.name?.stringValue || '';
-                            const finalPrice = Number(item.document.fields.promoPrice?.doubleValue > 0 ? item.document.fields.promoPrice.doubleValue : (item.document.fields.price?.doubleValue || 0)).toFixed(2);
-                            if (pName) {
-                                menuItemsSchema.push({
-                                    "@type": "MenuItem",
-                                    "name": pName,
-                                    "description": item.document.fields.description?.stringValue || description,
-                                    "image": item.document.fields.imageUrl?.stringValue || image,
-                                    "offers": {
-                                        "@type": "Offer",
-                                        "price": finalPrice,
-                                        "priceCurrency": "BRL",
-                                        "url": `${safeOrigin}/p/${item.document.name.split('/').pop()}`
-                                    }
-                                });
+                    const menuSectionsMap = {};
+                    if (isFoodBusiness) {
+                        productsData.forEach(item => {
+                            if (item.document && item.document.fields && item.document.fields.isActive?.booleanValue !== false) {
+                                const fields = item.document.fields;
+                                const pName = fields.name?.stringValue || '';
+                                const promoPrice = fields.promotionalPrice?.doubleValue || fields.promotionalPrice?.integerValue || fields.promoPrice?.doubleValue || fields.promoPrice?.integerValue || 0;
+                                const basePrice = fields.price?.doubleValue || fields.price?.integerValue || 0;
+                                const finalPrice = Number(promoPrice > 0 ? promoPrice : basePrice).toFixed(2);
+                                const category = fields.category?.stringValue || 'Destaques';
+
+                                if (pName) {
+                                    if (!menuSectionsMap[category]) menuSectionsMap[category] = [];
+                                    menuSectionsMap[category].push({
+                                        "@type": "MenuItem",
+                                        "@id": `${safeOrigin}/p/${item.document.name.split('/').pop()}#menu-item`,
+                                        "name": pName,
+                                        "description": fields.description?.stringValue || description,
+                                        "image": fields.imageUrl?.stringValue || image,
+                                        "offers": {
+                                            "@type": "Offer",
+                                            "price": finalPrice,
+                                            "priceCurrency": "BRL",
+                                            "availability": fields.stock?.integerValue === 0 ? "https://schema.org/OutOfStock" : "https://schema.org/InStock",
+                                            "url": `${safeOrigin}/p/${item.document.name.split('/').pop()}`
+                                        }
+                                    });
+                                }
                             }
-                        }
-                    });
+                        });
+                    }
 
                     let menuNode = {};
-                    if (menuItemsSchema.length > 0) {
+                    if (isFoodBusiness) {
+                        const hasMenuSection = Object.entries(menuSectionsMap).map(([category, items]) => ({
+                            "@type": "MenuSection",
+                            "name": category,
+                            "hasMenuItem": items
+                        }));
+
                         menuNode = {
-                            "hasMenu": {
-                                "@type": "Menu",
-                                "name": `Cardápio - ${title}`,
-                                "url": safeOrigin,
-                                "hasMenuSection": [{
-                                    "@type": "MenuSection",
-                                    "name": "Destaques do Cardápio",
-                                    "hasMenuItem": menuItemsSchema
-                                }]
-                            }
+                            "menu": safeOrigin,
+                            ...(hasMenuSection.length > 0 ? {
+                                "hasMenu": {
+                                    "@type": "Menu",
+                                    "@id": `${safeOrigin}/#menu`,
+                                    "name": `Cardápio - ${title}`,
+                                    "url": safeOrigin,
+                                    "hasMenuSection": hasMenuSection
+                                }
+                            } : {})
                         };
                     }
 
