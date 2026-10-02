@@ -125,7 +125,7 @@ export default function MultiStoreGateway({ config, currentStore }) {
     }
   };
 
-  const showManualList = mode === 'manual' || mode === 'hybrid' || (mode === 'cep' && searched && recommendedUnits.length !== 1);
+  const showManualList = mode === 'manual' || mode === 'hybrid';
 
   return (
     <div className="min-h-screen bg-slate-100 flex justify-center">
@@ -226,7 +226,7 @@ export default function MultiStoreGateway({ config, currentStore }) {
                     </>
                   ) : (
                     <p className="text-sm text-slate-600">
-                      Não encontramos uma unidade automática para este CEP. Você pode escolher uma loja abaixo.
+                      {mode === 'cep'\n                        ? 'Não encontramos uma unidade configurada para este CEP. Confira o CEP e tente novamente.'\n                        : 'Não encontramos uma unidade automática para este CEP. Você pode escolher uma loja abaixo.'}
                     </p>
                   )}
                 </div>
