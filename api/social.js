@@ -73,7 +73,7 @@ export default async function handler(req, res) {
             if (data && data.fields) {
                 title = data.fields.name?.stringValue || title;
                 description = data.fields.slogan?.stringValue || data.fields.message?.stringValue || description;
-                let fetchedImage = data.fields.storeLogoUrl?.stringValue || data.fields.logoUrl?.stringValue;
+                let fetchedImage = data.fields.storeLogoUrl?.stringValue || data.fields.logoUrl?.stringValue || data.fields.logo?.stringValue;
                 
                 ratingAvg = data.fields.rating_aggregate?.doubleValue || data.fields.rating_aggregate?.integerValue || 0;
                 ratingCount = data.fields.rating_count?.integerValue || 0;
@@ -85,9 +85,19 @@ export default async function handler(req, res) {
                     image = fetchedImage.startsWith('http') ? fetchedImage : `https://${host}/${fetchedImage.startsWith('/') ? fetchedImage.substring(1) : fetchedImage}`;
                 }
 
-                const niche = data.fields.storeNiche?.stringValue || 'restaurant';
-                const schemaTypes = { 'burger': 'FastFoodRestaurant', 'pizza': 'Restaurant', 'sweet': 'IceCreamShop', 'restaurant': 'Restaurant' };
-                const googleBusinessType = schemaTypes[niche] || 'Restaurant';
+                const niche = data.fields.seoCategory?.stringValue || data.fields.storeNiche?.stringValue || '';
+                const normalizedNiche = String(niche).toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+                const typeRules = [
+                    ["burger", "FastFoodRestaurant"], ["hamburg", "FastFoodRestaurant"],
+                    ["pizza", "Restaurant"], ["restaur", "Restaurant"], ["sushi", "Restaurant"],
+                    ["acai", "IceCreamShop"], ["sorvete", "IceCreamShop"], ["sweet", "IceCreamShop"],
+                    ["padaria", "Bakery"], ["bakery", "Bakery"], ["cafeteria", "CafeOrCoffeeShop"],
+                    ["bar", "BarOrPub"], ["bebida", "LiquorStore"], ["adega", "LiquorStore"],
+                    ["convenien", "ConvenienceStore"], ["mercado", "GroceryStore"], ["market", "GroceryStore"]
+                ];
+                const matchedType = typeRules.find(([key]) => normalizedNiche.includes(key));
+                const googleBusinessType = matchedType ? matchedType[1] : "LocalBusiness";
+                const isFoodBusiness = ["Restaurant", "FastFoodRestaurant", "IceCreamShop", "Bakery", "CafeOrCoffeeShop", "BarOrPub"].includes(googleBusinessType);
                 const safeTelephone = data.fields.whatsapp?.stringValue ? `+55${data.fields.whatsapp.stringValue.replace(/\D/g, '')}` : "";
                 
                 let addressObj = { "@type": "PostalAddress", "addressCountry": "BR" };
@@ -120,7 +130,7 @@ export default async function handler(req, res) {
                                 
                                 const pDesc = item.document.fields.description?.stringValue || '';
                                 const pPrice = item.document.fields.price?.doubleValue || item.document.fields.price?.integerValue || 0;
-                                const pPromoPrice = item.document.fields.promoPrice?.doubleValue || item.document.fields.promoPrice?.integerValue || 0;
+                                const pPromoPrice = item.document.fields.promotionalPrice?.doubleValue || item.document.fields.promotionalPrice?.integerValue || item.document.fields.promoPrice?.doubleValue || item.document.fields.promoPrice?.integerValue || 0;
                                 const finalPrice = pPromoPrice > 0 ? pPromoPrice : pPrice;
                                 const pBrand = item.document.fields.brand?.stringValue || title; 
                                 
@@ -190,7 +200,9 @@ export default async function handler(req, res) {
                     productsData.forEach(item => {
                         if (item.document && item.document.fields && item.document.fields.isActive?.booleanValue !== false) {
                             const pName = item.document.fields.name?.stringValue || '';
-                            const finalPrice = Number(item.document.fields.promoPrice?.doubleValue > 0 ? item.document.fields.promoPrice.doubleValue : (item.document.fields.price?.doubleValue || 0)).toFixed(2);
+                            const rawPromo = item.document.fields.promotionalPrice?.doubleValue || item.document.fields.promotionalPrice?.integerValue || item.document.fields.promoPrice?.doubleValue || item.document.fields.promoPrice?.integerValue || 0;
+                            const rawPrice = item.document.fields.price?.doubleValue || item.document.fields.price?.integerValue || 0;
+                            const finalPrice = Number(rawPromo > 0 ? rawPromo : rawPrice).toFixed(2);
                             if (pName) {
                                 menuItemsSchema.push({
                                     "@type": "MenuItem",
@@ -209,7 +221,7 @@ export default async function handler(req, res) {
                     });
 
                     let menuNode = {};
-                    if (menuItemsSchema.length > 0) {
+                    if (isFoodBusiness && menuItemsSchema.length > 0) {
                         menuNode = {
                             "hasMenu": {
                                 "@type": "Menu",
@@ -244,6 +256,7 @@ export default async function handler(req, res) {
                         "url": safeOrigin,
                         "telephone": safeTelephone,
                         "address": addressObj,
+                        ...(isFoodBusiness && menuItemsSchema.length > 0 ? { "menu": safeOrigin } : {}),
                         ...reviewNode,
                         ...menuNode
                     };
