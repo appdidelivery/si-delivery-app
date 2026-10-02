@@ -1,41 +1,66 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { doc, updateDoc } from 'firebase/firestore';
-import { ArrowLeft, Plus, Save, Trash2, Store, Loader2 } from 'lucide-react';
+import { doc, getDoc, updateDoc } from 'firebase/firestore';
+import { ArrowLeft, Plus, Save, Trash2, Store, Loader2, MapPin, RefreshCw, LocateFixed } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { db } from '../services/firebase';
 import { useStore } from '../context/StoreContext';
+
+const maxRadiusFromZones = (zones = []) => {
+  if (!Array.isArray(zones) || !zones.length) return '';
+  const values = zones
+    .map((zone) => Number(String(zone?.radius_km ?? '').replace(',', '.')))
+    .filter((value) => Number.isFinite(value) && value > 0);
+
+  return values.length ? Math.max(...values) : '';
+};
+
+const buildFrontendUrl = (storeData, storeId) => {
+  if (storeData?.customDomain) {
+    const domain = String(storeData.customDomain).replace(/^https?:\/\//, '').replace(/\/$/, '');
+    return `https://${domain}`;
+  }
+
+  return storeId ? `https://${storeId}.velodelivery.com.br` : '';
+};
 
 const emptyUnit = () => ({
   name: '',
   storeId: '',
   frontendUrl: '',
   description: '',
-  cepStart: '',
-  cepEnd: '',
+  address: '',
+  lat: '',
+  lng: '',
+  radiusKm: 5,
   enabled: true,
 });
 
 const normalizeConfig = (store) => {
   const existing = store?.multiStore || {};
+  const existingMode = existing.routingMode === 'cep' ? 'geo' : existing.routingMode;
+
   const initialUnits = Array.isArray(existing.units) && existing.units.length
     ? existing.units.map((unit) => ({
         ...emptyUnit(),
         ...unit,
-        cepStart: unit.cepStart || unit.cepRanges?.[0]?.start || '',
-        cepEnd: unit.cepEnd || unit.cepRanges?.[0]?.end || '',
+        radiusKm: unit.radiusKm || 5,
       }))
     : [{
         ...emptyUnit(),
         name: store?.name || '',
         storeId: store?.slug || store?.id || '',
         frontendUrl: typeof window !== 'undefined' ? window.location.origin : '',
+        address: store?.address || '',
+        lat: store?.lat || '',
+        lng: store?.lng || '',
+        radiusKm: maxRadiusFromZones(store?.delivery_zones) || 5,
       }];
 
   return {
     enabled: Boolean(existing.enabled),
     networkName: existing.networkName || store?.name || '',
-    subtitle: existing.subtitle || 'Informe seu CEP ou escolha a unidade onde deseja comprar.',
-    routingMode: existing.routingMode || 'hybrid',
+    subtitle: existing.subtitle || 'Informe seu endereço e encontraremos a melhor unidade para você.',
+    routingMode: existingMode || 'hybrid',
     rememberSelection: existing.rememberSelection !== false,
     units: initialUnits,
   };
@@ -46,6 +71,7 @@ export default function AdminMultiStore() {
   const { store, loading } = useStore();
   const [config, setConfig] = useState(null);
   const [saving, setSaving] = useState(false);
+  const [loadingUnitIndex, setLoadingUnitIndex] = useState(null);
   const [message, setMessage] = useState('');
 
   useEffect(() => {
@@ -68,7 +94,18 @@ export default function AdminMultiStore() {
   const updateUnit = (index, field, value) => {
     setConfig((current) => ({
       ...current,
-      units: current.units.map((unit, unitIndex) => unitIndex === index ? { ...unit, [field]: value } : unit),
+      units: current.units.map((unit, unitIndex) =>
+        unitIndex === index ? { ...unit, [field]: value } : unit
+      ),
+    }));
+  };
+
+  const patchUnit = (index, values) => {
+    setConfig((current) => ({
+      ...current,
+      units: current.units.map((unit, unitIndex) =>
+        unitIndex === index ? { ...unit, ...values } : unit
+      ),
     }));
   };
 
@@ -77,7 +114,96 @@ export default function AdminMultiStore() {
   };
 
   const removeUnit = (index) => {
-    setConfig((current) => ({ ...current, units: current.units.filter((_, unitIndex) => unitIndex !== index) }));
+    setConfig((current) => ({
+      ...current,
+      units: current.units.filter((_, unitIndex) => unitIndex !== index),
+    }));
+  };
+
+  const loadStoreData = async (index) => {
+    const storeId = config.units[index]?.storeId?.trim().toLowerCase();
+
+    if (!storeId) {
+      setMessage('Informe primeiro o ID/slug da unidade.');
+      return;
+    }
+
+    setMessage('');
+    setLoadingUnitIndex(index);
+
+    try {
+      const storeSnap = await getDoc(doc(db, 'stores', storeId));
+
+      if (!storeSnap.exists()) {
+        setMessage(`Não encontramos a unidade "${storeId}" no Firestore.`);
+        return;
+      }
+
+      const data = storeSnap.data();
+      patchUnit(index, {
+        name: data.name || config.units[index].name || storeId,
+        frontendUrl: buildFrontendUrl(data, storeId),
+        address: data.address || config.units[index].address || '',
+        lat: data.lat ?? config.units[index].lat ?? '',
+        lng: data.lng ?? config.units[index].lng ?? '',
+        radiusKm:
+          maxRadiusFromZones(data.delivery_zones) ||
+          config.units[index].radiusKm ||
+          5,
+      });
+
+      setMessage('Dados da unidade carregados do painel. Confira localização e raio antes de salvar.');
+    } catch (error) {
+      console.error('Erro ao carregar unidade MultiLojas:', error);
+      setMessage('Não foi possível carregar os dados dessa unidade.');
+    } finally {
+      setLoadingUnitIndex(null);
+    }
+  };
+
+  const geocodeUnitAddress = async (index) => {
+    const address = config.units[index]?.address?.trim();
+    const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
+
+    if (!address) {
+      setMessage('Informe o endereço completo da unidade antes de localizar no mapa.');
+      return;
+    }
+
+    if (!apiKey) {
+      setMessage('A chave do Google Maps não está disponível neste ambiente.');
+      return;
+    }
+
+    setMessage('');
+    setLoadingUnitIndex(index);
+
+    try {
+      const query = address.toLowerCase().includes('brasil') ? address : `${address}, Brasil`;
+      const response = await fetch(
+        `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(query)}&key=${apiKey}`
+      );
+      const data = await response.json();
+
+      if (data.status !== 'OK' || !data.results?.[0]) {
+        setMessage('Não conseguimos localizar esse endereço. Informe rua, número, bairro, cidade e estado.');
+        return;
+      }
+
+      const result = data.results[0];
+      patchUnit(index, {
+        address: result.formatted_address || address,
+        lat: result.geometry.location.lat,
+        lng: result.geometry.location.lng,
+      });
+
+      setMessage('Endereço localizado com sucesso. Coordenadas atualizadas.');
+    } catch (error) {
+      console.error('Erro ao localizar unidade no mapa:', error);
+      setMessage('Falha ao localizar o endereço da unidade.');
+    } finally {
+      setLoadingUnitIndex(null);
+    }
   };
 
   const handleSave = async () => {
@@ -90,10 +216,11 @@ export default function AdminMultiStore() {
         storeId: unit.storeId.trim().toLowerCase(),
         frontendUrl: unit.frontendUrl.trim(),
         description: unit.description.trim(),
+        address: unit.address.trim(),
+        lat: Number(String(unit.lat).replace(',', '.')),
+        lng: Number(String(unit.lng).replace(',', '.')),
+        radiusKm: Number(String(unit.radiusKm).replace(',', '.')),
         enabled: unit.enabled !== false,
-        cepRanges: unit.cepStart && unit.cepEnd
-          ? [{ start: unit.cepStart, end: unit.cepEnd }]
-          : [],
       }));
 
     if (config.enabled && validUnits.length < 2) {
@@ -101,7 +228,23 @@ export default function AdminMultiStore() {
       return;
     }
 
+    const invalidGeo = validUnits.find(
+      (unit) =>
+        !Number.isFinite(unit.lat) ||
+        !Number.isFinite(unit.lng) ||
+        !Number.isFinite(unit.radiusKm) ||
+        unit.radiusKm <= 0
+    );
+
+    if (config.enabled && config.routingMode !== 'manual' && invalidGeo) {
+      setMessage(
+        `Revise localização e raio da unidade "${invalidGeo.name}". O roteamento geográfico precisa de latitude, longitude e raio válido.`
+      );
+      return;
+    }
+
     setSaving(true);
+
     try {
       await updateDoc(doc(db, 'stores', store.id), {
         multiStore: {
@@ -145,10 +288,11 @@ export default function AdminMultiStore() {
                   Velo MultiLojas
                 </div>
                 <h1 className="text-2xl md:text-3xl font-black text-slate-900 mt-2">
-                  Direcionamento de unidades
+                  Direcionamento geográfico de unidades
                 </h1>
                 <p className="text-slate-500 mt-2 max-w-2xl">
-                  Use um único endereço de entrada e direcione o consumidor para o painel/loja correto por CEP ou escolha manual.
+                  Um único endereço de entrada, com cada unidade mantendo seu painel, catálogo e pedidos independentes.
+                  A Velo recomenda a loja pela localização real do consumidor.
                 </p>
               </div>
 
@@ -156,7 +300,9 @@ export default function AdminMultiStore() {
                 <input
                   type="checkbox"
                   checked={config.enabled}
-                  onChange={(event) => setConfig((current) => ({ ...current, enabled: event.target.checked }))}
+                  onChange={(event) =>
+                    setConfig((current) => ({ ...current, enabled: event.target.checked }))
+                  }
                   className="w-5 h-5"
                 />
                 <span className="font-black text-slate-800">Ativar MultiLojas</span>
@@ -170,7 +316,9 @@ export default function AdminMultiStore() {
                 <span className="text-sm font-black text-slate-700">Nome da rede</span>
                 <input
                   value={config.networkName}
-                  onChange={(event) => setConfig((current) => ({ ...current, networkName: event.target.value }))}
+                  onChange={(event) =>
+                    setConfig((current) => ({ ...current, networkName: event.target.value }))
+                  }
                   className="mt-2 w-full rounded-xl border border-slate-200 px-4 py-3 outline-none focus:ring-2 focus:ring-blue-500"
                 />
               </label>
@@ -179,11 +327,13 @@ export default function AdminMultiStore() {
                 <span className="text-sm font-black text-slate-700">Modo de direcionamento</span>
                 <select
                   value={config.routingMode}
-                  onChange={(event) => setConfig((current) => ({ ...current, routingMode: event.target.value }))}
+                  onChange={(event) =>
+                    setConfig((current) => ({ ...current, routingMode: event.target.value }))
+                  }
                   className="mt-2 w-full rounded-xl border border-slate-200 px-4 py-3 bg-white outline-none focus:ring-2 focus:ring-blue-500"
                 >
-                  <option value="hybrid">Híbrido: CEP + escolha manual</option>
-                  <option value="cep">Automático por CEP</option>
+                  <option value="hybrid">Híbrido: localização + escolha manual</option>
+                  <option value="geo">Geográfico: endereço/GPS</option>
                   <option value="manual">Somente escolha manual</option>
                 </select>
               </label>
@@ -192,7 +342,9 @@ export default function AdminMultiStore() {
                 <span className="text-sm font-black text-slate-700">Texto de orientação</span>
                 <input
                   value={config.subtitle}
-                  onChange={(event) => setConfig((current) => ({ ...current, subtitle: event.target.value }))}
+                  onChange={(event) =>
+                    setConfig((current) => ({ ...current, subtitle: event.target.value }))
+                  }
                   className="mt-2 w-full rounded-xl border border-slate-200 px-4 py-3 outline-none focus:ring-2 focus:ring-blue-500"
                 />
               </label>
@@ -201,12 +353,16 @@ export default function AdminMultiStore() {
                 <input
                   type="checkbox"
                   checked={config.rememberSelection}
-                  onChange={(event) => setConfig((current) => ({ ...current, rememberSelection: event.target.checked }))}
+                  onChange={(event) =>
+                    setConfig((current) => ({ ...current, rememberSelection: event.target.checked }))
+                  }
                   className="w-5 h-5"
                 />
                 <div>
                   <p className="font-black text-slate-800">Lembrar última unidade escolhida</p>
-                  <p className="text-sm text-slate-500">Facilita a recompra sem retirar do consumidor a opção de trocar de loja.</p>
+                  <p className="text-sm text-slate-500">
+                    Facilita a recompra, mantendo a opção de alterar a loja quando necessário.
+                  </p>
                 </div>
               </label>
             </section>
@@ -214,8 +370,10 @@ export default function AdminMultiStore() {
             <section>
               <div className="flex items-center justify-between gap-3 mb-4">
                 <div>
-                  <h2 className="text-lg font-black text-slate-900">Unidades</h2>
-                  <p className="text-sm text-slate-500">Cada unidade continua usando seu próprio painel e catálogo.</p>
+                  <h2 className="text-lg font-black text-slate-900">Unidades e áreas de atendimento</h2>
+                  <p className="text-sm text-slate-500">
+                    O MVP usa latitude/longitude + raio. Polígonos personalizados entram na próxima evolução.
+                  </p>
                 </div>
                 <button
                   type="button"
@@ -230,18 +388,33 @@ export default function AdminMultiStore() {
               <div className="space-y-4">
                 {config.units.map((unit, index) => (
                   <div key={index} className="rounded-2xl border border-slate-200 p-4 md:p-5">
-                    <div className="flex items-center justify-between mb-4">
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
                       <p className="font-black text-slate-900">Unidade {index + 1}</p>
-                      {config.units.length > 1 && (
+
+                      <div className="flex items-center gap-2">
                         <button
                           type="button"
-                          onClick={() => removeUnit(index)}
-                          className="p-2 rounded-lg text-red-500 hover:bg-red-50"
-                          aria-label="Remover unidade"
+                          onClick={() => loadStoreData(index)}
+                          disabled={loadingUnitIndex === index}
+                          className="inline-flex items-center gap-2 rounded-lg bg-slate-100 text-slate-700 px-3 py-2 text-xs font-black hover:bg-slate-200 disabled:opacity-60"
                         >
-                          <Trash2 size={18} />
+                          {loadingUnitIndex === index
+                            ? <Loader2 className="animate-spin" size={15} />
+                            : <RefreshCw size={15} />}
+                          Carregar do painel
                         </button>
-                      )}
+
+                        {config.units.length > 1 && (
+                          <button
+                            type="button"
+                            onClick={() => removeUnit(index)}
+                            className="p-2 rounded-lg text-red-500 hover:bg-red-50"
+                            aria-label="Remover unidade"
+                          >
+                            <Trash2 size={18} />
+                          </button>
+                        )}
+                      </div>
                     </div>
 
                     <div className="grid md:grid-cols-2 gap-4">
@@ -275,32 +448,83 @@ export default function AdminMultiStore() {
                         />
                       </label>
 
-                      <label>
-                        <span className="text-xs font-bold uppercase tracking-wide text-slate-500">CEP inicial</span>
-                        <input
-                          value={unit.cepStart}
-                          onChange={(event) => updateUnit(index, 'cepStart', event.target.value)}
-                          placeholder="88000-000"
-                          className="mt-1.5 w-full rounded-xl border border-slate-200 px-3 py-2.5"
-                        />
-                      </label>
+                      <div className="md:col-span-2 rounded-2xl bg-blue-50 border border-blue-100 p-4">
+                        <div className="flex items-center gap-2 mb-3">
+                          <MapPin size={17} className="text-blue-600" />
+                          <p className="font-black text-blue-900">Área geográfica</p>
+                        </div>
 
-                      <label>
-                        <span className="text-xs font-bold uppercase tracking-wide text-slate-500">CEP final</span>
-                        <input
-                          value={unit.cepEnd}
-                          onChange={(event) => updateUnit(index, 'cepEnd', event.target.value)}
-                          placeholder="88099-999"
-                          className="mt-1.5 w-full rounded-xl border border-slate-200 px-3 py-2.5"
-                        />
-                      </label>
+                        <div className="grid md:grid-cols-2 gap-4">
+                          <label className="md:col-span-2">
+                            <span className="text-xs font-bold uppercase tracking-wide text-blue-700">Endereço da unidade</span>
+                            <div className="mt-1.5 flex gap-2">
+                              <input
+                                value={unit.address}
+                                onChange={(event) => updateUnit(index, 'address', event.target.value)}
+                                placeholder="Rua, número, bairro, cidade - UF"
+                                className="flex-1 min-w-0 rounded-xl border border-blue-200 bg-white px-3 py-2.5"
+                              />
+                              <button
+                                type="button"
+                                onClick={() => geocodeUnitAddress(index)}
+                                disabled={loadingUnitIndex === index}
+                                className="rounded-xl bg-blue-600 text-white px-3 py-2.5 font-black disabled:opacity-60"
+                                title="Localizar endereço no mapa"
+                              >
+                                {loadingUnitIndex === index
+                                  ? <Loader2 className="animate-spin" size={18} />
+                                  : <LocateFixed size={18} />}
+                              </button>
+                            </div>
+                          </label>
+
+                          <label>
+                            <span className="text-xs font-bold uppercase tracking-wide text-blue-700">Latitude</span>
+                            <input
+                              value={unit.lat}
+                              onChange={(event) => updateUnit(index, 'lat', event.target.value)}
+                              inputMode="decimal"
+                              placeholder="-27.000000"
+                              className="mt-1.5 w-full rounded-xl border border-blue-200 bg-white px-3 py-2.5"
+                            />
+                          </label>
+
+                          <label>
+                            <span className="text-xs font-bold uppercase tracking-wide text-blue-700">Longitude</span>
+                            <input
+                              value={unit.lng}
+                              onChange={(event) => updateUnit(index, 'lng', event.target.value)}
+                              inputMode="decimal"
+                              placeholder="-48.000000"
+                              className="mt-1.5 w-full rounded-xl border border-blue-200 bg-white px-3 py-2.5"
+                            />
+                          </label>
+
+                          <label className="md:col-span-2">
+                            <span className="text-xs font-bold uppercase tracking-wide text-blue-700">Raio máximo de atendimento</span>
+                            <div className="mt-1.5 flex items-center gap-2">
+                              <input
+                                value={unit.radiusKm}
+                                onChange={(event) => updateUnit(index, 'radiusKm', event.target.value)}
+                                inputMode="decimal"
+                                placeholder="5"
+                                className="w-32 rounded-xl border border-blue-200 bg-white px-3 py-2.5"
+                              />
+                              <span className="font-black text-blue-900">km</span>
+                            </div>
+                            <p className="text-xs text-blue-700 mt-2">
+                              Se a unidade já usa Zonas de Entrega, "Carregar do painel" aproveita automaticamente o maior raio configurado.
+                            </p>
+                          </label>
+                        </div>
+                      </div>
 
                       <label className="md:col-span-2">
                         <span className="text-xs font-bold uppercase tracking-wide text-slate-500">Descrição opcional</span>
                         <input
                           value={unit.description}
                           onChange={(event) => updateUnit(index, 'description', event.target.value)}
-                          placeholder="Ex.: entrega para Saco Grande e bairros próximos"
+                          placeholder="Ex.: atende Saco Grande e região"
                           className="mt-1.5 w-full rounded-xl border border-slate-200 px-3 py-2.5"
                         />
                       </label>
@@ -314,12 +538,20 @@ export default function AdminMultiStore() {
               <p className="text-xs font-bold uppercase tracking-wide text-slate-400">Endereço de entrada atual</p>
               <p className="font-mono text-sm md:text-base mt-2 break-all">{publicUrl}</p>
               <p className="text-xs text-slate-400 mt-2">
-                Ao ativar o MultiLojas neste painel, a página inicial deste domínio passa a exibir o seletor. O /admin continua normal.
+                Quando MultiLojas estiver ativo, a página inicial exibe o localizador. O /admin e os painéis das unidades continuam independentes.
               </p>
             </section>
 
             {message && (
-              <div className={`rounded-xl p-4 text-sm font-bold ${message.includes('sucesso') ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-amber-50 text-amber-800 border border-amber-200'}`}>
+              <div
+                className={
+                  `rounded-xl p-4 text-sm font-bold ${
+                    message.includes('sucesso') || message.includes('carregados') || message.includes('localizado')
+                      ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                      : 'bg-amber-50 text-amber-800 border border-amber-200'
+                  }`
+                }
+              >
                 {message}
               </div>
             )}
