@@ -226,7 +226,9 @@ export default function MultiStoreGateway({ config, currentStore }) {
                     </>
                   ) : (
                     <p className="text-sm text-slate-600">
-                      {mode === 'cep'\n                        ? 'Não encontramos uma unidade configurada para este CEP. Confira o CEP e tente novamente.'\n                        : 'Não encontramos uma unidade automática para este CEP. Você pode escolher uma loja abaixo.'}
+                      {mode === 'cep'
+                        ? 'Não encontramos uma unidade configurada para este CEP. Confira o CEP e tente novamente.'
+                        : 'Não encontramos uma unidade automática para este CEP. Você pode escolher uma loja abaixo.'}
                     </p>
                   )}
                 </div>
