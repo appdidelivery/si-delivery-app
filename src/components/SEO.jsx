@@ -61,9 +61,9 @@ export default function SEO({ title, description, image, productData }) {
                             name: { stringValue: store?.name || siteName },
                             storeLogoUrl: { stringValue: store?.storeLogoUrl || store?.logoUrl || store?.logo || finalImage },
                             slogan: { stringValue: store?.slogan || store?.message || finalDesc },
-                            priceRange: { stringValue: store?.priceRange || "$$" },
+                            priceRange: { stringValue: store?.priceRange || "" },
                             seoCategory: { stringValue: store?.seoCategory || store?.storeNiche || "" },
-                            address: { stringValue: fallbackAddress },
+                            address: { stringValue: fallbackAddress === "Endereço não informado" ? "" : fallbackAddress },
                             rating_aggregate: { doubleValue: store?.rating_aggregate || 0 },
                             rating_count: { integerValue: store?.rating_count || 0 }
                         }
@@ -74,16 +74,26 @@ export default function SEO({ title, description, image, productData }) {
                 const fetchedName = fields.name?.stringValue || siteName;
                 const fetchedImage = fields.storeLogoUrl?.stringValue || fields.logoUrl?.stringValue || finalImage;
                 const fetchedDesc = fields.slogan?.stringValue || fields.message?.stringValue || finalDesc;
-                const fetchedPriceRange = fields.priceRange?.stringValue || "$$";
+                const fetchedPriceRange = fields.priceRange?.stringValue || store?.priceRange || "";
                 const ratingAvg = fields.rating_aggregate?.doubleValue || fields.rating_aggregate?.integerValue || 0;
                 const ratingCount = fields.rating_count?.integerValue || 0;
                 
                 const ensureAbsoluteUrl = (path) => path?.startsWith('http') ? path : `${safeOrigin}${path}`;
                 const absoluteFetchedImage = ensureAbsoluteUrl(fetchedImage);
 
-                let niche = fields.seoCategory?.stringValue || fields.storeNiche?.stringValue || '';
-                const schemaTypes = { 'burger': 'FastFoodRestaurant', 'pizza': 'Restaurant', 'sweet': 'IceCreamShop', 'restaurant': 'Restaurant' };
-                const googleBusinessType = schemaTypes[niche] || 'Restaurant';
+                let niche = fields.seoCategory?.stringValue || fields.storeNiche?.stringValue || store?.seoCategory || store?.storeNiche || '';
+                const normalizedNiche = String(niche).toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+                const typeRules = [
+                    ["burger", "FastFoodRestaurant"], ["hamburg", "FastFoodRestaurant"],
+                    ["pizza", "Restaurant"], ["restaur", "Restaurant"], ["sushi", "Restaurant"],
+                    ["acai", "IceCreamShop"], ["sorvete", "IceCreamShop"], ["sweet", "IceCreamShop"],
+                    ["padaria", "Bakery"], ["bakery", "Bakery"], ["cafeteria", "CafeOrCoffeeShop"],
+                    ["bar", "BarOrPub"], ["bebida", "LiquorStore"], ["adega", "LiquorStore"],
+                    ["convenien", "ConvenienceStore"], ["mercado", "GroceryStore"], ["market", "GroceryStore"]
+                ];
+                const matchedType = typeRules.find(([key]) => normalizedNiche.includes(key));
+                const googleBusinessType = matchedType ? matchedType[1] : "LocalBusiness";
+                const isFoodBusiness = ["Restaurant", "FastFoodRestaurant", "IceCreamShop", "Bakery", "CafeOrCoffeeShop", "BarOrPub"].includes(googleBusinessType);
 
                let addressObj = { "@type": "PostalAddress", "addressCountry": "BR" };
                 if (store?.address && typeof store.address === 'object') {
@@ -141,7 +151,7 @@ export default function SEO({ title, description, image, productData }) {
 
                 // O GRANDE SEGREDO DO MENU (O que faltava no seu site original)
                 let menuData = {};
-                if (seoProducts.length > 0 && !productData) {
+                if (seoProducts.length > 0 && !productData && isFoodBusiness) {
                     menuData = {
                         "hasMenu": {
                             "@type": "Menu",
@@ -177,7 +187,7 @@ export default function SEO({ title, description, image, productData }) {
                     const rawPrice = productData.promotionalPrice > 0 ? productData.promotionalPrice : (productData.price || 0);
                     structuredData = {
                         "@context": "https://schema.org",
-                        "@type": ["Product", "MenuItem"], // Força a compatibilidade
+                        "@type": isFoodBusiness ? ["Product", "MenuItem"] : "Product",
                         "@id": `${baseUrl}#product`,
                         "name": productData.name || "Produto",
                         "description": productData.description || "Produto oficial da loja.",
@@ -231,10 +241,11 @@ export default function SEO({ title, description, image, productData }) {
                         "image": absoluteFetchedImage,
                         "description": fetchedDesc,
                         "url": safeOrigin,
-                        "priceRange": fetchedPriceRange,
                         "address": addressObj,
                         ...menuData
                     };
+
+                    if (fetchedPriceRange) structuredData.priceRange = fetchedPriceRange;
 
                     const realTelephone = store?.phone || store?.whatsapp;
                     if (realTelephone) structuredData.telephone = realTelephone;
@@ -258,7 +269,6 @@ export default function SEO({ title, description, image, productData }) {
                     }
                     
                     // Transparência operacional: só marca horários reais cadastrados.
-                    structuredData.paymentAccepted = "Dinheiro, Cartão de Crédito, Pix";
                     if (store?.socialLinks?.instagram) {
                         structuredData.sameAs = [store.socialLinks.instagram];
                     }
