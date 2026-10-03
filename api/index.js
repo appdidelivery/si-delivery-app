@@ -1496,6 +1496,8 @@ const aiResponse = await fetchGeminiWithRetry(`https://generativelanguage.google
         if (!storeId) return res.status(400).json({ error: 'StoreId é obrigatório' });
 
         try {
+            // Segurança multi-tenant: um usuário autenticado só pode operar a própria loja.
+            await assertStoreAccess(req.user, storeId);
             // 🚨 BLINDAGEM DE COTA: Usa o Cache em Memória RAM da Vercel (Reduz 99% das leituras)
             let settingsData = null;
             const cacheKey = `settings_wa_${storeId}`;
@@ -1549,7 +1551,8 @@ const aiResponse = await fetchGeminiWithRetry(`https://generativelanguage.google
                 }
             };
 
-            const sendMessageToMeta = async (recipientPhone, template, languageCode = 'pt_BR', variables = []) => {
+            const sendMessageToMeta = async (recipientPhone, template, languageCode = 'pt_BR', variables = [], options = {}) => {
+                const allowFailover = options.allowFailover !== false;
                 let cleanPhone = String(recipientPhone).replace(/\D/g, '');
                 if (cleanPhone.startsWith('55')) cleanPhone = cleanPhone.substring(2);
                 cleanPhone = `55${cleanPhone}`;
@@ -1557,7 +1560,7 @@ const aiResponse = await fetchGeminiWithRetry(`https://generativelanguage.google
                 const fallbackText = `⚠️ *Aviso Velo Delivery*\nMensagem de contingência.\nReferência: [${template}]`;
 
                 // 🚨 INTERCEPTAÇÃO: Se o lojista ativou o Modo de Guerra, bloqueia a Meta e vai direto pra Evolution!
-                if (waConfig.whatsapp_failover_active) {
+                if (waConfig.whatsapp_failover_active && allowFailover) {
                     const failoverResult = await triggerFailover(cleanPhone, fallbackText, { error: { message: "Failover forçado manualmente pelo lojista." } });
                     return { ok: failoverResult.ok, data: null, fallbackUsed: failoverResult.fallbackUsed };
                 }
@@ -1583,6 +1586,9 @@ const aiResponse = await fetchGeminiWithRetry(`https://generativelanguage.google
                     const data = await response.json();
                     
                     if (!response.ok) {
+                        if (!allowFailover) {
+                            return { ok: false, data, fallbackUsed: false };
+                        }
                         const failoverResult = await triggerFailover(cleanPhone, fallbackText, data);
                         return { ok: failoverResult.ok, data, fallbackUsed: failoverResult.fallbackUsed };
                     }
@@ -1596,11 +1602,174 @@ const aiResponse = await fetchGeminiWithRetry(`https://generativelanguage.google
 
                     return { ok: true, data, fallbackUsed: false };
                 } catch (networkError) {
+                    if (!allowFailover) {
+                        return { ok: false, data: { error: { message: networkError.message } }, fallbackUsed: false };
+                    }
                     const failoverResult = await triggerFailover(cleanPhone, fallbackText, { error: { message: networkError.message } });
                     return { ok: failoverResult.ok, data: null, fallbackUsed: failoverResult.fallbackUsed };
                 }
             };
             // --- 🛡️ FIM DO MOTOR DE FAILOVER MULTI-TENANT ---
+
+            // Segmentação de reativação: considera a última compra por telefone,
+            // ignora pedidos cancelados e contatos bloqueados e nunca mistura tenants.
+            const normalizeMarketingPhone = (value) => {
+                let digits = String(value || '').replace(/\D/g, '');
+                if (digits.startsWith('55') && (digits.length === 12 || digits.length === 13)) digits = digits.slice(2);
+                return (digits.length === 10 || digits.length === 11) ? digits : null;
+            };
+
+            const orderTimeMs = (value) => {
+                if (!value) return 0;
+                if (typeof value.toMillis === 'function') return value.toMillis();
+                if (typeof value.toDate === 'function') return value.toDate().getTime();
+                if (value.seconds) return Number(value.seconds) * 1000;
+                const parsed = new Date(value).getTime();
+                return Number.isFinite(parsed) ? parsed : 0;
+            };
+
+            const buildReactivationAudience = async (daysInactive) => {
+                const safeDays = Math.max(7, Math.min(3650, Number(daysInactive) || 60));
+                const cutoffMs = Date.now() - safeDays * 86400000;
+
+                const [ordersSnap, blockedSnap] = await Promise.all([
+                    db.collection('orders').where('storeId', '==', storeId).limit(5000).get(),
+                    db.collection('blocked_contacts').where('storeId', '==', storeId).limit(2000).get()
+                ]);
+
+                const blockedPhones = new Set();
+                blockedSnap.forEach(doc => {
+                    const phone = normalizeMarketingPhone(doc.data().phone);
+                    if (phone) blockedPhones.add(phone);
+                });
+
+                const canceledStatuses = new Set(['canceled', 'cancelado', 'cancelled', 'refunded', 'estornado']);
+                const byPhone = new Map();
+
+                ordersSnap.forEach(doc => {
+                    const data = doc.data();
+                    const status = String(data.status || '').toLowerCase();
+                    if (canceledStatuses.has(status)) return;
+
+                    const phone = normalizeMarketingPhone(data.customerPhone || data.customer?.phone);
+                    if (!phone) return;
+
+                    const createdAtMs = orderTimeMs(data.createdAt || data.paidAt);
+                    if (!createdAtMs) return;
+
+                    const existing = byPhone.get(phone);
+                    if (!existing || createdAtMs > existing.lastOrderAtMs) {
+                        byPhone.set(phone, {
+                            phone,
+                            customerName: data.customerName || data.customer?.name || 'Cliente',
+                            lastOrderAtMs: createdAtMs
+                        });
+                    }
+                });
+
+                const eligible = Array.from(byPhone.values())
+                    .filter(customer => customer.lastOrderAtMs <= cutoffMs && !blockedPhones.has(customer.phone))
+                    .map(customer => ({
+                        ...customer,
+                        daysInactive: Math.floor((Date.now() - customer.lastOrderAtMs) / 86400000)
+                    }))
+                    .sort((a, b) => b.daysInactive - a.daysInactive);
+
+                return {
+                    safeDays,
+                    eligible,
+                    scannedOrders: ordersSnap.size,
+                    uniqueCustomers: byPhone.size,
+                    blockedCount: blockedPhones.size,
+                    truncated: ordersSnap.size >= 5000
+                };
+            };
+
+            if (action === 'reactivation_preview') {
+                const audience = await buildReactivationAudience(req.body.inactivityDays);
+                const maxRecipients = Math.max(1, Math.min(200, Number(req.body.maxRecipients) || 20));
+                return res.status(200).json({
+                    success: true,
+                    inactivityDays: audience.safeDays,
+                    eligibleCount: audience.eligible.length,
+                    sendableNow: Math.min(audience.eligible.length, maxRecipients),
+                    maxRecipients,
+                    scannedOrders: audience.scannedOrders,
+                    uniqueCustomers: audience.uniqueCustomers,
+                    blockedCount: audience.blockedCount,
+                    truncated: audience.truncated,
+                    sample: audience.eligible.slice(0, 5).map(customer => ({
+                        name: customer.customerName,
+                        daysInactive: customer.daysInactive,
+                        phoneMasked: customer.phone.replace(/(\d{2})\d+(\d{4})$/, '$1*****$2')
+                    }))
+                });
+            }
+
+            if (action === 'broadcast_reactivation') {
+                const templateVariables = req.body.variables || [];
+                if (!templateName) return res.status(400).json({ error: 'Nome do template obrigatório' });
+
+                const audience = await buildReactivationAudience(req.body.inactivityDays);
+                const maxRecipients = Math.max(1, Math.min(200, Number(req.body.maxRecipients) || 20));
+                const recipients = audience.eligible.slice(0, maxRecipients);
+
+                if (recipients.length === 0) {
+                    return res.status(200).json({
+                        success: true,
+                        sent: 0,
+                        failed: 0,
+                        eligibleCount: 0,
+                        message: `Nenhum cliente elegível com ${audience.safeDays}+ dias sem comprar.`
+                    });
+                }
+
+                const campaignRef = db.collection('whatsapp_campaigns').doc();
+                await campaignRef.set({
+                    storeId,
+                    type: 'reactivation',
+                    templateName,
+                    inactivityDays: audience.safeDays,
+                    eligibleCount: audience.eligible.length,
+                    attempted: recipients.length,
+                    status: 'running',
+                    createdBy: req.user?.uid || null,
+                    startedAt: admin.firestore.FieldValue.serverTimestamp()
+                });
+
+                let sent = 0;
+                let failed = 0;
+
+                // Lotes pequenos preservam estabilidade da função e evitam pico de requisições na Meta.
+                for (let i = 0; i < recipients.length; i += 20) {
+                    const chunk = recipients.slice(i, i + 20);
+                    const results = await Promise.all(chunk.map(customer =>
+                        sendMessageToMeta(customer.phone, templateName, 'pt_BR', templateVariables, { allowFailover: false })
+                    ));
+                    results.forEach(result => {
+                        if (result?.ok) sent += 1;
+                        else failed += 1;
+                    });
+                }
+
+                await campaignRef.set({
+                    sent,
+                    failed,
+                    status: failed > 0 && sent === 0 ? 'failed' : 'completed',
+                    completedAt: admin.firestore.FieldValue.serverTimestamp()
+                }, { merge: true });
+
+                return res.status(200).json({
+                    success: true,
+                    campaignId: campaignRef.id,
+                    inactivityDays: audience.safeDays,
+                    eligibleCount: audience.eligible.length,
+                    attempted: recipients.length,
+                    sent,
+                    failed,
+                    message: `Reativação concluída: ${sent} enviados, ${failed} falharam (${audience.eligible.length} elegíveis).`
+                });
+            }
 
             if (action === 'broadcast') {
                 const templateVariables = req.body.variables || []; 
@@ -1628,7 +1797,7 @@ const aiResponse = await fetchGeminiWithRetry(`https://generativelanguage.google
                 }
                 
                 // 3. Repassa as variáveis para a função base
-                const sendPromises = Array.from(uniquePhones).map(phone => sendMessageToMeta(phone, templateName, 'pt_BR', templateVariables));
+                const sendPromises = Array.from(uniquePhones).map(phone => sendMessageToMeta(phone, templateName, 'pt_BR', templateVariables, { allowFailover: false }));
                 await Promise.allSettled(sendPromises);
                 
                 return res.status(200).json({ success: true, message: `Disparado para ${uniquePhones.size} clientes/leads.` });
