@@ -2289,7 +2289,8 @@ const paymentsStr = acceptedList.length > 0 ? acceptedList.join('\n') : 'Consult
 
                                                 // 3. Informações Básicas
                                                 menuRows.push(
-                                                    { id: "btn_info", title: "📍 Horário e Endereço", description: "Informações da loja" }
+                                                    { id: "btn_info", title: "📍 Horário e Endereço", description: "Informações da loja" },
+                                                    { id: "btn_payment", title: "💳 Formas de Pagamento", description: "Pix, cartão e dinheiro" }
                                                 );
 
                                                 // 4. A Rede de Segurança (Handoff para o Humano)
