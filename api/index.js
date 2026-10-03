@@ -229,19 +229,47 @@ const PLAN_PRICES = {
 };
 
 async function assertStoreAccess(user, storeId) {
-    if (!user || !storeId) throw new Error('Acesso inválido.');
+    if (!user || !storeId) {
+        const error = new Error('Acesso inválido.');
+        error.statusCode = 401;
+        throw error;
+    }
+
     if (user.admin === true || user.superAdmin === true) return;
+
+    const callerEmail = String(user.email || '').trim().toLowerCase();
+    const platformAdminEmails = new Set([
+        'appdedelivery@gmail.com',
+        'appdidelivery@gmail.com',
+        'projetosdiego.l@gmail.com'
+    ]);
+
+    if (callerEmail && platformAdminEmails.has(callerEmail)) return;
+
     const [userDoc, storeDoc] = await Promise.all([
         db.collection('users').doc(user.uid).get(),
         db.collection('stores').doc(storeId).get(),
     ]);
-    const userStoreId = userDoc.exists ? userDoc.data().storeId : null;
-    const ownerUid = storeDoc.exists ? storeDoc.data().ownerUid : null;
-    if (userStoreId !== storeId && ownerUid !== user.uid) {
-        const error = new Error('Usuário sem acesso a esta loja.');
-        error.statusCode = 403;
-        throw error;
+
+    const userData = userDoc.exists ? userDoc.data() : {};
+    const storeData = storeDoc.exists ? storeDoc.data() : {};
+    const userStoreId = userData.storeId || null;
+    const ownerUid = storeData.ownerUid || null;
+    const ownerEmail = String(storeData.ownerEmail || storeData.email || '').trim().toLowerCase();
+
+    // Compatibilidade com lojas legadas:
+    // algumas contas antigas têm ownerEmail, mas ainda não possuem ownerUid/users.storeId.
+    if (
+        userStoreId === storeId ||
+        ownerUid === user.uid ||
+        (callerEmail && ownerEmail && callerEmail === ownerEmail)
+    ) {
+        return;
     }
+
+    const error = new Error('Usuário sem acesso a esta loja.');
+    error.statusCode = 403;
+    throw error;
 }
 
 async function resolveSubscriptionAmount({ storeId, invoiceId, plan, cycle }) {
@@ -1960,7 +1988,10 @@ const aiResponse = await fetchGeminiWithRetry(`https://generativelanguage.google
             return res.status(400).json({ error: 'Ação não reconhecida' });
         } catch (error) {
             console.error('Erro no WhatsApp Send:', error);
-            return res.status(500).json({ error: 'Erro interno no servidor' });
+            const statusCode = Number(error?.statusCode) || 500;
+            return res.status(statusCode).json({
+                error: statusCode >= 500 ? 'Erro interno no servidor' : error.message
+            });
         }
     }
 
