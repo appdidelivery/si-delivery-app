@@ -1659,11 +1659,13 @@ const aiResponse = await fetchGeminiWithRetry(`https://generativelanguage.google
             const buildReactivationAudience = async (daysInactive) => {
                 const safeDays = Math.max(7, Math.min(3650, Number(daysInactive) || 60));
                 const cutoffMs = Date.now() - safeDays * 86400000;
+                const PAGE_SIZE = 1000;
+                const MAX_SCAN = 25000;
 
-                const [ordersSnap, blockedSnap] = await Promise.all([
-                    db.collection('orders').where('storeId', '==', storeId).limit(5000).get(),
-                    db.collection('blocked_contacts').where('storeId', '==', storeId).limit(2000).get()
-                ]);
+                const blockedSnap = await db.collection('blocked_contacts')
+                    .where('storeId', '==', storeId)
+                    .limit(2000)
+                    .get();
 
                 const blockedPhones = new Set();
                 blockedSnap.forEach(doc => {
@@ -1673,27 +1675,50 @@ const aiResponse = await fetchGeminiWithRetry(`https://generativelanguage.google
 
                 const canceledStatuses = new Set(['canceled', 'cancelado', 'cancelled', 'refunded', 'estornado']);
                 const byPhone = new Map();
+                let scannedOrders = 0;
+                let lastDoc = null;
+                let truncated = false;
 
-                ordersSnap.forEach(doc => {
-                    const data = doc.data();
-                    const status = String(data.status || '').toLowerCase();
-                    if (canceledStatuses.has(status)) return;
+                // Pagina pelo ID do documento para varrer o histórico inteiro sem depender
+                // de índice composto por createdAt. O teto é apenas uma proteção contra timeout.
+                while (scannedOrders < MAX_SCAN) {
+                    let ordersQuery = db.collection('orders')
+                        .where('storeId', '==', storeId)
+                        .orderBy(admin.firestore.FieldPath.documentId())
+                        .limit(Math.min(PAGE_SIZE, MAX_SCAN - scannedOrders));
 
-                    const phone = normalizeMarketingPhone(data.customerPhone || data.customer?.phone);
-                    if (!phone) return;
+                    if (lastDoc) ordersQuery = ordersQuery.startAfter(lastDoc);
 
-                    const createdAtMs = orderTimeMs(data.createdAt || data.paidAt);
-                    if (!createdAtMs) return;
+                    const pageSnap = await ordersQuery.get();
+                    if (pageSnap.empty) break;
 
-                    const existing = byPhone.get(phone);
-                    if (!existing || createdAtMs > existing.lastOrderAtMs) {
-                        byPhone.set(phone, {
-                            phone,
-                            customerName: data.customerName || data.customer?.name || 'Cliente',
-                            lastOrderAtMs: createdAtMs
-                        });
-                    }
-                });
+                    pageSnap.forEach(doc => {
+                        const data = doc.data();
+                        const status = String(data.status || '').toLowerCase();
+                        if (canceledStatuses.has(status)) return;
+
+                        const phone = normalizeMarketingPhone(data.customerPhone || data.customer?.phone);
+                        if (!phone) return;
+
+                        const createdAtMs = orderTimeMs(data.createdAt || data.paidAt);
+                        if (!createdAtMs) return;
+
+                        const existing = byPhone.get(phone);
+                        if (!existing || createdAtMs > existing.lastOrderAtMs) {
+                            byPhone.set(phone, {
+                                phone,
+                                customerName: data.customerName || data.customer?.name || 'Cliente',
+                                lastOrderAtMs: createdAtMs
+                            });
+                        }
+                    });
+
+                    scannedOrders += pageSnap.size;
+                    lastDoc = pageSnap.docs[pageSnap.docs.length - 1];
+
+                    if (pageSnap.size < PAGE_SIZE) break;
+                    if (scannedOrders >= MAX_SCAN) truncated = true;
+                }
 
                 const eligible = Array.from(byPhone.values())
                     .filter(customer => customer.lastOrderAtMs <= cutoffMs && !blockedPhones.has(customer.phone))
@@ -1701,15 +1726,18 @@ const aiResponse = await fetchGeminiWithRetry(`https://generativelanguage.google
                         ...customer,
                         daysInactive: Math.floor((Date.now() - customer.lastOrderAtMs) / 86400000)
                     }))
-                    .sort((a, b) => b.daysInactive - a.daysInactive);
+                    // Para teste de reativação, prioriza quem acabou de entrar na faixa:
+                    // 60 dias antes de 200+ dias tende a ser um público mais quente.
+                    .sort((a, b) => a.daysInactive - b.daysInactive);
 
                 return {
                     safeDays,
                     eligible,
-                    scannedOrders: ordersSnap.size,
+                    scannedOrders,
+                    scanLimit: MAX_SCAN,
                     uniqueCustomers: byPhone.size,
                     blockedCount: blockedPhones.size,
-                    truncated: ordersSnap.size >= 5000
+                    truncated
                 };
             };
 
@@ -1726,6 +1754,7 @@ const aiResponse = await fetchGeminiWithRetry(`https://generativelanguage.google
                     uniqueCustomers: audience.uniqueCustomers,
                     blockedCount: audience.blockedCount,
                     truncated: audience.truncated,
+                    scanLimit: audience.scanLimit,
                     sample: audience.eligible.slice(0, 5).map(customer => ({
                         name: customer.customerName,
                         daysInactive: customer.daysInactive,
