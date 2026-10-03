@@ -1368,6 +1368,10 @@ export default function AdminChat() {
                                                     <span>Contatos bloqueados excluídos</span>
                                                     <strong>{reactivationPreview.blockedCount}</strong>
                                                 </div>
+                                                <div className="flex items-center justify-between gap-3 mt-1">
+                                                    <span>Já contatados em campanha recente</span>
+                                                    <strong>{reactivationPreview.alreadyContactedCount || 0}</strong>
+                                                </div>
                                                 {reactivationPreview.truncated && (
                                                     <p className="mt-2 text-[11px] text-amber-700 font-bold">⚠️ O histórico ultrapassa o limite de segurança de {Number(reactivationPreview.scanLimit || 25000).toLocaleString('pt-BR')} pedidos analisados. A campanha usa apenas esse recorte.</p>
                                                 )}
@@ -1386,7 +1390,7 @@ export default function AdminChat() {
                                         )}
 
                                         <p className="text-[10px] text-amber-800 leading-relaxed">
-                                            Use campanhas de marketing apenas com clientes que autorizaram comunicações pelo WhatsApp. O sistema exclui contatos bloqueados e não envia pelo canal de contingência.
+                                            Use campanhas de marketing apenas com clientes que autorizaram comunicações pelo WhatsApp. O sistema exclui bloqueados e também quem já recebeu reativação nos últimos {reactivationPreview?.cooldownDays || 30} dias.
                                         </p>
                                     </div>
                                 )}
