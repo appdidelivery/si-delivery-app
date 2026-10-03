@@ -866,14 +866,18 @@ export default function AdminChat() {
             });
 
             if (response.ok) {
+                const data = await response.json();
                 await addDoc(collection(db, 'whatsapp_inbound'), {
                     storeId: storeId,
-                    to: safePhone, 
+                    to: safePhone,
                     text: '',
                     mediaUrl: mediaUrl,
                     mediaType: type,
+                    metaMessageId: data.message_id || null,
+                    deliveryStatus: 'sent',
+                    sentAt: serverTimestamp(),
                     receivedAt: serverTimestamp(),
-                    status: 'read',
+                    status: 'sent',
                     direction: 'outbound'
                 });
             }
@@ -911,10 +915,13 @@ export default function AdminChat() {
                     storeId: storeId,
                     to: safePhone,
                     text: replyText,
+                    metaMessageId: data.message_id || null,
+                    deliveryStatus: 'sent',
+                    sentAt: serverTimestamp(),
                     receivedAt: serverTimestamp(),
-                    status: 'read',
-                    direction: 'outbound', 
-                    quotedMsg: replyingTo ? replyingTo.text : null 
+                    status: 'sent',
+                    direction: 'outbound',
+                    quotedMsg: replyingTo ? replyingTo.text : null
                 });
 
                 let normalizedPhoneForSession = safePhone.replace(/\D/g, '');
@@ -1633,7 +1640,11 @@ export default function AdminChat() {
                                     </div>
                                     <div className="flex justify-between items-center">
                                         <span className={`text-sm truncate pr-2 ${isHandoffAlert ? 'text-red-600 font-bold' : 'text-gray-500'}`}>
-                                            {lastMsg?.direction === 'outbound' ? '✓ ' : ''}
+                                            {lastMsg?.direction === 'outbound'
+                                                ? ((lastMsg?.respondedAt || lastMsg?.responseStatus === 'responded')
+                                                    ? '↩ '
+                                                    : ['delivered', 'read'].includes(lastMsg?.deliveryStatus) ? '✓✓ ' : '✓ ')
+                                                : ''}
                                             {lastMsg?.text 
                                                 ? (isHandoffAlert ? `🚨 ${lastMsg.text}` : lastMsg.text.replace(/(https?:\/\/[^\s]+cloudinary\.com[^\s]*)/i, '📷 Imagem'))
                                                 : (lastMsg?.mediaType === 'image' || lastMsg?.mediaUrl?.includes('cloudinary') ? '📷 Imagem' : lastMsg?.mediaType === 'audio' ? '🎤 Áudio' : '')}
@@ -1797,6 +1808,19 @@ export default function AdminChat() {
                                 const isOutbound = msg.direction === 'outbound';
                                 const msgDate = msg.receivedAt?.toDate ? msg.receivedAt.toDate() : new Date(msg.receivedAt?.seconds * 1000 || Date.now());
                                 const timeStr = formatMessageTime(msgDate);
+                                const deliveryState = msg.respondedAt || msg.responseStatus === 'responded'
+                                    ? 'responded'
+                                    : (msg.deliveryStatus || (msg.status === 'sent' ? 'sent' : null));
+                                const deliveryLabel = {
+                                    sent: 'Enviado',
+                                    delivered: 'Entregue',
+                                    read: 'Lido',
+                                    failed: 'Falhou',
+                                    responded: 'Respondido'
+                                }[deliveryState] || '';
+                                const deliveryTitle = msg.failureReason
+                                    ? `${deliveryLabel}: ${msg.failureReason}`
+                                    : deliveryLabel;
 
                                 // --- DETECTOR INTELIGENTE DE IMAGENS ---
                                 let displayMediaUrl = msg.mediaUrl;
@@ -1884,7 +1908,15 @@ export default function AdminChat() {
                                         
                                         <div className={`text-[10px] text-gray-500 self-end ml-4 flex items-center gap-1 float-right ${(!displayText && displayMediaUrl) ? 'mt-1' : '-mt-1'}`}>
                                             {timeStr}
-                                            {isOutbound && <CheckCheck size={14} className="text-[#53bdeb] ml-0.5" />}
+                                            {isOutbound && (
+                                                <span
+                                                    className={`flex items-center gap-0.5 ${deliveryState === 'failed' ? 'text-red-500' : deliveryState === 'read' || deliveryState === 'responded' ? 'text-[#53bdeb]' : 'text-gray-500'}`}
+                                                    title={deliveryTitle || 'Enviado'}
+                                                >
+                                                    <CheckCheck size={14} className="ml-0.5" />
+                                                    {deliveryLabel && <span className="hidden sm:inline">{deliveryLabel}</span>}
+                                                </span>
+                                            )}
                                         </div>
                                     </div>
                                 );
