@@ -1661,16 +1661,33 @@ const aiResponse = await fetchGeminiWithRetry(`https://generativelanguage.google
                 const cutoffMs = Date.now() - safeDays * 86400000;
                 const PAGE_SIZE = 1000;
                 const MAX_SCAN = 25000;
+                const COOLDOWN_DAYS = 30;
+                const recentCutoffMs = Date.now() - COOLDOWN_DAYS * 86400000;
+                const hashPhone = (phone) => crypto.createHash('sha256').update(`${storeId}:${phone}`).digest('hex');
 
-                const blockedSnap = await db.collection('blocked_contacts')
-                    .where('storeId', '==', storeId)
-                    .limit(2000)
-                    .get();
+                const [blockedSnap, campaignSnap] = await Promise.all([
+                    db.collection('blocked_contacts').where('storeId', '==', storeId).limit(2000).get(),
+                    db.collection('whatsapp_campaigns').where('storeId', '==', storeId).limit(200).get()
+                ]);
 
                 const blockedPhones = new Set();
                 blockedSnap.forEach(doc => {
                     const phone = normalizeMarketingPhone(doc.data().phone);
                     if (phone) blockedPhones.add(phone);
+                });
+
+                const recentRecipientHashes = new Set();
+                let legacySentCount = 0;
+                campaignSnap.forEach(doc => {
+                    const data = doc.data();
+                    if (data.type !== 'reactivation') return;
+                    const completedAtMs = orderTimeMs(data.completedAt || data.startedAt);
+                    if (!completedAtMs || completedAtMs < recentCutoffMs) return;
+                    if (Array.isArray(data.recipientHashes) && data.recipientHashes.length > 0) {
+                        data.recipientHashes.forEach(hash => recentRecipientHashes.add(hash));
+                    } else {
+                        legacySentCount += Math.max(0, Number(data.sent) || 0);
+                    }
                 });
 
                 const canceledStatuses = new Set(['canceled', 'cancelado', 'cancelled', 'refunded', 'estornado']);
@@ -1720,15 +1737,21 @@ const aiResponse = await fetchGeminiWithRetry(`https://generativelanguage.google
                     if (scannedOrders >= MAX_SCAN) truncated = true;
                 }
 
-                const eligible = Array.from(byPhone.values())
-                    .filter(customer => customer.lastOrderAtMs <= cutoffMs && !blockedPhones.has(customer.phone))
+                const sortedCandidates = Array.from(byPhone.values())
+                    .filter(customer =>
+                        customer.lastOrderAtMs <= cutoffMs &&
+                        !blockedPhones.has(customer.phone) &&
+                        !recentRecipientHashes.has(hashPhone(customer.phone))
+                    )
                     .map(customer => ({
                         ...customer,
                         daysInactive: Math.floor((Date.now() - customer.lastOrderAtMs) / 86400000)
                     }))
-                    // Para teste de reativação, prioriza quem acabou de entrar na faixa:
-                    // 60 dias antes de 200+ dias tende a ser um público mais quente.
                     .sort((a, b) => a.daysInactive - b.daysInactive);
+
+                // Compatibilidade com o primeiro lote enviado antes da deduplicação:
+                // pula a quantidade já confirmada nas campanhas legadas recentes.
+                const eligible = sortedCandidates.slice(Math.min(legacySentCount, sortedCandidates.length));
 
                 return {
                     safeDays,
@@ -1737,6 +1760,9 @@ const aiResponse = await fetchGeminiWithRetry(`https://generativelanguage.google
                     scanLimit: MAX_SCAN,
                     uniqueCustomers: byPhone.size,
                     blockedCount: blockedPhones.size,
+                    alreadyContactedCount: recentRecipientHashes.size + legacySentCount,
+                    cooldownDays: COOLDOWN_DAYS,
+                    hashPhone,
                     truncated
                 };
             };
@@ -1753,6 +1779,8 @@ const aiResponse = await fetchGeminiWithRetry(`https://generativelanguage.google
                     scannedOrders: audience.scannedOrders,
                     uniqueCustomers: audience.uniqueCustomers,
                     blockedCount: audience.blockedCount,
+                    alreadyContactedCount: audience.alreadyContactedCount,
+                    cooldownDays: audience.cooldownDays,
                     truncated: audience.truncated,
                     scanLimit: audience.scanLimit,
                     sample: audience.eligible.slice(0, 5).map(customer => ({
@@ -1790,6 +1818,7 @@ const aiResponse = await fetchGeminiWithRetry(`https://generativelanguage.google
                     eligibleCount: audience.eligible.length,
                     attempted: recipients.length,
                     status: 'running',
+                    recipientTracking: true,
                     createdBy: req.user?.uid || null,
                     startedAt: admin.firestore.FieldValue.serverTimestamp()
                 });
@@ -1797,21 +1826,47 @@ const aiResponse = await fetchGeminiWithRetry(`https://generativelanguage.google
                 let sent = 0;
                 let failed = 0;
 
+                const successfulRecipientHashes = [];
+
                 // Lotes pequenos preservam estabilidade da função e evitam pico de requisições na Meta.
                 for (let i = 0; i < recipients.length; i += 20) {
                     const chunk = recipients.slice(i, i + 20);
                     const results = await Promise.all(chunk.map(customer =>
                         sendMessageToMeta(customer.phone, templateName, 'pt_BR', templateVariables, { allowFailover: false })
                     ));
-                    results.forEach(result => {
-                        if (result?.ok) sent += 1;
-                        else failed += 1;
+
+                    const historyBatch = db.batch();
+
+                    results.forEach((result, index) => {
+                        const customer = chunk[index];
+                        if (result?.ok) {
+                            sent += 1;
+                            successfulRecipientHashes.push(audience.hashPhone(customer.phone));
+
+                            const historyRef = db.collection('whatsapp_inbound').doc();
+                            historyBatch.set(historyRef, {
+                                storeId,
+                                to: customer.phone,
+                                text: `[Campanha de Reativação] Template oficial enviado: ${templateName}`,
+                                templateName,
+                                campaignId: campaignRef.id,
+                                campaignType: 'reactivation',
+                                receivedAt: admin.firestore.FieldValue.serverTimestamp(),
+                                status: 'sent',
+                                direction: 'outbound'
+                            });
+                        } else {
+                            failed += 1;
+                        }
                     });
+
+                    await historyBatch.commit();
                 }
 
                 await campaignRef.set({
                     sent,
                     failed,
+                    recipientHashes: successfulRecipientHashes,
                     status: failed > 0 && sent === 0 ? 'failed' : 'completed',
                     completedAt: admin.firestore.FieldValue.serverTimestamp()
                 }, { merge: true });
@@ -1824,7 +1879,10 @@ const aiResponse = await fetchGeminiWithRetry(`https://generativelanguage.google
                     attempted: recipients.length,
                     sent,
                     failed,
-                    message: `Reativação concluída: ${sent} enviados, ${failed} falharam (${audience.eligible.length} elegíveis).`
+                    remainingEligible: Math.max(0, audience.eligible.length - sent),
+                    alreadyContactedCount: audience.alreadyContactedCount + sent,
+                    cooldownDays: audience.cooldownDays,
+                    message: `Reativação concluída: ${sent} enviados, ${failed} falharam. Os enviados ficam fora dos próximos lotes por ${audience.cooldownDays} dias.`
                 });
             }
 
