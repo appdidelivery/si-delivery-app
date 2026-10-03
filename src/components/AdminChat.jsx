@@ -1369,7 +1369,7 @@ export default function AdminChat() {
                                                     <strong>{reactivationPreview.blockedCount}</strong>
                                                 </div>
                                                 {reactivationPreview.truncated && (
-                                                    <p className="mt-2 text-[11px] text-amber-700 font-bold">⚠️ A loja possui mais de 5.000 pedidos no recorte. O preview usa os primeiros 5.000 registros disponíveis.</p>
+                                                    <p className="mt-2 text-[11px] text-amber-700 font-bold">⚠️ O histórico ultrapassa o limite de segurança de {Number(reactivationPreview.scanLimit || 25000).toLocaleString('pt-BR')} pedidos analisados. A campanha usa apenas esse recorte.</p>
                                                 )}
                                                 {reactivationPreview.sample?.length > 0 && (
                                                     <div className="mt-3 pt-3 border-t border-amber-100">
