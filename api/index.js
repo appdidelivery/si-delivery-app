@@ -2154,6 +2154,12 @@ const aiResponse = await fetchGeminiWithRetry(`https://generativelanguage.google
                                         const storeDoc = await db.collection('stores').doc(storeId).get();
                                         const isStoreOpen = checkIsStoreOpen(storeDoc.exists ? storeDoc.data() : {});
                                         const incomingTextLower = messageText ? messageText.trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "") : '';
+                                        // Normalização exclusiva para intenção conversacional:
+                                        // remove pontuação e espaços extras sem alterar o texto usado na busca de produtos.
+                                        const incomingIntentText = incomingTextLower
+                                            .replace(/[!?.,;:]+/g, ' ')
+                                            .replace(/\s+/g, ' ')
+                                            .trim();
                                         const nowMs = Date.now();
 
                                         // CORREÇÃO: Só envia ausência se a loja estiver FECHADA e a automação estiver ATIVADA.
@@ -2189,8 +2195,21 @@ const aiResponse = await fetchGeminiWithRetry(`https://generativelanguage.google
                                                 }
                                             } catch (e) { console.error("Ignorando erro de busca", e); }
 
-                                            const greetings = ['oi', 'ola', 'olá', 'bom dia', 'boa tarde', 'boa noite', 'opa', 'eai', 'tudo bem', 'menu', 'opcoes', 'opções'];
-                                            const isGreeting = greetings.some(g => incomingTextLower === g || incomingTextLower.startsWith(`${g} `));
+                                            const greetings = ['oi', 'ola', 'bom dia', 'boa tarde', 'boa noite', 'opa', 'eai', 'tudo bem', 'menu', 'opcoes'];
+                                            const isGreeting = greetings.some(g => incomingIntentText === g || incomingIntentText.startsWith(`${g} `))
+                                                || /^(oi+|oie+|ola+|opa+|eai+)\b/.test(incomingIntentText);
+
+                                            // Perguntas sobre funcionamento também devem cair no fluxo principal,
+                                            // nunca na busca de produtos (ex.: "estão abertos?", "que horas abre?").
+                                            const storeStatusKeywords = [
+                                                'esta aberto', 'estao abertos', 'ta aberto', 'tao abertos',
+                                                'esta funcionando', 'estao funcionando', 'funcionando hoje',
+                                                'abre hoje', 'abrem hoje', 'fecha hoje', 'fecham hoje',
+                                                'que horas abre', 'que horas abrem', 'que horas fecha', 'que horas fecham',
+                                                'qual horario', 'qual o horario', 'horario de funcionamento',
+                                                'aberto agora', 'abertos agora'
+                                            ];
+                                            const isStoreStatusTrigger = !interactivePayload && storeStatusKeywords.some(kw => incomingIntentText.includes(kw));
 
                                             const supportKeywords = ['atras', 'demora', 'suporte', 'atendente', 'ajuda', 'humano', 'problema', 'erro', 'errad', 'reclamar', 'faltou', 'frio', 'estragad', 'pessimo', 'ruim'];
                                             const needsSupport = isMedia || interactivePayload === 'btn_support' || (!interactivePayload && supportKeywords.some(kw => incomingTextLower.includes(kw)));
@@ -2305,6 +2324,16 @@ const paymentsStr = acceptedList.length > 0 ? acceptedList.join('\n') : 'Consult
                                                 await sessionRef.set({ storeId, phone: normalizedPhone, botPaused: true, updatedAt: admin.firestore.FieldValue.serverTimestamp() }, { merge: true });
                                             } 
                                             
+                                            else if (isStoreStatusTrigger) {
+                                                replyPayload = generateMainMenu();
+                                                const statusPrefix = isStoreOpen
+                                                    ? '✅ *Sim, estamos abertos agora!*'
+                                                    : '🌙 *No momento estamos fechados.*';
+                                                if (replyPayload?.interactive?.body?.text) {
+                                                    replyPayload.interactive.body.text = `${statusPrefix}\n\n${replyPayload.interactive.body.text}`;
+                                                }
+                                                logTextForPanel = `🤖 [Status da Loja + Menu Enviado para ${firstName || 'Cliente'}]`;
+                                            }
                                             else if (isGreeting) {
                                                 replyPayload = generateMainMenu();
                                                 logTextForPanel = `🤖 [Menu de Boas Vindas Enviado para ${firstName || 'Cliente'}]`;
