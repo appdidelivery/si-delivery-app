@@ -208,6 +208,11 @@ export default function AdminChat() {
     const [broadcastTemplate, setBroadcastTemplate] = useState('');
     const [isBroadcasting, setIsBroadcasting] = useState(false);
     const [broadcastSelectedProduct, setBroadcastSelectedProduct] = useState('');
+    const [broadcastAudienceMode, setBroadcastAudienceMode] = useState('reactivation');
+    const [reactivationDays, setReactivationDays] = useState(60);
+    const [reactivationMaxRecipients, setReactivationMaxRecipients] = useState(20);
+    const [reactivationPreview, setReactivationPreview] = useState(null);
+    const [isLoadingAudience, setIsLoadingAudience] = useState(false);
 
     useEffect(() => {
         if (activeChat) {
@@ -226,6 +231,32 @@ export default function AdminChat() {
 
     const handleImportCSV = (e) => {
         alert("Função de importação em lote será ativada em breve.");
+    };
+
+    const handleReactivationPreview = async () => {
+        if (!storeId) return;
+        setIsLoadingAudience(true);
+        setReactivationPreview(null);
+        try {
+            const res = await authenticatedFetch('/api/whatsapp-send', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    action: 'reactivation_preview',
+                    storeId,
+                    inactivityDays: Number(reactivationDays),
+                    maxRecipients: Number(reactivationMaxRecipients)
+                })
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || 'Não foi possível calcular o público.');
+            setReactivationPreview(data);
+        } catch (error) {
+            console.error("Erro ao calcular público de reativação:", error);
+            alert("Erro ao calcular público: " + error.message);
+        } finally {
+            setIsLoadingAudience(false);
+        }
     };
 
     const formatMessageTime = (dateObj) => {
@@ -1250,19 +1281,117 @@ export default function AdminChat() {
                                 <button onClick={() => setShowBroadcastModal(false)} className="hover:bg-white/20 p-2 rounded-full transition-colors">
                                     <ArrowLeft size={20} />
                                 </button>
-                                <h2 className="text-lg font-bold">Disparo em Massa</h2>
+                                <h2 className="text-lg font-bold">Campanhas WhatsApp</h2>
                             </div>
                             
                             <div className="p-6 flex flex-col gap-4 overflow-y-auto custom-scrollbar">
                                 <div className="bg-blue-50 border border-blue-200 p-4 rounded-xl flex gap-3 items-start shadow-sm">
                                     <div className="text-blue-500 mt-0.5"><Megaphone size={20} /></div>
                                     <p className="text-[12px] text-blue-800 leading-relaxed font-medium">
-                                        <strong className="block mb-1 text-blue-900">Acelere suas vendas! 🚀</strong>
-                                        O sistema enviará o template selecionado para os últimos <strong>500 clientes</strong> que já fizeram pedidos na sua loja. Excelente para sextou, chuva ou cupons.
+                                        <strong className="block mb-1 text-blue-900">Campanhas pela API Oficial da Meta 🚀</strong>
+                                        Segmente clientes por tempo sem comprar, calcule o público antes do envio e use somente templates aprovados. Campanhas não usam o failover da Evolution API.
                                     </p>
                                 </div>
 
-                                <div className="mt-4">
+                                <div className="mt-2">
+                                    <p className="text-sm text-gray-700 font-bold mb-2">Público da campanha:</p>
+                                    <select
+                                        value={broadcastAudienceMode}
+                                        onChange={(e) => {
+                                            setBroadcastAudienceMode(e.target.value);
+                                            setReactivationPreview(null);
+                                            if (e.target.value === 'reactivation' && !broadcastTemplate) setBroadcastTemplate('velo_saudade_cliente');
+                                        }}
+                                        className="w-full p-4 bg-[#f0f2f5] rounded-xl outline-none focus:ring-2 ring-blue-600 text-gray-800 font-medium border border-gray-200 shadow-sm"
+                                    >
+                                        <option value="reactivation">🎯 Reativação — clientes sem comprar</option>
+                                        <option value="all">📣 Base geral — clientes e leads</option>
+                                    </select>
+                                </div>
+
+                                {broadcastAudienceMode === 'reactivation' && (
+                                    <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 flex flex-col gap-3">
+                                        <div>
+                                            <p className="text-sm text-amber-900 font-bold mb-2">Tempo mínimo sem comprar:</p>
+                                            <select
+                                                value={reactivationDays}
+                                                onChange={(e) => { setReactivationDays(Number(e.target.value)); setReactivationPreview(null); }}
+                                                className="w-full p-3 bg-white border border-amber-200 rounded-xl font-bold text-amber-900 outline-none"
+                                            >
+                                                <option value={15}>15 dias</option>
+                                                <option value={30}>30 dias</option>
+                                                <option value={45}>45 dias</option>
+                                                <option value={60}>60 dias</option>
+                                                <option value={90}>90 dias</option>
+                                                <option value={120}>120 dias</option>
+                                            </select>
+                                        </div>
+
+                                        <div>
+                                            <p className="text-sm text-amber-900 font-bold mb-2">Limite deste envio:</p>
+                                            <select
+                                                value={reactivationMaxRecipients}
+                                                onChange={(e) => { setReactivationMaxRecipients(Number(e.target.value)); setReactivationPreview(null); }}
+                                                className="w-full p-3 bg-white border border-amber-200 rounded-xl font-bold text-amber-900 outline-none"
+                                            >
+                                                <option value={20}>20 clientes — teste seguro</option>
+                                                <option value={50}>50 clientes</option>
+                                                <option value={100}>100 clientes</option>
+                                                <option value={200}>200 clientes</option>
+                                            </select>
+                                        </div>
+
+                                        <button
+                                            onClick={handleReactivationPreview}
+                                            disabled={isLoadingAudience}
+                                            className="w-full bg-amber-600 hover:bg-amber-700 disabled:bg-amber-300 text-white py-3 rounded-xl font-black uppercase text-xs tracking-widest flex items-center justify-center gap-2"
+                                        >
+                                            {isLoadingAudience ? <Loader2 size={17} className="animate-spin" /> : <Search size={17} />}
+                                            {isLoadingAudience ? 'Calculando público...' : 'Calcular público antes de enviar'}
+                                        </button>
+
+                                        {reactivationPreview && (
+                                            <div className="bg-white border border-amber-200 rounded-xl p-4 text-sm text-slate-700">
+                                                <div className="flex items-center justify-between gap-3">
+                                                    <span className="font-bold">Clientes elegíveis</span>
+                                                    <span className="text-xl font-black text-amber-700">{reactivationPreview.eligibleCount}</span>
+                                                </div>
+                                                <div className="flex items-center justify-between gap-3 mt-1">
+                                                    <span>Serão enviados neste lote</span>
+                                                    <strong>{reactivationPreview.sendableNow}</strong>
+                                                </div>
+                                                <div className="flex items-center justify-between gap-3 mt-1">
+                                                    <span>Clientes únicos analisados</span>
+                                                    <strong>{reactivationPreview.uniqueCustomers}</strong>
+                                                </div>
+                                                <div className="flex items-center justify-between gap-3 mt-1">
+                                                    <span>Contatos bloqueados excluídos</span>
+                                                    <strong>{reactivationPreview.blockedCount}</strong>
+                                                </div>
+                                                {reactivationPreview.truncated && (
+                                                    <p className="mt-2 text-[11px] text-amber-700 font-bold">⚠️ A loja possui mais de 5.000 pedidos no recorte. O preview usa os primeiros 5.000 registros disponíveis.</p>
+                                                )}
+                                                {reactivationPreview.sample?.length > 0 && (
+                                                    <div className="mt-3 pt-3 border-t border-amber-100">
+                                                        <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">Amostra do público</p>
+                                                        {reactivationPreview.sample.map((customer, index) => (
+                                                            <div key={index} className="text-[11px] flex justify-between gap-3 py-1">
+                                                                <span className="truncate">{customer.name} · {customer.phoneMasked}</span>
+                                                                <strong className="whitespace-nowrap">{customer.daysInactive} dias</strong>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                )}
+                                            </div>
+                                        )}
+
+                                        <p className="text-[10px] text-amber-800 leading-relaxed">
+                                            Use campanhas de marketing apenas com clientes que autorizaram comunicações pelo WhatsApp. O sistema exclui contatos bloqueados e não envia pelo canal de contingência.
+                                        </p>
+                                    </div>
+                                )}
+
+                                <div className="mt-2">
                                     <p className="text-sm text-gray-700 font-bold mb-2">Selecione a Campanha (Template):</p>
                                     <select 
                                         value={broadcastTemplate}
@@ -1303,9 +1432,17 @@ export default function AdminChat() {
                                 )}
 
                                 <button 
-                                    disabled={isBroadcasting || !broadcastTemplate}
+                                    disabled={isBroadcasting || !broadcastTemplate || (broadcastAudienceMode === 'reactivation' && !reactivationPreview)}
                                     onClick={async () => {
-                                        if (!window.confirm("ATENÇÃO: Você está prestes a enviar uma mensagem para toda a sua base de clientes recentes. Deseja confirmar o disparo?")) return;
+                                        const isReactivation = broadcastAudienceMode === 'reactivation';
+                                        if (isReactivation && !reactivationPreview) {
+                                            return alert("Calcule o público de reativação antes do envio.");
+                                        }
+
+                                        const confirmText = isReactivation
+                                            ? `ATENÇÃO: enviar o template ${broadcastTemplate} para até ${reactivationPreview.sendableNow} cliente(s) com ${reactivationDays}+ dias sem comprar?\n\nO envio será feito somente pela API Oficial da Meta.`
+                                            : "ATENÇÃO: Você está prestes a enviar uma mensagem para toda a sua base de clientes/leads. Deseja confirmar o disparo?";
+                                        if (!window.confirm(confirmText)) return;
                                         
                                         setIsBroadcasting(true);
                                         try {
@@ -1327,10 +1464,14 @@ export default function AdminChat() {
                                                 method: 'POST',
                                                 headers: { 'Content-Type': 'application/json' },
                                                 body: JSON.stringify({
-                                                    action: 'broadcast',
+                                                    action: isReactivation ? 'broadcast_reactivation' : 'broadcast',
                                                     storeId: storeId,
                                                     templateName: broadcastTemplate,
-                                                    variables: variablesToSend
+                                                    variables: variablesToSend,
+                                                    ...(isReactivation ? {
+                                                        inactivityDays: Number(reactivationDays),
+                                                        maxRecipients: Number(reactivationMaxRecipients)
+                                                    } : {})
                                                 })
                                             });
                                             
@@ -1340,6 +1481,7 @@ export default function AdminChat() {
                                                 setShowBroadcastModal(false);
                                                 setBroadcastTemplate('');
                                                 setBroadcastSelectedProduct('');
+                                                setReactivationPreview(null);
                                             } else {
                                                 alert('Erro ao disparar: ' + (data.error || 'Falha na API da Meta'));
                                             }
@@ -1349,10 +1491,18 @@ export default function AdminChat() {
                                             setIsBroadcasting(false);
                                         }
                                     }}
-                                    className={`w-full text-white py-4 rounded-xl font-bold uppercase tracking-widest text-xs shadow-md transition-all flex items-center justify-center gap-2 mt-4 ${broadcastTemplate ? 'bg-blue-600 hover:bg-blue-700 active:scale-95' : 'bg-gray-300 cursor-not-allowed'}`}
+                                    className={`w-full text-white py-4 rounded-xl font-bold uppercase tracking-widest text-xs shadow-md transition-all flex items-center justify-center gap-2 mt-4 ${
+                                        broadcastTemplate && (broadcastAudienceMode !== 'reactivation' || reactivationPreview)
+                                            ? 'bg-blue-600 hover:bg-blue-700 active:scale-95'
+                                            : 'bg-gray-300 cursor-not-allowed'
+                                    }`}
                                 >
                                     {isBroadcasting ? <Loader2 className="animate-spin" size={18} /> : <Send size={18} />}
-                                    {isBroadcasting ? 'Disparando para base...' : 'Iniciar Disparo em Massa'}
+                                    {isBroadcasting
+                                        ? 'Enviando campanha...'
+                                        : broadcastAudienceMode === 'reactivation'
+                                            ? 'Enviar Reativação'
+                                            : 'Iniciar Disparo em Massa'}
                                 </button>
                             </div>
                         </div>
