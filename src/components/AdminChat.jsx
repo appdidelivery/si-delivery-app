@@ -965,6 +965,28 @@ export default function AdminChat() {
         }
     };
 
+    const handleTakeOverChat = async () => {
+        if (!activeChat || !storeId || !auth.currentUser?.email) return;
+
+        const currentSession = chatSessions[activeChat] || {};
+        const previousName = currentSession.assignedName || currentSession.assignedTo || 'outro atendente';
+
+        if (currentSession.assignedTo && currentSession.assignedTo !== auth.currentUser.email) {
+            const confirmed = window.confirm(`Este atendimento está marcado para ${previousName}. Deseja assumir a conversa agora?`);
+            if (!confirmed) return;
+        }
+
+        const myName = auth.currentUser?.displayName || auth.currentUser?.email?.split('@')[0] || 'Equipe';
+        await setDoc(doc(db, 'whatsapp_sessions', `${storeId}_${activeChat}`), {
+            storeId,
+            phone: activeChat,
+            assignedTo: auth.currentUser.email,
+            assignedName: myName,
+            botPaused: true,
+            updatedAt: serverTimestamp()
+        }, { merge: true });
+    };
+
     const handleEndSession = async () => {
         if (!activeChat || !storeId) return;
         
@@ -974,6 +996,8 @@ export default function AdminChat() {
                     storeId: storeId,
                     phone: activeChat,
                     botPaused: false,
+                    assignedTo: null,
+                    assignedName: null,
                     updatedAt: serverTimestamp()
                 }, { merge: true });
                 
@@ -1708,9 +1732,13 @@ export default function AdminChat() {
 
                                     if (isAssigned && !isAssignedToMe) {
                                         return (
-                                            <span className="bg-orange-100 text-orange-700 border border-orange-200 px-2 py-1.5 md:px-3 md:py-2 rounded-lg text-[10px] font-black uppercase tracking-wide flex items-center gap-1">
-                                                🔒 <span className="hidden sm:inline">{session.assignedName}</span>
-                                            </span>
+                                            <button
+                                                onClick={handleTakeOverChat}
+                                                className="bg-orange-100 hover:bg-orange-200 text-orange-700 border border-orange-200 px-2 py-1.5 md:px-3 md:py-2 rounded-lg text-[10px] font-black uppercase tracking-wide flex items-center gap-1 transition-all"
+                                                title={`Em atendimento por ${session.assignedName || 'outro atendente'}. Clique para assumir.`}
+                                            >
+                                                🔒 <span className="hidden sm:inline">{session.assignedName || 'Ocupado'}</span>
+                                            </button>
                                         );
                                     }
 
@@ -1730,16 +1758,7 @@ export default function AdminChat() {
 
                                     return (
                                         <button 
-                                            onClick={async () => {
-                                                const myName = auth.currentUser?.displayName || auth.currentUser?.email?.split('@')[0] || 'Equipe';
-                                                await setDoc(doc(db, 'whatsapp_sessions', `${storeId}_${activeChat}`), { 
-                                                    storeId, phone: activeChat,
-                                                    assignedTo: auth.currentUser?.email, 
-                                                    assignedName: myName,
-                                                    botPaused: true, 
-                                                    updatedAt: serverTimestamp() 
-                                                }, { merge: true });
-                                            }}
+                                            onClick={handleTakeOverChat}
                                             className="bg-blue-600 hover:bg-blue-700 text-white px-2 py-1.5 md:px-3 md:py-2 rounded-lg text-[10px] font-black uppercase tracking-wide transition-all shadow-sm flex items-center gap-1 active:scale-95"
                                         >
                                             🙋‍♂️ <span className="hidden xl:inline">Assumir Chat</span>
@@ -1960,10 +1979,16 @@ export default function AdminChat() {
                                 </button>
                             </div>
                         ) : chatSessions[activeChat]?.assignedTo && chatSessions[activeChat]?.assignedTo !== auth.currentUser?.email ? (
-                            <div className="px-4 py-4 bg-orange-50 flex items-center justify-center gap-2 z-10 shrink-0 border-t border-orange-100">
+                            <div className="px-4 py-3 bg-orange-50 flex flex-col sm:flex-row items-center justify-center gap-2 z-10 shrink-0 border-t border-orange-100">
                                 <span className="text-sm font-black text-orange-700 uppercase tracking-widest">
-                                    🔒 Em atendimento por {chatSessions[activeChat].assignedName}
+                                    🔒 Em atendimento por {chatSessions[activeChat].assignedName || 'outro atendente'}
                                 </span>
+                                <button
+                                    onClick={handleTakeOverChat}
+                                    className="bg-orange-600 hover:bg-orange-700 text-white px-4 py-2 rounded-lg text-xs font-black uppercase tracking-wide shadow-sm transition-all"
+                                >
+                                    Assumir atendimento
+                                </button>
                             </div>
                         ) : (
                             <div className={`px-4 py-3 bg-[#f0f2f5] flex items-center gap-3 z-10 shrink-0 ${replyingTo ? 'pt-0' : ''}`}>
