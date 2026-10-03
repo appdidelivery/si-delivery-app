@@ -3487,7 +3487,7 @@ if (replyPayload.type === 'text' && replyPayload.text?.body) {
     realBotText = `🤖 ${replyPayload.text.body}`;
 } else if (replyPayload.type === 'interactive' && replyPayload.interactive?.body?.text) {
     // Busca todas as opções que foram enviadas na lista ou nos botões
-    let opcoesTexto = "\n\n*(Opções enviadas ao cliente)*";
+    let opcoesTexto = "\n\nOpções enviadas ao cliente:";
     if (replyPayload.interactive.type === 'list' && replyPayload.interactive.action?.sections) {
         replyPayload.interactive.action.sections.forEach(section => {
             section.rows.forEach(row => {
