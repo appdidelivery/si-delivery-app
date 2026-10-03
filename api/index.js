@@ -2574,8 +2574,15 @@ const aiResponse = await fetchGeminiWithRetry(`https://generativelanguage.google
                                                         const minutesPaused = (Date.now() - lastUpdate.getTime()) / 60000;
                                                         
                                                         if (minutesPaused > 15 || isVitalClick) {
-                                                            await sessionRef.set({ botPaused: false, updatedAt: admin.firestore.FieldValue.serverTimestamp() }, { merge: true });
+                                                            await sessionRef.set({
+                                                                botPaused: false,
+                                                                assignedTo: null,
+                                                                assignedName: null,
+                                                                updatedAt: admin.firestore.FieldValue.serverTimestamp()
+                                                            }, { merge: true });
                                                             sessionData.botPaused = false;
+                                                            sessionData.assignedTo = null;
+                                                            sessionData.assignedName = null;
                                                         } else {
                                                             continue; // Continua pausado, ignora o cliente
                                                         }
