@@ -1827,6 +1827,16 @@ export default function AdminChat() {
                                 let displayMediaType = msg.mediaType;
                                 let displayText = msg.text || '';
 
+                                // O WhatsApp usa *, _ e ~ para formatação. No painel interno
+                                // mostramos o texto limpo para não exibir marcações literais.
+                                if (displayText && isOutbound) {
+                                    displayText = displayText
+                                        .replace(/\*\((Opções enviadas ao cliente)\)\*/g, '$1:')
+                                        .replace(/\*([^*\n]+)\*/g, '$1')
+                                        .replace(/_([^_\n]+)_/g, '$1')
+                                        .replace(/~([^~\n]+)~/g, '$1');
+                                }
+
                                 // Se não foi salvo como mídia oficial, mas tem um link do Cloudinary/Imagem no texto
                                 if (!displayMediaUrl && displayText) {
                                     const urlRegex = /(https?:\/\/[^\s]+(?:jpg|jpeg|png|webp|gif|cloudinary\.com[^\s]*))/i;
