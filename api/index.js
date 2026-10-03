@@ -1844,6 +1844,9 @@ const aiResponse = await fetchGeminiWithRetry(`https://generativelanguage.google
                             successfulRecipientHashes.push(audience.hashPhone(customer.phone));
 
                             const historyRef = db.collection('whatsapp_inbound').doc();
+                            const metaMessageId = result?.data?.messages?.[0]?.id || null;
+                            const recipientHash = audience.hashPhone(customer.phone);
+
                             historyBatch.set(historyRef, {
                                 storeId,
                                 to: customer.phone,
@@ -1851,10 +1854,25 @@ const aiResponse = await fetchGeminiWithRetry(`https://generativelanguage.google
                                 templateName,
                                 campaignId: campaignRef.id,
                                 campaignType: 'reactivation',
+                                metaMessageId,
+                                deliveryStatus: 'sent',
+                                sentAt: admin.firestore.FieldValue.serverTimestamp(),
                                 receivedAt: admin.firestore.FieldValue.serverTimestamp(),
                                 status: 'sent',
                                 direction: 'outbound'
                             });
+
+                            const contactRef = db.collection('whatsapp_campaign_contacts').doc(recipientHash);
+                            historyBatch.set(contactRef, {
+                                storeId,
+                                phone: customer.phone,
+                                phoneHash: recipientHash,
+                                campaignId: campaignRef.id,
+                                campaignType: 'reactivation',
+                                lastMessageDocId: historyRef.id,
+                                metaMessageId,
+                                lastSentAt: admin.firestore.FieldValue.serverTimestamp()
+                            }, { merge: true });
                         } else {
                             failed += 1;
                         }
@@ -1933,15 +1951,19 @@ const aiResponse = await fetchGeminiWithRetry(`https://generativelanguage.google
                 
                 if (metaResponse.ok) {
                     // Registra a mensagem no banco para aparecer no painel do lojista (agora mostrando as variáveis também)
+                    const metaMessageId = metaResponse.data?.messages?.[0]?.id || null;
                     await db.collection('whatsapp_inbound').add({
                         storeId: storeId,
                         to: safePhone,
-                        text: `[Template Oficial Enviado: ${templateName}]${templateVariables.length > 0 ? ` (Vars: ${templateVariables.join(', ')})` : ''}`, 
+                        text: `[Template Oficial Enviado: ${templateName}]${templateVariables.length > 0 ? ` (Vars: ${templateVariables.join(', ')})` : ''}`,
+                        metaMessageId,
+                        deliveryStatus: 'sent',
+                        sentAt: admin.firestore.FieldValue.serverTimestamp(),
                         receivedAt: admin.firestore.FieldValue.serverTimestamp(),
-                        status: 'read',
+                        status: 'sent',
                         direction: 'outbound'
                     });
-                    return res.status(200).json({ success: true });
+                    return res.status(200).json({ success: true, message_id: metaMessageId });
                 } else {
                     console.error("Erro Meta Template Individual:", metaResponse.data);
                     return res.status(400).json({ error: 'Falha na Meta ao enviar template', details: metaResponse.data });
@@ -2234,6 +2256,86 @@ const aiResponse = await fetchGeminiWithRetry(`https://generativelanguage.google
                         const value = change?.value || {};
                         const phoneNumberId = value?.metadata?.phone_number_id;
 
+                        // Receipts oficiais da Meta: sent -> delivered -> read / failed.
+                        // Mantém o histórico do painel sincronizado sem depender do retorno inicial do POST.
+                        if (Array.isArray(value?.statuses) && value.statuses.length > 0) {
+                            let receiptStoreId = null;
+
+                            if (phoneNumberId) {
+                                const receiptSettingsSnap = await db.collection('settings')
+                                    .where('integrations.whatsapp.phoneNumberId', 'in', [String(phoneNumberId), Number(phoneNumberId)])
+                                    .limit(1)
+                                    .get();
+                                if (!receiptSettingsSnap.empty) receiptStoreId = receiptSettingsSnap.docs[0].id;
+                            }
+
+                            for (const receipt of value.statuses) {
+                                const metaMessageId = receipt?.id;
+                                const metaStatus = String(receipt?.status || '').toLowerCase();
+                                if (!metaMessageId || !['sent', 'delivered', 'read', 'failed'].includes(metaStatus)) continue;
+
+                                let outboundSnap = await db.collection('whatsapp_inbound')
+                                    .where('metaMessageId', '==', metaMessageId)
+                                    .limit(1)
+                                    .get();
+
+                                // Compatibilidade para mensagens enviadas poucos minutos antes desta versão,
+                                // quando ainda não salvávamos o wamid: tenta localizar pelo destinatário.
+                                if (outboundSnap.empty && receiptStoreId && receipt?.recipient_id) {
+                                    let localPhone = String(receipt.recipient_id).replace(/\D/g, '');
+                                    if (localPhone.startsWith('55')) localPhone = localPhone.substring(2);
+
+                                    let fallbackSnap = await db.collection('whatsapp_inbound')
+                                        .where('to', '==', localPhone)
+                                        .limit(20)
+                                        .get();
+
+                                    if (fallbackSnap.empty && localPhone.length === 10) {
+                                        const withNinthDigit = localPhone.substring(0, 2) + '9' + localPhone.substring(2);
+                                        fallbackSnap = await db.collection('whatsapp_inbound')
+                                            .where('to', '==', withNinthDigit)
+                                            .limit(20)
+                                            .get();
+                                    }
+
+                                    if (!fallbackSnap.empty) {
+                                        const candidates = fallbackSnap.docs
+                                            .filter(doc => doc.data().storeId === receiptStoreId && doc.data().direction === 'outbound')
+                                            .sort((a, b) => orderTimeMs(b.data().receivedAt) - orderTimeMs(a.data().receivedAt));
+                                        if (candidates.length > 0) {
+                                            outboundSnap = { empty: false, docs: [candidates[0]] };
+                                        }
+                                    }
+                                }
+
+                                if (outboundSnap.empty) continue;
+
+                                const outboundDoc = outboundSnap.docs[0];
+                                const outboundData = outboundDoc.data();
+                                const rank = { sent: 1, delivered: 2, read: 3, failed: 4 };
+                                const currentStatus = String(outboundData.deliveryStatus || '').toLowerCase();
+
+                                // Evita regressão causada por receipts chegando fora de ordem.
+                                if (metaStatus !== 'failed' && (rank[currentStatus] || 0) > (rank[metaStatus] || 0)) continue;
+
+                                const receiptUpdate = {
+                                    metaMessageId,
+                                    deliveryStatus: metaStatus,
+                                    deliveryUpdatedAt: admin.firestore.FieldValue.serverTimestamp()
+                                };
+
+                                if (metaStatus === 'sent') receiptUpdate.sentAt = admin.firestore.FieldValue.serverTimestamp();
+                                if (metaStatus === 'delivered') receiptUpdate.deliveredAt = admin.firestore.FieldValue.serverTimestamp();
+                                if (metaStatus === 'read') receiptUpdate.readAt = admin.firestore.FieldValue.serverTimestamp();
+                                if (metaStatus === 'failed') {
+                                    receiptUpdate.failedAt = admin.firestore.FieldValue.serverTimestamp();
+                                    receiptUpdate.failureReason = receipt?.errors?.[0]?.title || receipt?.errors?.[0]?.message || 'Falha reportada pela Meta';
+                                }
+
+                                await outboundDoc.ref.set(receiptUpdate, { merge: true });
+                            }
+                        }
+
                         if (value?.messages && value.messages[0]) {
                             const message = value.messages[0];
                             const senderProfileName = value.contacts?.[0]?.profile?.name || '';
@@ -2402,13 +2504,40 @@ const aiResponse = await fetchGeminiWithRetry(`https://generativelanguage.google
                                     // -------------------------------------------------------
 
                                     // 2. SALVA A MENSAGEM NO PAINEL DO LOJISTA COM A MÍDIA! (Só chega aqui se NÃO estiver bloqueado)
-                                    await db.collection('whatsapp_inbound').add({
+                                    const inboundMessageRef = await db.collection('whatsapp_inbound').add({
                                         storeId: storeId, phoneNumberId: phoneNumberId, from: message.from,
-                                        pushName: senderProfileName, text: logText, 
-                                        mediaUrl: uploadedMediaUrl, 
-                                        mediaType: finalMediaType,  
+                                        pushName: senderProfileName, text: logText,
+                                        mediaUrl: uploadedMediaUrl,
+                                        mediaType: finalMediaType,
                                         receivedAt: admin.firestore.FieldValue.serverTimestamp(), status: 'unread', direction: 'inbound'
                                     });
+
+                                    // Se este contato veio de uma campanha recente, marca a campanha como respondida.
+                                    // O hash usa a mesma regra da reativação e não expõe o telefone no ID do documento.
+                                    try {
+                                        const responseHash = crypto.createHash('sha256').update(`${storeId}:${normalizedPhone}`).digest('hex');
+                                        const campaignContactRef = db.collection('whatsapp_campaign_contacts').doc(responseHash);
+                                        const campaignContactSnap = await campaignContactRef.get();
+
+                                        if (campaignContactSnap.exists) {
+                                            const campaignContact = campaignContactSnap.data();
+                                            const lastMessageDocId = campaignContact.lastMessageDocId;
+
+                                            await campaignContactRef.set({
+                                                respondedAt: admin.firestore.FieldValue.serverTimestamp(),
+                                                lastInboundMessageId: inboundMessageRef.id
+                                            }, { merge: true });
+
+                                            if (lastMessageDocId) {
+                                                await db.collection('whatsapp_inbound').doc(lastMessageDocId).set({
+                                                    respondedAt: admin.firestore.FieldValue.serverTimestamp(),
+                                                    responseStatus: 'responded'
+                                                }, { merge: true });
+                                            }
+                                        }
+                                    } catch (responseTrackError) {
+                                        console.error('[WhatsApp] Falha ao marcar resposta de campanha:', responseTrackError.message);
+                                    }
 
                                     // 3. VERIFICA SE O BOT ESTÁ PAUSADO PELO LOJISTA (COM ESCUDO ANTI-ESQUECIMENTO E FORÇA DE DESPERTAR)
                                     const sessionRef = db.collection('whatsapp_sessions').doc(`${storeId}_${normalizedPhone}`);
