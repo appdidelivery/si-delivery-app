@@ -18,10 +18,13 @@ import DriverPanel from './pages/DriverPanel';
 import InfluencerDashboard from './components/InfluencerDashboard'; // Ou './pages/InfluencerDashboard' dependendo de onde você salvou
 import WppWebview from './pages/WppWebview'; // <-- NOVO: Importação da Webview Slim
 import ProspeccaoKanban from './pages/ProspeccaoKanban';
+import AdminMultiStore from './pages/AdminMultiStore';
+import MultiStoreGateway from './components/MultiStoreGateway';
 
 // Firebase e Contexto
 import { auth } from './services/firebase';
 import { onAuthStateChanged } from 'firebase/auth';
+import { useStore } from './context/StoreContext';
 
 function ProtectedRoute({ children, user }) {
   if (!user) {
@@ -33,9 +36,28 @@ function ProtectedRoute({ children, user }) {
 // --- BLINDAGEM DO APLICATIVO NATIVO ---
 // Se o utilizador abrir o APK direto pelo ícone, cai aqui.
 function AppRouter() {
+  const { store, loading } = useStore();
+
   if (Capacitor.isNativePlatform()) {
     return <Navigate to="/driver-login" replace />;
   }
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-50">
+        Carregando loja...
+      </div>
+    );
+  }
+
+  const selectedStore = new URLSearchParams(window.location.search).get('loja');
+  const currentStoreId = store?.slug || store?.id;
+  const bypassGateway = selectedStore && currentStoreId && selectedStore === currentStoreId;
+
+  if (store?.multiStore?.enabled && !bypassGateway) {
+    return <MultiStoreGateway config={store.multiStore} currentStore={store} />;
+  }
+
   return <Home />;
 }
 
@@ -99,6 +121,14 @@ function App() {
             <Route path="/driver/:storeId/:orderId" element={<DriverPanel />} />
             <Route path="/parceiro/:partnerId" element={<InfluencerDashboard />} />
             <Route path="/admin/mvp" element={<VeloLeanEngine />} />
+            <Route
+              path="/admin/multilojas"
+              element={
+                <ProtectedRoute user={currentUser}>
+                  <AdminMultiStore />
+                </ProtectedRoute>
+              }
+            />
 
             <Route
               path="/admin"
