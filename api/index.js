@@ -267,6 +267,27 @@ async function assertStoreAccess(user, storeId) {
         return;
     }
 
+    // Equipe da loja: contas criadas pelo módulo de equipe podem existir no
+    // Firebase Auth sem um users/{uid}.storeId. Valida o vínculo diretamente
+    // pela coleção global team, sempre escopada por storeId + email.
+    if (callerEmail) {
+        const teamSnap = await db.collection('team')
+            .where('storeId', '==', storeId)
+            .where('email', '==', callerEmail)
+            .limit(1)
+            .get();
+
+        if (!teamSnap.empty) {
+            const teamData = teamSnap.docs[0].data() || {};
+            const isInactive =
+                teamData.active === false ||
+                teamData.disabled === true ||
+                ['inactive', 'inativo', 'disabled', 'bloqueado'].includes(String(teamData.status || '').toLowerCase());
+
+            if (!isInactive) return;
+        }
+    }
+
     const error = new Error('Usuário sem acesso a esta loja.');
     error.statusCode = 403;
     throw error;
