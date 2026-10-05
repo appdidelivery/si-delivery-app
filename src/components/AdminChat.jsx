@@ -18,6 +18,9 @@ const safeEncode = (text) => {
 export default function AdminChat() {
     const { store } = useStore();
     const storeId = store?.slug; 
+    const storeNiche = String(store?.storeNiche || store?.seoCategory || '').toLowerCase();
+    const isBeverageStore = /bebida|adega|conveni|drink|liquor/.test(storeNiche);
+
     const [messages, setMessages] = useState([]);
     const [products, setProducts] = useState([]);
     const [activeChat, setActiveChat] = useState(null);
@@ -1238,9 +1241,21 @@ export default function AdminChat() {
                                     >
                                         <option value="">Sem template (Chat Livre - Risco de bloqueio)</option>
                                         <option value="velo_atendimento_geral">👋 Iniciar Atendimento (Genérico)</option>
-                                        <option value="velo_oferta_nova">🍔 Novidades e Ofertas (Marketing)</option>
                                         <option value="velo_contato_logistica">🛵 Contato sobre Entrega (Logística)</option>
-                                        <option value="velo_saudade_cliente">🥺 Saudade / Pós-venda (Recuperação)</option>
+                                        {isBeverageStore ? (
+                                            <>
+                                                <option value="velo_oferta_nova">🧊 Novidades e Ofertas (Bebidas)</option>
+                                                <option value="velo_saudade_cliente">🥤 Saudade / Recuperação (Bebidas)</option>
+                                                <option value="velo_retencao_30_bebidas">30 dias · Retenção leve</option>
+                                                <option value="velo_retencao_60_bebidas">60 dias · Oportunidade</option>
+                                                <option value="velo_retencao_90_bebidas">90 dias · Recuperação</option>
+                                            </>
+                                        ) : (
+                                            <>
+                                                <option value="velo_oferta_nova">🍔 Novidades e Ofertas (Marketing)</option>
+                                                <option value="velo_saudade_cliente">🥺 Saudade / Pós-venda (Recuperação)</option>
+                                            </>
+                                        )}
                                     </select>
                                 </div>
 
@@ -1434,16 +1449,34 @@ export default function AdminChat() {
                                         className="w-full p-4 bg-[#f0f2f5] rounded-xl outline-none focus:ring-2 ring-blue-600 text-gray-800 font-medium appearance-none cursor-pointer border border-gray-200 shadow-sm"
                                     >
                                         <option value="">Selecione um modelo aprovado...</option>
-                                        <optgroup label="Marketing e Vendas">
-                                            <option value="velo_promo_fds">🎉 Promoção de Sextou/Fim de Semana</option>
-                                            <option value="velo_clima_fome">🌧️ Gatilho de Chuva/Frio</option>
-                                            <option value="velo_oferta_nova">🍔 Novidades e Ofertas</option>
-                                            <option value="velo_saudade_cliente">🥺 Saudade / Recuperar Clientes</option>
-                                            <option value="velo_lancamento_dinamico">🚀 Lançamento Dinâmico (Escolher Produto)</option>
-                                        </optgroup>
-                                        <optgroup label="Pós-venda">
-                                            <option value="velo_feedback_pedido">⭐ Pedir Avaliação na Base</option>
-                                        </optgroup>
+                                        {isBeverageStore ? (
+                                            <>
+                                                <optgroup label="Bebidas e Conveniência">
+                                                    <option value="velo_oferta_nova">🧊 Novidades e Ofertas</option>
+                                                    <option value="velo_saudade_cliente">🥤 Saudade / Recuperar Clientes</option>
+                                                    <option value="velo_retencao_30_bebidas">30 dias · Retenção leve</option>
+                                                    <option value="velo_retencao_60_bebidas">60 dias · Oportunidade</option>
+                                                    <option value="velo_retencao_90_bebidas">90 dias · Recuperação</option>
+                                                </optgroup>
+                                                <optgroup label="Atendimento">
+                                                    <option value="velo_contato_logistica">🛵 Contato sobre Entrega</option>
+                                                    <option value="velo_atendimento_geral">💬 Atendimento Geral</option>
+                                                </optgroup>
+                                            </>
+                                        ) : (
+                                            <>
+                                                <optgroup label="Marketing e Vendas">
+                                                    <option value="velo_promo_fds">🎉 Promoção de Sextou/Fim de Semana</option>
+                                                    <option value="velo_clima_fome">🌧️ Gatilho de Chuva/Frio</option>
+                                                    <option value="velo_oferta_nova">🍔 Novidades e Ofertas</option>
+                                                    <option value="velo_saudade_cliente">🥺 Saudade / Recuperar Clientes</option>
+                                                    <option value="velo_lancamento_dinamico">🚀 Lançamento Dinâmico (Escolher Produto)</option>
+                                                </optgroup>
+                                                <optgroup label="Pós-venda">
+                                                    <option value="velo_feedback_pedido">⭐ Pedir Avaliação na Base</option>
+                                                </optgroup>
+                                            </>
+                                        )}
                                     </select>
                                 </div>
 

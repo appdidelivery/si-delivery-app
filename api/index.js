@@ -211,6 +211,55 @@ const generateSlug = (text) => {
         .replace(/^-+/, '').replace(/-+$/, ''); 
 };
 
+
+const BEVERAGE_NICHES = new Set([
+    'drinks', 'drink', 'bebidas', 'bebida', 'adega', 'conveniencia', 'conveniência',
+    'liquor', 'liquorstore', 'distribuidora', 'distribuidora de bebidas'
+]);
+
+const FOOD_NICHES = new Set([
+    'restaurant', 'restaurante', 'burger', 'hamburguer', 'hamburgueria',
+    'pizza', 'pizzaria', 'lanches', 'lanche', 'fastfood', 'fast food',
+    'sushi', 'doces', 'sweet', 'bakery', 'padaria'
+]);
+
+function getMarketingNicheProfile(storeData = {}) {
+    const rawNiche = String(storeData.storeNiche || storeData.seoCategory || storeData.category || '')
+        .toLowerCase()
+        .trim();
+
+    if (BEVERAGE_NICHES.has(rawNiche) || /bebida|adega|conveni|drink|liquor/.test(rawNiche)) {
+        return {
+            key: 'beverage',
+            desire: 'sede',
+            emoji: '🥤',
+            productLabel: 'bebidas',
+            recoveryPhrase: 'Bateu aquela sede?',
+            nextOrderPhrase: 'Quando bater a sede de novo'
+        };
+    }
+
+    if (FOOD_NICHES.has(rawNiche) || /restaur|burger|hamb|pizza|lanche|sushi|padaria|doces/.test(rawNiche)) {
+        return {
+            key: 'food',
+            desire: 'fome',
+            emoji: '🍔',
+            productLabel: 'cardápio',
+            recoveryPhrase: 'Bateu aquela fome?',
+            nextOrderPhrase: 'Quando bater a fome de novo'
+        };
+    }
+
+    return {
+        key: 'neutral',
+        desire: 'vontade',
+        emoji: '🛍️',
+        productLabel: 'produtos',
+        recoveryPhrase: 'Que tal concluir seu pedido?',
+        nextOrderPhrase: 'Quando quiser pedir de novo'
+    };
+}
+
 // Função auxiliar da Binance Pay
 function generateNonce(length = 32) {
   const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
@@ -905,7 +954,9 @@ const aiResponse = await fetchGeminiWithRetry(`https://generativelanguage.google
 
                             // FALLBACK SEGURO: Se a IA falhar ou não houver chave, usa o texto padrão de alta conversão
                             if (!msg) {
-                                msg = `Bateu aquela fome (ou sede), ${firstName}? 🤤\n\nSeu carrinho na nossa loja está quase esfriando! Para não te deixar passar vontade, acabei de liberar um cupom exclusivo para você finalizar seu pedido agora com *10% OFF*!\n\nUse o cupom: *${cupom}*\n👉 Clique e finalize: https://${storeId}.velodelivery.com.br`;
+                                const cartStoreSnap = await db.collection('stores').doc(storeId).get();
+                                const cartProfile = getMarketingNicheProfile(cartStoreSnap.exists ? cartStoreSnap.data() : {});
+                                msg = `${cartProfile.recoveryPhrase} ${firstName}? ${cartProfile.emoji}\n\nSeu carrinho ainda está esperando por você. Para ajudar a finalizar agora, liberamos um cupom exclusivo com *10% OFF*!\n\nUse o cupom: *${cupom}*\n👉 Finalize aqui: https://${storeId}.velodelivery.com.br`;
                             }
 
                             // Dispara a mensagem via Meta Cloud API
@@ -973,6 +1024,7 @@ const aiResponse = await fetchGeminiWithRetry(`https://generativelanguage.google
 
                             const settingsData = storeSettingsDoc.data() || {};
                             const storeData = storeDoc.data() || {};
+                            const marketingProfile = getMarketingNicheProfile(storeData);
                             const waConfig = settingsData.integrations?.whatsapp;
 
                             if (waConfig && waConfig.phoneNumberId && waConfig.apiToken) {
@@ -1019,7 +1071,7 @@ const aiResponse = await fetchGeminiWithRetry(`https://generativelanguage.google
                                         const pointsLeft = Math.max(0, loyaltyGoal - currentPoints);
 
                                         // 3. Monta a Mensagem de Retenção (TESTE A/B/C)
-                                        let msgRetencao = `Oi ${firstName}, esperamos que o seu pedido da *${storeName}* tenha sido incrível! 😋\n\n`;
+                                        let msgRetencao = `Oi ${firstName}, esperamos que o seu pedido da *${storeName}* tenha sido incrível! ✨\n\n`;
 
                                         if (settingsData.gamification?.cashback && currentCashback > 0) {
                                             const storeLink = `https://${storeId}.velodelivery.com.br`;
@@ -1030,9 +1082,9 @@ const aiResponse = await fetchGeminiWithRetry(`https://generativelanguage.google
                                             if (finalVariantId === 'A') {
                                                 msgRetencao = `E aí ${firstName}, tudo certo com a entrega? 🛵 Passando pra avisar que pingou dinheiro na sua conta! Você acabou de ganhar *R$ ${cashbackFmt}* de Cashback no seu Velo Game. Esse saldo já tá liberado pra você usar e abater no seu próximo pedido. Vai deixar expirar? 👀 Já garante a saideira de hoje aqui: ${storeLink}`;
                                             } else if (finalVariantId === 'B') {
-                                                msgRetencao = `Fala ${firstName}! Espero que tenha curtido o pedido de hoje. 🍔 Sabia que você é um cliente Nível VIP com a gente? Isso significa que você já tem *R$ ${cashbackFmt}* guardados na carteira e tá quase batendo a meta pro próximo nível! Bora subir de nível e gastar esse saldo? Pede aqui: ${storeLink}`;
+                                                msgRetencao = `Fala ${firstName}! Espero que tenha curtido o pedido de hoje. ${marketingProfile.emoji} Sabia que você é um cliente Nível VIP com a gente? Isso significa que você já tem *R$ ${cashbackFmt}* guardados na carteira e tá quase batendo a meta pro próximo nível! Bora subir de nível e usar esse saldo? Pede aqui: ${storeLink}`;
                                             } else if (finalVariantId === 'C') {
-                                                msgRetencao = `${firstName}, me diz uma coisa: quer transformar esses *R$ ${cashbackFmt}* de cashback que você acabou de ganhar em muito mais? 💸 Como você é cliente VIP, liberamos seu link exclusivo. Manda esse link pros amigos e ganhe pontos por cada um que comprar: ${inviteLink}. Se bater a fome de novo, seu saldo tá lá te esperando!`;
+                                                msgRetencao = `${firstName}, me diz uma coisa: quer transformar esses *R$ ${cashbackFmt}* de cashback que você acabou de ganhar em muito mais? 💸 Como você é cliente VIP, liberamos seu link exclusivo. Manda esse link pros amigos e ganhe pontos por cada um que comprar: ${inviteLink}. ${marketingProfile.nextOrderPhrase}, seu saldo tá lá te esperando!`;
                                             }
                                         } else {
                                             // Fallback se a loja não usar cashback
@@ -1087,6 +1139,224 @@ const aiResponse = await fetchGeminiWithRetry(`https://generativelanguage.google
             await Promise.all(postOrderPromises);
             // --- FIM: MOTOR DE PÓS-VENDA ---
             
+
+            // --- INÍCIO: MOTOR DE JORNADA 30/60/90 (WHATSAPP LIFECYCLE) ---
+            // Piloto controlado: CSI fica habilitada por padrão; demais lojas precisam ativar
+            // integrations.whatsapp.lifecycleAutomation.enabled e configurar templates compatíveis.
+            let lifecycleAlertsSent = 0;
+            const lifecycleSummary = [];
+
+            for (const storeDoc of storesQuery.docs) {
+                const lifecycleStoreId = storeDoc.id;
+                const storeData = storeDoc.data() || {};
+                const profile = getMarketingNicheProfile(storeData);
+
+                const settingsDoc = await db.collection('settings').doc(lifecycleStoreId).get();
+                const settingsData = settingsDoc.exists ? settingsDoc.data() : {};
+                const waConfig = settingsData.integrations?.whatsapp;
+                const lifecycleConfig = waConfig?.lifecycleAutomation || {};
+
+                const lifecycleEnabled = lifecycleConfig.enabled === true || lifecycleStoreId === 'csi';
+                if (!lifecycleEnabled || !waConfig?.phoneNumberId || !waConfig?.apiToken) continue;
+
+                const defaultTemplates = profile.key === 'beverage'
+                    ? {
+                        30: 'velo_retencao_30_bebidas',
+                        60: 'velo_retencao_60_bebidas',
+                        90: 'velo_retencao_90_bebidas'
+                    }
+                    : {};
+
+                const templates = {
+                    ...defaultTemplates,
+                    ...(lifecycleConfig.templates || {})
+                };
+
+                // Não envia nada para nichos que ainda não tenham templates aprovados/configurados.
+                if (!templates[30] || !templates[60] || !templates[90]) continue;
+
+                const dailyLimit = Math.max(1, Math.min(50, Number(lifecycleConfig.dailyLimit) || (lifecycleStoreId === 'csi' ? 20 : 10)));
+                const normalizePhone = (value) => {
+                    let digits = String(value || '').replace(/\D/g, '');
+                    if (digits.startsWith('55') && (digits.length === 12 || digits.length === 13)) digits = digits.slice(2);
+                    if (digits.length === 10) digits = digits.slice(0, 2) + '9' + digits.slice(2);
+                    return digits.length === 11 ? digits : null;
+                };
+                const hashPhone = (phone) => crypto.createHash('sha256').update(`${lifecycleStoreId}:${phone}`).digest('hex');
+                const toMillis = (value) => {
+                    if (!value) return 0;
+                    if (typeof value.toMillis === 'function') return value.toMillis();
+                    if (typeof value.toDate === 'function') return value.toDate().getTime();
+                    if (value.seconds) return Number(value.seconds) * 1000;
+                    const parsed = new Date(value).getTime();
+                    return Number.isFinite(parsed) ? parsed : 0;
+                };
+
+                const [ordersSnap, blockedSnap, inboundSnap, lifecycleSnap] = await Promise.all([
+                    db.collection('orders').where('storeId', '==', lifecycleStoreId).limit(5000).get(),
+                    db.collection('blocked_contacts').where('storeId', '==', lifecycleStoreId).limit(2000).get(),
+                    db.collection('whatsapp_inbound').where('storeId', '==', lifecycleStoreId).limit(3000).get(),
+                    db.collection('whatsapp_lifecycle_contacts').where('storeId', '==', lifecycleStoreId).limit(3000).get()
+                ]);
+
+                const blockedPhones = new Set();
+                blockedSnap.forEach(d => {
+                    const phone = normalizePhone(d.data().phone);
+                    if (phone) blockedPhones.add(phone);
+                });
+
+                // O piloto só aborda contatos que já tiveram relação pelo WhatsApp.
+                const inboundPhones = new Set();
+                inboundSnap.forEach(d => {
+                    const data = d.data();
+                    if (data.direction === 'outbound') return;
+                    const phone = normalizePhone(data.from || data.phone);
+                    if (phone) inboundPhones.add(phone);
+                });
+
+                const lifecycleByHash = new Map();
+                lifecycleSnap.forEach(d => lifecycleByHash.set(d.id, d.data()));
+
+                const canceledStatuses = new Set(['canceled', 'cancelado', 'cancelled', 'refunded', 'estornado']);
+                const customersByPhone = new Map();
+                ordersSnap.forEach(d => {
+                    const order = d.data();
+                    const status = String(order.status || '').toLowerCase();
+                    if (canceledStatuses.has(status)) return;
+
+                    const phone = normalizePhone(order.customerPhone || order.customer?.phone);
+                    if (!phone) return;
+
+                    const lastOrderAtMs = toMillis(order.createdAt || order.paidAt);
+                    if (!lastOrderAtMs) return;
+
+                    const prev = customersByPhone.get(phone);
+                    if (!prev || lastOrderAtMs > prev.lastOrderAtMs) {
+                        customersByPhone.set(phone, {
+                            phone,
+                            customerName: order.customerName || order.customer?.name || 'Cliente',
+                            lastOrderAtMs
+                        });
+                    }
+                });
+
+                const candidates = Array.from(customersByPhone.values())
+                    .map(customer => ({
+                        ...customer,
+                        daysInactive: Math.floor((Date.now() - customer.lastOrderAtMs) / 86400000)
+                    }))
+                    .filter(customer => customer.daysInactive >= 30)
+                    .sort((a, b) => b.daysInactive - a.daysInactive);
+
+                let sentForStore = 0;
+                let skippedNoRelationship = 0;
+                let skippedBlocked = 0;
+
+                for (const customer of candidates) {
+                    if (sentForStore >= dailyLimit) break;
+                    if (blockedPhones.has(customer.phone)) {
+                        skippedBlocked++;
+                        continue;
+                    }
+                    if (!inboundPhones.has(customer.phone)) {
+                        skippedNoRelationship++;
+                        continue;
+                    }
+
+                    const stage = customer.daysInactive >= 90 ? 90 : customer.daysInactive >= 60 ? 60 : 30;
+                    const templateName = templates[stage];
+                    if (!templateName) continue;
+
+                    const contactHash = hashPhone(customer.phone);
+                    const previous = lifecycleByHash.get(contactHash) || {};
+                    const previousOrderAtMs = Number(previous.lastOrderAtMs) || 0;
+                    const orderCycleChanged = customer.lastOrderAtMs > previousOrderAtMs;
+                    const lastStageSent = orderCycleChanged ? 0 : Number(previous.lastStageSent) || 0;
+
+                    // Uma etapa por ciclo. Compra nova reinicia o ciclo automaticamente.
+                    if (stage <= lastStageSent) continue;
+
+                    const safePhone = `55${customer.phone}`;
+                    const GRAPH_API_URL = `https://graph.facebook.com/v19.0/${waConfig.phoneNumberId}/messages`;
+
+                    try {
+                        const response = await fetch(GRAPH_API_URL, {
+                            method: 'POST',
+                            headers: {
+                                'Authorization': `Bearer ${waConfig.apiToken}`,
+                                'Content-Type': 'application/json'
+                            },
+                            body: JSON.stringify({
+                                messaging_product: 'whatsapp',
+                                recipient_type: 'individual',
+                                to: safePhone,
+                                type: 'template',
+                                template: {
+                                    name: templateName,
+                                    language: { code: 'pt_BR' }
+                                }
+                            })
+                        });
+
+                        const metaData = await response.json();
+                        if (!response.ok) {
+                            console.error(`[Lifecycle ${lifecycleStoreId}] Falha Meta ${templateName}:`, metaData);
+                            continue;
+                        }
+
+                        const lifecycleRef = db.collection('whatsapp_lifecycle_contacts').doc(contactHash);
+                        await lifecycleRef.set({
+                            storeId: lifecycleStoreId,
+                            phoneHash: contactHash,
+                            customerName: customer.customerName,
+                            lastStageSent: stage,
+                            lastTemplateName: templateName,
+                            lastOrderAtMs: customer.lastOrderAtMs,
+                            lastDaysInactive: customer.daysInactive,
+                            lastMetaMessageId: metaData.messages?.[0]?.id || null,
+                            lastSentAt: admin.firestore.FieldValue.serverTimestamp(),
+                            updatedAt: admin.firestore.FieldValue.serverTimestamp()
+                        }, { merge: true });
+
+                        await db.collection('whatsapp_inbound').add({
+                            storeId: lifecycleStoreId,
+                            to: safePhone,
+                            text: `[Jornada Automática ${stage} dias] Template oficial enviado: ${templateName}`,
+                            templateName,
+                            campaignType: 'lifecycle_retention',
+                            lifecycleStage: stage,
+                            metaMessageId: metaData.messages?.[0]?.id || null,
+                            deliveryStatus: 'sent',
+                            sentAt: admin.firestore.FieldValue.serverTimestamp(),
+                            receivedAt: admin.firestore.FieldValue.serverTimestamp(),
+                            status: 'sent',
+                            direction: 'outbound'
+                        });
+
+                        lifecycleByHash.set(contactHash, {
+                            ...previous,
+                            lastStageSent: stage,
+                            lastOrderAtMs: customer.lastOrderAtMs
+                        });
+                        sentForStore++;
+                        lifecycleAlertsSent++;
+                    } catch (error) {
+                        console.error(`[Lifecycle ${lifecycleStoreId}] Erro ao enviar ${templateName}:`, error.message);
+                    }
+                }
+
+                lifecycleSummary.push({
+                    storeId: lifecycleStoreId,
+                    niche: profile.key,
+                    eligible: candidates.length,
+                    sent: sentForStore,
+                    dailyLimit,
+                    skippedNoRelationship,
+                    skippedBlocked
+                });
+            }
+            // --- FIM: MOTOR DE JORNADA 30/60/90 ---
+
             // --- INÍCIO: MOTOR DE PROSPECÇÃO ATIVA (CRM VELO) ---
             let crmAlertsSent = 0;
             const prospeccaoPromises = [];
@@ -1165,11 +1435,11 @@ const aiResponse = await fetchGeminiWithRetry(`https://generativelanguage.google
             await Promise.all(prospeccaoPromises);
             // --- FIM: MOTOR DE PROSPECÇÃO ATIVA ---
 
-            if (alertsSent > 0 || faturasGeradas > 0 || postOrderAlertsSent > 0 || crmAlertsSent > 0) {
+            if (alertsSent > 0 || faturasGeradas > 0 || postOrderAlertsSent > 0 || crmAlertsSent > 0 || lifecycleAlertsSent > 0) {
                 await batch.commit();
             }
 
-            return res.status(200).json({ success: true, alertsSent, faturasGeradas, postOrderAlertsSent, crmAlertsSent });
+            return res.status(200).json({ success: true, alertsSent, faturasGeradas, postOrderAlertsSent, crmAlertsSent, lifecycleAlertsSent, lifecycleSummary });
         } catch (error) {
             console.error('❌ Erro no CRON:', error);
             return res.status(500).json({ error: error.message });
