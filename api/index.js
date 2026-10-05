@@ -2070,6 +2070,169 @@ const aiResponse = await fetchGeminiWithRetry(`https://generativelanguage.google
                 };
             };
 
+
+            const buildLifecycleMetrics = async (attributionDays = 7) => {
+                const safeAttributionDays = Math.max(1, Math.min(30, Number(attributionDays) || 7));
+                const attributionWindowMs = safeAttributionDays * 86400000;
+
+                const [messagesSnap, ordersSnap] = await Promise.all([
+                    db.collection('whatsapp_inbound').where('storeId', '==', storeId).limit(5000).get(),
+                    db.collection('orders').where('storeId', '==', storeId).limit(5000).get()
+                ]);
+
+                const stageKeys = [30, 60, 90];
+                const makeStage = (stage) => ({
+                    stage,
+                    sent: 0,
+                    delivered: 0,
+                    read: 0,
+                    failed: 0,
+                    responded: 0,
+                    convertedCustomers: 0,
+                    attributedOrders: 0,
+                    attributedRevenue: 0,
+                    deliveryRate: 0,
+                    readRate: 0,
+                    responseRate: 0,
+                    conversionRate: 0
+                });
+
+                const stages = Object.fromEntries(stageKeys.map(stage => [stage, makeStage(stage)]));
+                const lifecycleEvents = [];
+                const inboundByPhone = new Map();
+
+                messagesSnap.forEach(doc => {
+                    const data = doc.data();
+                    const direction = data.direction;
+                    const phone = normalizeMarketingPhone(direction === 'outbound' ? data.to : data.from);
+                    const atMs = orderTimeMs(data.sentAt || data.receivedAt || data.deliveryUpdatedAt);
+                    if (!phone || !atMs) return;
+
+                    if (direction !== 'outbound') {
+                        if (!inboundByPhone.has(phone)) inboundByPhone.set(phone, []);
+                        inboundByPhone.get(phone).push({ atMs, id: doc.id });
+                        return;
+                    }
+
+                    if (data.campaignType !== 'lifecycle_retention') return;
+                    const stage = Number(data.lifecycleStage);
+                    if (!stageKeys.includes(stage)) return;
+
+                    lifecycleEvents.push({
+                        id: doc.id,
+                        phone,
+                        stage,
+                        atMs,
+                        deliveryStatus: String(data.deliveryStatus || 'sent').toLowerCase()
+                    });
+                });
+
+                lifecycleEvents.sort((a, b) => a.atMs - b.atMs);
+                inboundByPhone.forEach(list => list.sort((a, b) => a.atMs - b.atMs));
+
+                const eventsByPhone = new Map();
+                lifecycleEvents.forEach(event => {
+                    if (!eventsByPhone.has(event.phone)) eventsByPhone.set(event.phone, []);
+                    eventsByPhone.get(event.phone).push(event);
+
+                    const bucket = stages[event.stage];
+                    bucket.sent += 1;
+                    if (['delivered', 'read'].includes(event.deliveryStatus)) bucket.delivered += 1;
+                    if (event.deliveryStatus === 'read') bucket.read += 1;
+                    if (event.deliveryStatus === 'failed') bucket.failed += 1;
+
+                    const replies = inboundByPhone.get(event.phone) || [];
+                    const hasReply = replies.some(reply => reply.atMs > event.atMs && reply.atMs <= event.atMs + attributionWindowMs);
+                    if (hasReply) bucket.responded += 1;
+                });
+
+                const convertedCustomersByStage = Object.fromEntries(stageKeys.map(stage => [stage, new Set()]));
+                const canceledStatuses = new Set(['canceled', 'cancelado', 'cancelled', 'refunded', 'estornado']);
+
+                ordersSnap.forEach(doc => {
+                    const order = doc.data();
+                    const status = String(order.status || '').toLowerCase();
+                    if (canceledStatuses.has(status)) return;
+
+                    const phone = normalizeMarketingPhone(order.customerPhone || order.customer?.phone);
+                    const orderAtMs = orderTimeMs(order.createdAt || order.paidAt);
+                    if (!phone || !orderAtMs) return;
+
+                    const candidates = eventsByPhone.get(phone) || [];
+                    let attributedEvent = null;
+
+                    for (let i = candidates.length - 1; i >= 0; i -= 1) {
+                        const event = candidates[i];
+                        if (event.atMs > orderAtMs) continue;
+                        const delta = orderAtMs - event.atMs;
+                        if (delta <= attributionWindowMs) {
+                            attributedEvent = event;
+                            break;
+                        }
+                        if (delta > attributionWindowMs) break;
+                    }
+
+                    if (!attributedEvent) return;
+
+                    const bucket = stages[attributedEvent.stage];
+                    const revenue = Number(order.total ?? order.totalAmount ?? order.amount ?? 0) || 0;
+                    bucket.attributedOrders += 1;
+                    bucket.attributedRevenue += revenue;
+                    convertedCustomersByStage[attributedEvent.stage].add(phone);
+                });
+
+                stageKeys.forEach(stage => {
+                    const bucket = stages[stage];
+                    bucket.convertedCustomers = convertedCustomersByStage[stage].size;
+                    bucket.attributedRevenue = Number(bucket.attributedRevenue.toFixed(2));
+                    bucket.deliveryRate = bucket.sent > 0 ? Number(((bucket.delivered / bucket.sent) * 100).toFixed(1)) : 0;
+                    bucket.readRate = bucket.sent > 0 ? Number(((bucket.read / bucket.sent) * 100).toFixed(1)) : 0;
+                    bucket.responseRate = bucket.sent > 0 ? Number(((bucket.responded / bucket.sent) * 100).toFixed(1)) : 0;
+                    bucket.conversionRate = bucket.sent > 0 ? Number(((bucket.convertedCustomers / bucket.sent) * 100).toFixed(1)) : 0;
+                });
+
+                const overall = stageKeys.reduce((acc, stage) => {
+                    const bucket = stages[stage];
+                    acc.sent += bucket.sent;
+                    acc.delivered += bucket.delivered;
+                    acc.read += bucket.read;
+                    acc.failed += bucket.failed;
+                    acc.responded += bucket.responded;
+                    acc.convertedCustomers += bucket.convertedCustomers;
+                    acc.attributedOrders += bucket.attributedOrders;
+                    acc.attributedRevenue += bucket.attributedRevenue;
+                    return acc;
+                }, {
+                    sent: 0,
+                    delivered: 0,
+                    read: 0,
+                    failed: 0,
+                    responded: 0,
+                    convertedCustomers: 0,
+                    attributedOrders: 0,
+                    attributedRevenue: 0
+                });
+
+                overall.attributedRevenue = Number(overall.attributedRevenue.toFixed(2));
+                overall.deliveryRate = overall.sent > 0 ? Number(((overall.delivered / overall.sent) * 100).toFixed(1)) : 0;
+                overall.readRate = overall.sent > 0 ? Number(((overall.read / overall.sent) * 100).toFixed(1)) : 0;
+                overall.responseRate = overall.sent > 0 ? Number(((overall.responded / overall.sent) * 100).toFixed(1)) : 0;
+                overall.conversionRate = overall.sent > 0 ? Number(((overall.convertedCustomers / overall.sent) * 100).toFixed(1)) : 0;
+
+                return {
+                    attributionDays: safeAttributionDays,
+                    overall,
+                    stages,
+                    clickTrackingAvailable: false,
+                    clickTrackingNote: 'Os botões atuais da Meta usam URL estática; cliques individuais ainda não são atribuídos. Pedidos e receita são atribuídos pelo telefone e pela janela pós-envio.'
+                };
+            };
+
+            if (action === 'lifecycle_metrics') {
+                const metrics = await buildLifecycleMetrics(req.body.attributionDays);
+                return res.status(200).json({ success: true, ...metrics });
+            }
+
             if (action === 'reactivation_preview') {
                 const audience = await buildReactivationAudience(req.body.inactivityDays);
                 const maxRecipients = Math.max(1, Math.min(200, Number(req.body.maxRecipients) || 20));
