@@ -2,8 +2,13 @@ import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import { VitePWA } from 'vite-plugin-pwa';
 
+const buildVersion = process.env.VERCEL_GIT_COMMIT_SHA || process.env.VERCEL_DEPLOYMENT_ID || 'local-dev';
+
 export default defineConfig({
   base: '/',
+  define: {
+    __VELO_BUILD_VERSION__: JSON.stringify(buildVersion),
+  },
   
   // 👇 A MÁGICA ENTRA AQUI: Força o Vite a usar apenas UMA versão do React
   // e resolve a Tela Branca (ReactCurrentBatchConfig undefined)
@@ -41,8 +46,13 @@ export default defineConfig({
         ]
       },
       workbox: {
-        globPatterns: ['**/*.{js,css,html,ico,png,svg,webp,jpg,jpeg}'],
-        maximumFileSizeToCacheInBytes: 5000000 // Aumenta o limite para 5MB, resolvendo o erro da Vercel
+        // Não precacheia HTML: o painel precisa sempre receber o shell mais novo após deploy.
+        globPatterns: ['**/*.{js,css,ico,png,svg,webp,jpg,jpeg}'],
+        cleanupOutdatedCaches: true,
+        clientsClaim: true,
+        skipWaiting: true,
+        navigateFallbackDenylist: [/^\/admin/, /^\/admin-saas/, /^\/login/, /^\/api\//],
+        maximumFileSizeToCacheInBytes: 5000000
       }
     })
   ],

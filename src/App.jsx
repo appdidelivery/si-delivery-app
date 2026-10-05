@@ -23,6 +23,10 @@ import ProspeccaoKanban from './pages/ProspeccaoKanban';
 import { auth } from './services/firebase';
 import { onAuthStateChanged } from 'firebase/auth';
 
+const VELO_BUILD_VERSION = typeof __VELO_BUILD_VERSION__ !== 'undefined'
+  ? __VELO_BUILD_VERSION__
+  : 'local-dev';
+
 function ProtectedRoute({ children, user }) {
   if (!user) {
     return <Navigate to="/login" replace />;
@@ -73,6 +77,59 @@ function App() {
       setLoadingAuth(false);
     });
     return () => unsubscribe();
+  }, []);
+
+  // Atualização automática do painel: compara o build carregado com o deployment atual.
+  // Quando há uma nova versão, remove apenas caches de assets/SW e recarrega uma única vez.
+  useEffect(() => {
+    if (Capacitor.isNativePlatform() || VELO_BUILD_VERSION === 'local-dev') return;
+
+    let isReloading = false;
+
+    const checkForNewBuild = async () => {
+      if (isReloading) return;
+      try {
+        const response = await fetch(`/api/app-version?t=${Date.now()}`, {
+          cache: 'no-store',
+          headers: { 'Cache-Control': 'no-cache' }
+        });
+        if (!response.ok) return;
+
+        const data = await response.json();
+        const remoteVersion = data?.version;
+        if (!remoteVersion || remoteVersion === VELO_BUILD_VERSION) return;
+
+        isReloading = true;
+
+        if ('serviceWorker' in navigator) {
+          const registrations = await navigator.serviceWorker.getRegistrations();
+          await Promise.all(registrations.map(registration => registration.unregister()));
+        }
+
+        if ('caches' in window) {
+          const cacheNames = await caches.keys();
+          await Promise.all(cacheNames.map(cacheName => caches.delete(cacheName)));
+        }
+
+        window.location.reload();
+      } catch (error) {
+        console.warn('[Velo Update] Não foi possível verificar nova versão:', error?.message || error);
+      }
+    };
+
+    checkForNewBuild();
+    const interval = window.setInterval(checkForNewBuild, 60000);
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') checkForNewBuild();
+    };
+    window.addEventListener('focus', checkForNewBuild);
+    document.addEventListener('visibilitychange', handleVisibility);
+
+    return () => {
+      window.clearInterval(interval);
+      window.removeEventListener('focus', checkForNewBuild);
+      document.removeEventListener('visibilitychange', handleVisibility);
+    };
   }, []);
 
   if (loadingAuth) {

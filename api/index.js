@@ -451,6 +451,7 @@ export default async function handler(req, res) {
         '/api/whatsapp-webhook',
         '/api/ifood-webhook',
         '/api/cron-automations',
+        '/api/app-version',
         '/api/google-auth',
         '/api/google-callback',
         '/api/mp-callback',
@@ -492,9 +493,20 @@ export default async function handler(req, res) {
     // ========================================================================
 
    // ------------------------------------------------------------------------
+    // BUILD VERSION (SEM CACHE) - usado pelo atualizador automático do painel
+    // ------------------------------------------------------------------------
+    if (path === '/api/app-version') {
+        res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
+        return res.status(200).json({
+            version: process.env.VERCEL_GIT_COMMIT_SHA || process.env.VERCEL_DEPLOYMENT_ID || null,
+            deploymentId: process.env.VERCEL_DEPLOYMENT_ID || null
+        });
+    }
+
+    // ------------------------------------------------------------------------
     // 0. ROTA DE TESTE BLOCKCHAIN (REMOVER EM PRODUÇÃO)
     // ------------------------------------------------------------------------
-    if (path === '/api/test-solana') {
+    else if (path === '/api/test-solana') {
         try {
             const treasurySecret = process.env.SOLANA_TREASURY_SECRET; 
             if (!treasurySecret) return res.status(400).json({ error: "Falta SOLANA_TREASURY_SECRET no .env" });

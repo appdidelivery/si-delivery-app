@@ -204,7 +204,9 @@ export default async function middleware(request) {
         status: 200,
         headers: {
             'Content-Type': 'text/html; charset=utf-8',
-            'Cache-Control': 'public, s-maxage=300, stale-while-revalidate=600',
+            'Cache-Control': url.pathname.startsWith('/admin') || url.pathname === '/login'
+                ? 'no-store, no-cache, must-revalidate, proxy-revalidate'
+                : 'public, s-maxage=300, stale-while-revalidate=600',
             'Vary': 'Host',
             'X-Store-Id': storeId
         },
