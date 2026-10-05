@@ -1020,6 +1020,7 @@ const aiResponse = await fetchGeminiWithRetry(`https://generativelanguage.google
                     // Dispara a partir de 30 minutos pós-entrega
                     if (now.getTime() - orderTime.getTime() > 30 * 60000) { 
                         const storeId = oData.storeId;
+                        if (storeId === 'csi') continue; // CSI usa pós-venda oficial por template.
                         const rawPhone = oData.customerPhone;
 
                         // 🛑 BLINDAGEM MESTRA: Early Return para pedidos do PDV sem telefone ou números inválidos
@@ -1151,6 +1152,277 @@ const aiResponse = await fetchGeminiWithRetry(`https://generativelanguage.google
             await Promise.all(postOrderPromises);
             // --- FIM: MOTOR DE PÓS-VENDA ---
             
+
+
+            // --- INÍCIO: MOTOR DE JORNADA PRÉ-30 DIAS (CSI / META TEMPLATES OFICIAIS) ---
+            // Etapas: carrinho abandonado -> pós-venda -> incentivo à segunda compra.
+            // Só marca a etapa como enviada depois de confirmação da Meta.
+            let pre30JourneyAlertsSent = 0;
+            const pre30JourneySummary = [];
+
+            {
+                const journeyStoreId = 'csi';
+                const [journeyStoreDoc, journeySettingsDoc] = await Promise.all([
+                    db.collection('stores').doc(journeyStoreId).get(),
+                    db.collection('settings').doc(journeyStoreId).get()
+                ]);
+
+                if (journeyStoreDoc.exists && journeySettingsDoc.exists) {
+                    const journeyStoreData = journeyStoreDoc.data() || {};
+                    const journeySettings = journeySettingsDoc.data() || {};
+                    const journeyWa = journeySettings.integrations?.whatsapp;
+                    const journeyProfile = getMarketingNicheProfile(journeyStoreData);
+                    const journeyConfig = journeyWa?.journeyAutomation || {};
+                    const journeyEnabled = journeyConfig.enabled !== false && journeyProfile.key === 'beverage';
+
+                    if (journeyEnabled && journeyWa?.phoneNumberId && journeyWa?.apiToken) {
+                        const GRAPH_API_URL = `https://graph.facebook.com/v19.0/${journeyWa.phoneNumberId}/messages`;
+                        const normalizeJourneyPhone = (value) => {
+                            let digits = String(value || '').replace(/\D/g, '');
+                            if (digits.startsWith('55') && (digits.length === 12 || digits.length === 13)) digits = digits.slice(2);
+                            if (digits.length === 10) digits = digits.slice(0, 2) + '9' + digits.slice(2);
+                            return digits.length === 11 ? digits : null;
+                        };
+                        const journeyMillis = (value) => {
+                            if (!value) return 0;
+                            if (typeof value.toMillis === 'function') return value.toMillis();
+                            if (typeof value.toDate === 'function') return value.toDate().getTime();
+                            if (value.seconds) return Number(value.seconds) * 1000;
+                            const parsed = new Date(value).getTime();
+                            return Number.isFinite(parsed) ? parsed : 0;
+                        };
+
+                        const inboundSnap = await db.collection('whatsapp_inbound')
+                            .where('storeId', '==', journeyStoreId)
+                            .limit(5000)
+                            .get();
+
+                        const relationshipPhones = new Set();
+                        inboundSnap.forEach(d => {
+                            const data = d.data();
+                            if (data.direction === 'outbound') return;
+                            const phone = normalizeJourneyPhone(data.from || data.phone);
+                            if (phone) relationshipPhones.add(phone);
+                        });
+
+                        const canReceiveMarketing = (phone, source = {}) =>
+                            relationshipPhones.has(phone) ||
+                            source.marketingOptIn === true ||
+                            source.whatsappMarketingOptIn === true;
+
+                        const sendJourneyTemplate = async ({ phone, templateCandidates, stage, sourceId, sourceType }) => {
+                            const safePhone = `55${phone}`;
+                            let lastError = null;
+
+                            for (const templateName of templateCandidates) {
+                                try {
+                                    const response = await fetch(GRAPH_API_URL, {
+                                        method: 'POST',
+                                        headers: {
+                                            'Authorization': `Bearer ${journeyWa.apiToken}`,
+                                            'Content-Type': 'application/json'
+                                        },
+                                        body: JSON.stringify({
+                                            messaging_product: 'whatsapp',
+                                            recipient_type: 'individual',
+                                            to: safePhone,
+                                            type: 'template',
+                                            template: {
+                                                name: templateName,
+                                                language: { code: 'pt_BR' }
+                                            }
+                                        })
+                                    });
+
+                                    const metaData = await response.json();
+                                    if (!response.ok) {
+                                        lastError = metaData;
+                                        console.warn(`[Journey CSI] Template ${templateName} ainda indisponível/rejeitado:`, metaData);
+                                        continue;
+                                    }
+
+                                    const metaMessageId = metaData.messages?.[0]?.id || null;
+                                    await db.collection('whatsapp_inbound').add({
+                                        storeId: journeyStoreId,
+                                        to: safePhone,
+                                        text: `[Jornada Automática: ${stage}] Template oficial enviado: ${templateName}`,
+                                        templateName,
+                                        campaignType: 'journey_automation',
+                                        journeyStage: stage,
+                                        journeySourceId: sourceId || null,
+                                        journeySourceType: sourceType || null,
+                                        metaMessageId,
+                                        deliveryStatus: 'sent',
+                                        sentAt: admin.firestore.FieldValue.serverTimestamp(),
+                                        receivedAt: admin.firestore.FieldValue.serverTimestamp(),
+                                        status: 'sent',
+                                        direction: 'outbound'
+                                    });
+
+                                    return { ok: true, templateName, metaMessageId };
+                                } catch (error) {
+                                    lastError = { error: { message: error.message } };
+                                }
+                            }
+
+                            return { ok: false, error: lastError };
+                        };
+
+                        const stageCounts = {
+                            abandoned_cart: { eligible: 0, sent: 0, skippedNoRelationship: 0 },
+                            post_sale: { eligible: 0, sent: 0, skippedNoRelationship: 0 },
+                            second_purchase: { eligible: 0, sent: 0, skippedNoRelationship: 0 }
+                        };
+
+                        // 1) Carrinho abandonado: 30+ minutos sem concluir.
+                        for (const cartDoc of abandonedQuery.docs) {
+                            const cart = cartDoc.data();
+                            if (cart.storeId !== journeyStoreId || cart.status !== 'abandoned') continue;
+                            if (cart.journeyAbandonedSent === true) continue;
+
+                            const cartAtMs = journeyMillis(cart.lastUpdated);
+                            if (!cartAtMs || Date.now() - cartAtMs < 30 * 60000) continue;
+
+                            const phone = normalizeJourneyPhone(cart.customerPhone);
+                            if (!phone) continue;
+                            stageCounts.abandoned_cart.eligible++;
+
+                            if (!canReceiveMarketing(phone, cart)) {
+                                stageCounts.abandoned_cart.skippedNoRelationship++;
+                                continue;
+                            }
+
+                            const sent = await sendJourneyTemplate({
+                                phone,
+                                templateCandidates: ['velo_carrinho_bebidas'],
+                                stage: 'abandoned_cart',
+                                sourceId: cartDoc.id,
+                                sourceType: 'abandoned_cart'
+                            });
+
+                            if (sent.ok) {
+                                await cartDoc.ref.set({
+                                    journeyAbandonedSent: true,
+                                    journeyAbandonedTemplate: sent.templateName,
+                                    journeyAbandonedSentAt: admin.firestore.FieldValue.serverTimestamp(),
+                                    abandonmentAlertSent: true
+                                }, { merge: true });
+                                stageCounts.abandoned_cart.sent++;
+                                pre30JourneyAlertsSent++;
+                            }
+                        }
+
+                        // Carrega histórico de pedidos uma vez para pós-venda e segunda compra.
+                        const journeyOrdersSnap = await db.collection('orders')
+                            .where('storeId', '==', journeyStoreId)
+                            .limit(5000)
+                            .get();
+
+                        const completedOrders = [];
+                        journeyOrdersSnap.forEach(orderDoc => {
+                            const order = orderDoc.data();
+                            if (String(order.status || '').toLowerCase() !== 'completed') return;
+                            if (order.paymentStatus && String(order.paymentStatus).toLowerCase() !== 'paid') return;
+
+                            const phone = normalizeJourneyPhone(order.customerPhone || order.customer?.phone);
+                            if (!phone) return;
+
+                            completedOrders.push({
+                                ref: orderDoc.ref,
+                                id: orderDoc.id,
+                                data: order,
+                                phone,
+                                orderAtMs: journeyMillis(order.completedAt || order.updatedAt || order.createdAt || order.paidAt)
+                            });
+                        });
+
+                        // 2) Pós-venda: 30 minutos a 48 horas após conclusão.
+                        for (const order of completedOrders) {
+                            if (order.data.journeyPostSaleSent === true) continue;
+                            const ageMs = Date.now() - order.orderAtMs;
+                            if (!order.orderAtMs || ageMs < 30 * 60000 || ageMs > 48 * 3600000) continue;
+
+                            stageCounts.post_sale.eligible++;
+                            if (!canReceiveMarketing(order.phone, order.data)) {
+                                stageCounts.post_sale.skippedNoRelationship++;
+                                continue;
+                            }
+
+                            const sent = await sendJourneyTemplate({
+                                phone: order.phone,
+                                // O primeiro nome cobre o template exatamente como aparece no print da Meta;
+                                // o segundo mantém compatibilidade se ele for renomeado sem o prefixo.
+                                templateCandidates: ['1_velo_pos_venda_bebidas', 'velo_pos_venda_bebidas'],
+                                stage: 'post_sale',
+                                sourceId: order.id,
+                                sourceType: 'order'
+                            });
+
+                            if (sent.ok) {
+                                await order.ref.set({
+                                    journeyPostSaleSent: true,
+                                    journeyPostSaleTemplate: sent.templateName,
+                                    journeyPostSaleSentAt: admin.firestore.FieldValue.serverTimestamp()
+                                }, { merge: true });
+                                stageCounts.post_sale.sent++;
+                                pre30JourneyAlertsSent++;
+                            }
+                        }
+
+                        // 3) Segunda compra: exatamente 1 compra concluída e 7+ dias sem repetir.
+                        const ordersByPhone = new Map();
+                        completedOrders.forEach(order => {
+                            if (!ordersByPhone.has(order.phone)) ordersByPhone.set(order.phone, []);
+                            ordersByPhone.get(order.phone).push(order);
+                        });
+
+                        const secondPurchaseAfterDays = Math.max(2, Math.min(30, Number(journeyConfig.secondPurchaseAfterDays) || 7));
+                        const secondPurchaseMaxAgeDays = Math.max(secondPurchaseAfterDays + 1, Math.min(60, Number(journeyConfig.secondPurchaseMaxAgeDays) || 30));
+
+                        for (const [phone, customerOrders] of ordersByPhone.entries()) {
+                            customerOrders.sort((a, b) => a.orderAtMs - b.orderAtMs);
+                            if (customerOrders.length !== 1) continue;
+
+                            const firstOrder = customerOrders[0];
+                            if (firstOrder.data.journeySecondPurchaseSent === true) continue;
+
+                            const daysSinceFirstOrder = Math.floor((Date.now() - firstOrder.orderAtMs) / 86400000);
+                            if (daysSinceFirstOrder < secondPurchaseAfterDays || daysSinceFirstOrder > secondPurchaseMaxAgeDays) continue;
+
+                            stageCounts.second_purchase.eligible++;
+                            if (!canReceiveMarketing(phone, firstOrder.data)) {
+                                stageCounts.second_purchase.skippedNoRelationship++;
+                                continue;
+                            }
+
+                            const sent = await sendJourneyTemplate({
+                                phone,
+                                templateCandidates: ['velo_segunda_compra_bebidas'],
+                                stage: 'second_purchase',
+                                sourceId: firstOrder.id,
+                                sourceType: 'order'
+                            });
+
+                            if (sent.ok) {
+                                await firstOrder.ref.set({
+                                    journeySecondPurchaseSent: true,
+                                    journeySecondPurchaseTemplate: sent.templateName,
+                                    journeySecondPurchaseSentAt: admin.firestore.FieldValue.serverTimestamp()
+                                }, { merge: true });
+                                stageCounts.second_purchase.sent++;
+                                pre30JourneyAlertsSent++;
+                            }
+                        }
+
+                        pre30JourneySummary.push({
+                            storeId: journeyStoreId,
+                            secondPurchaseAfterDays,
+                            ...stageCounts
+                        });
+                    }
+                }
+            }
+            // --- FIM: MOTOR DE JORNADA PRÉ-30 DIAS ---
 
             // --- INÍCIO: MOTOR DE JORNADA 30/60/90 (WHATSAPP LIFECYCLE) ---
             // Piloto controlado: CSI fica habilitada por padrão; demais lojas precisam ativar
@@ -1447,11 +1719,11 @@ const aiResponse = await fetchGeminiWithRetry(`https://generativelanguage.google
             await Promise.all(prospeccaoPromises);
             // --- FIM: MOTOR DE PROSPECÇÃO ATIVA ---
 
-            if (alertsSent > 0 || faturasGeradas > 0 || postOrderAlertsSent > 0 || crmAlertsSent > 0 || lifecycleAlertsSent > 0) {
+            if (alertsSent > 0 || faturasGeradas > 0 || postOrderAlertsSent > 0 || crmAlertsSent > 0 || lifecycleAlertsSent > 0 || pre30JourneyAlertsSent > 0) {
                 await batch.commit();
             }
 
-            return res.status(200).json({ success: true, alertsSent, faturasGeradas, postOrderAlertsSent, crmAlertsSent, lifecycleAlertsSent, lifecycleSummary });
+            return res.status(200).json({ success: true, alertsSent, faturasGeradas, postOrderAlertsSent, crmAlertsSent, lifecycleAlertsSent, lifecycleSummary, pre30JourneyAlertsSent, pre30JourneySummary });
         } catch (error) {
             console.error('❌ Erro no CRON:', error);
             return res.status(500).json({ error: error.message });
@@ -2219,10 +2491,96 @@ const aiResponse = await fetchGeminiWithRetry(`https://generativelanguage.google
                 overall.responseRate = overall.sent > 0 ? Number(((overall.responded / overall.sent) * 100).toFixed(1)) : 0;
                 overall.conversionRate = overall.sent > 0 ? Number(((overall.convertedCustomers / overall.sent) * 100).toFixed(1)) : 0;
 
+
+                const pre30StageKeys = ['abandoned_cart', 'post_sale', 'second_purchase'];
+                const pre30Stages = Object.fromEntries(pre30StageKeys.map(stage => [stage, {
+                    stage,
+                    sent: 0,
+                    delivered: 0,
+                    read: 0,
+                    failed: 0,
+                    responded: 0,
+                    convertedCustomers: 0,
+                    attributedOrders: 0,
+                    attributedRevenue: 0,
+                    deliveryRate: 0,
+                    readRate: 0,
+                    responseRate: 0,
+                    conversionRate: 0
+                }]));
+
+                const pre30EventsByPhone = new Map();
+                messagesSnap.forEach(doc => {
+                    const data = doc.data();
+                    if (data.direction !== 'outbound' || data.campaignType !== 'journey_automation') return;
+                    const stage = String(data.journeyStage || '');
+                    if (!pre30StageKeys.includes(stage)) return;
+
+                    const phone = normalizeMarketingPhone(data.to);
+                    const atMs = orderTimeMs(data.sentAt || data.receivedAt);
+                    if (!phone || !atMs) return;
+
+                    const bucket = pre30Stages[stage];
+                    const deliveryStatus = String(data.deliveryStatus || 'sent').toLowerCase();
+                    bucket.sent += 1;
+                    if (['delivered', 'read'].includes(deliveryStatus)) bucket.delivered += 1;
+                    if (deliveryStatus === 'read') bucket.read += 1;
+                    if (deliveryStatus === 'failed') bucket.failed += 1;
+
+                    const replies = inboundByPhone.get(phone) || [];
+                    if (replies.some(reply => reply.atMs > atMs && reply.atMs <= atMs + attributionWindowMs)) bucket.responded += 1;
+
+                    if (!pre30EventsByPhone.has(phone)) pre30EventsByPhone.set(phone, []);
+                    pre30EventsByPhone.get(phone).push({ stage, atMs });
+                });
+
+                pre30EventsByPhone.forEach(list => list.sort((a, b) => a.atMs - b.atMs));
+                const pre30ConvertedByStage = Object.fromEntries(pre30StageKeys.map(stage => [stage, new Set()]));
+
+                ordersSnap.forEach(doc => {
+                    const order = doc.data();
+                    const status = String(order.status || '').toLowerCase();
+                    if (['canceled', 'cancelado', 'cancelled', 'refunded', 'estornado'].includes(status)) return;
+
+                    const phone = normalizeMarketingPhone(order.customerPhone || order.customer?.phone);
+                    const orderAtMs = orderTimeMs(order.createdAt || order.paidAt);
+                    if (!phone || !orderAtMs) return;
+
+                    const events = pre30EventsByPhone.get(phone) || [];
+                    let attributed = null;
+                    for (let i = events.length - 1; i >= 0; i -= 1) {
+                        if (events[i].atMs > orderAtMs) continue;
+                        const delta = orderAtMs - events[i].atMs;
+                        if (delta <= attributionWindowMs) {
+                            attributed = events[i];
+                            break;
+                        }
+                        if (delta > attributionWindowMs) break;
+                    }
+                    if (!attributed) return;
+
+                    const bucket = pre30Stages[attributed.stage];
+                    const revenue = Number(order.total ?? order.totalAmount ?? order.amount ?? 0) || 0;
+                    bucket.attributedOrders += 1;
+                    bucket.attributedRevenue += revenue;
+                    pre30ConvertedByStage[attributed.stage].add(phone);
+                });
+
+                pre30StageKeys.forEach(stage => {
+                    const bucket = pre30Stages[stage];
+                    bucket.convertedCustomers = pre30ConvertedByStage[stage].size;
+                    bucket.attributedRevenue = Number(bucket.attributedRevenue.toFixed(2));
+                    bucket.deliveryRate = bucket.sent > 0 ? Number(((bucket.delivered / bucket.sent) * 100).toFixed(1)) : 0;
+                    bucket.readRate = bucket.sent > 0 ? Number(((bucket.read / bucket.sent) * 100).toFixed(1)) : 0;
+                    bucket.responseRate = bucket.sent > 0 ? Number(((bucket.responded / bucket.sent) * 100).toFixed(1)) : 0;
+                    bucket.conversionRate = bucket.sent > 0 ? Number(((bucket.convertedCustomers / bucket.sent) * 100).toFixed(1)) : 0;
+                });
+
                 return {
                     attributionDays: safeAttributionDays,
                     overall,
                     stages,
+                    pre30Stages,
                     clickTrackingAvailable: false,
                     clickTrackingNote: 'Os botões atuais da Meta usam URL estática; cliques individuais ainda não são atribuídos. Pedidos e receita são atribuídos pelo telefone e pela janela pós-envio.'
                 };
