@@ -14,6 +14,12 @@ export const getStoreIdFromHostname = () => {
 
     // 2. Caso de domínio provisório do Vercel
     if (hostname.endsWith('.vercel.app')) {
+      // Apenas em Preview: permite escolher explicitamente o tenant para testes,
+      // sem afetar domínios de produção. Ex.: /admin?store=csi
+      const urlParams = new URLSearchParams(window.location.search);
+      const debugStore = urlParams.get('store');
+      if (debugStore) return debugStore.toLowerCase().trim();
+
       const previewStore = import.meta.env.VITE_PREVIEW_STORE_ID;
       if (previewStore) return previewStore;
       const parts = hostname.split('.');
