@@ -230,14 +230,15 @@ export default function WppWebview() {
         localStorage.setItem('veloVisitorId', cId);
         try {
             await setDoc(doc(db, "abandoned_carts", `cart_${slug}_${cId}`), {
-                storeId: slug, customerPhone: customerPhoneQuery || "", items: cart,
+                storeId: slug, customerPhone: customer.phone || customerPhoneQuery || "", items: cart,
+                whatsappMarketingOptIn: customer.whatsappMarketingOptIn === true,
                 subtotal: cart.reduce((a, i) => a + (i.price * i.quantity), 0),
                 lastUpdated: serverTimestamp(), status: 'abandoned'
             }, { merge: true });
         } catch(e){}
     }, 3000);
     return () => clearTimeout(t);
-  }, [cart, customerPhoneQuery, slug, store]);
+  }, [cart, customer.phone, customer.whatsappMarketingOptIn, customerPhoneQuery, slug, store]);
 
   // Escuta a carteira digital (Cashback)
   useEffect(() => {
@@ -590,6 +591,17 @@ export default function WppWebview() {
 
                 <div className="space-y-3 mb-6">
                   <input type="text" value={customer.name} onChange={e => setCustomer({...customer, name: e.target.value})} placeholder="Seu Nome Completo *" className="w-full bg-[#1E293B] border border-slate-700 rounded-2xl p-4 text-sm font-bold outline-none focus:border-white" />
+                  <label className="flex items-start gap-3 rounded-2xl border border-slate-700 bg-slate-800/60 p-4 cursor-pointer">
+                      <input
+                          type="checkbox"
+                          checked={customer.whatsappMarketingOptIn === true}
+                          onChange={e => setCustomer({...customer, whatsappMarketingOptIn: e.target.checked})}
+                          className="mt-0.5 h-4 w-4"
+                      />
+                      <span className="text-[11px] leading-relaxed text-slate-300">
+                          Quero receber novidades, ofertas e lembretes de pedido pelo WhatsApp. Posso cancelar quando quiser.
+                      </span>
+                  </label>
                   {deliveryMethod === 'delivery' && (
                       <div className="relative">
                           <input type="text" value={customer.cep} onChange={e => setCustomer({...customer, cep: e.target.value})} placeholder="CEP *" maxLength="8" className="w-full bg-[#1E293B] border border-slate-700 rounded-2xl p-4 text-sm font-bold outline-none focus:border-white" />
