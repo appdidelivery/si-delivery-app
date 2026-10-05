@@ -91,18 +91,7 @@ async function sendTemplate({ waConfig, phone, templateCandidates, stage, source
   return { ok: false, error: lastError };
 }
 
-export default async function handler(req, res) {
-  const authHeader = req.headers.authorization || req.headers.Authorization || '';
-  const cronSecret = process.env.CRON_SECRET;
-
-  if (!cronSecret) {
-    return res.status(500).json({ success: false, error: 'CRON_SECRET ausente.' });
-  }
-
-  if (req.headers['user-agent'] !== 'Vercel Cron' && authHeader !== `Bearer ${cronSecret}`) {
-    return res.status(401).json({ success: false, error: 'Não autorizado.' });
-  }
-
+export async function runPre30Journey() {
   try {
     const [storeDoc, settingsDoc] = await Promise.all([
       db.collection('stores').doc(STORE_ID).get(),
@@ -317,9 +306,29 @@ export default async function handler(req, res) {
       storeName: storeData.name || 'Conveniência Santa Isabel',
     });
 
-    return res.status(200).json({ success: true, ...summary });
+    return { success: true, ...summary };
   } catch (error) {
     console.error('[Journey CSI] Falha geral:', error);
+    throw error;
+  }
+}
+
+export default async function handler(req, res) {
+  const authHeader = req.headers.authorization || req.headers.Authorization || '';
+  const cronSecret = process.env.CRON_SECRET;
+
+  if (!cronSecret) {
+    return res.status(500).json({ success: false, error: 'CRON_SECRET ausente.' });
+  }
+
+  if (req.headers['user-agent'] !== 'Vercel Cron' && authHeader !== `Bearer ${cronSecret}`) {
+    return res.status(401).json({ success: false, error: 'Não autorizado.' });
+  }
+
+  try {
+    const result = await runPre30Journey();
+    return res.status(200).json(result);
+  } catch (error) {
     return res.status(500).json({ success: false, error: error.message });
   }
 }
