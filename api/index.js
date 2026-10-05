@@ -6,7 +6,8 @@ import pathModule from 'path';
 import { GoogleAuth } from 'google-auth-library'; // <-- NOVA AUTENTICAÇÃO SERVICE ACCOUNT
 import crypto from 'crypto'; // <-- OBRIGATÓRIO PARA A CAPI DA META
 import { fetchGeminiWithRetry } from '../lib/gemini.js';
-import { journeyQueueNodeHandler, scheduleJourneyRequest } from '../server/journeyQueue.js';
+import { scheduleJourneyRequest } from '../server/journeyQueue.js';
+import { handleChangeTeamPassword } from '../server/changeTeamPassword.js';
 
 // --- IMPORTAÇÕES OFICIAIS SOLANA ---
 // 🛡️ REMOVIDO: Imports estáticos da Solana causam Erro 500 (ERR_REQUIRE_ESM) na Vercel.
@@ -365,11 +366,6 @@ async function resolveSubscriptionAmount({ storeId, invoiceId, plan, cycle }) {
 // INÍCIO DO ROTEADOR CENTRAL (O MAESTRO DA SUA API)
 // ============================================================================
 export default async function handler(req, res) {
-    // Vercel Queue entrega eventos diretamente nesta função para não criar
-    // uma função serverless extra no plano Hobby.
-    if (req.headers['ce-vqsregion']) {
-        return journeyQueueNodeHandler(req, res);
-    }
     // 1. Identifica a loja de forma Híbrida (Subdomínio e Custom Domain)
     const host = req.headers['x-forwarded-host'] || req.headers.host || '';
     const cleanHost = host.toLowerCase().trim().replace(/^www\./, '');
@@ -505,6 +501,10 @@ export default async function handler(req, res) {
     if (path === '/api/journey-schedule') {
         res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
         return scheduleJourneyRequest(req, res);
+    }
+
+    else if (path === '/api/change-team-password') {
+        return handleChangeTeamPassword({ req, res, admin, db });
     }
 
     else if (path === '/api/app-version') {
