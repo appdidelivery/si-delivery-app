@@ -6,6 +6,7 @@ import pathModule from 'path';
 import { GoogleAuth } from 'google-auth-library'; // <-- NOVA AUTENTICAÇÃO SERVICE ACCOUNT
 import crypto from 'crypto'; // <-- OBRIGATÓRIO PARA A CAPI DA META
 import { fetchGeminiWithRetry } from '../lib/gemini.js';
+import { journeyQueueNodeHandler, scheduleJourneyRequest } from '../server/journeyQueue.js';
 
 // --- IMPORTAÇÕES OFICIAIS SOLANA ---
 // 🛡️ REMOVIDO: Imports estáticos da Solana causam Erro 500 (ERR_REQUIRE_ESM) na Vercel.
@@ -364,6 +365,11 @@ async function resolveSubscriptionAmount({ storeId, invoiceId, plan, cycle }) {
 // INÍCIO DO ROTEADOR CENTRAL (O MAESTRO DA SUA API)
 // ============================================================================
 export default async function handler(req, res) {
+    // Vercel Queue entrega eventos diretamente nesta função para não criar
+    // uma função serverless extra no plano Hobby.
+    if (req.headers['ce-vqsregion']) {
+        return journeyQueueNodeHandler(req, res);
+    }
     // 1. Identifica a loja de forma Híbrida (Subdomínio e Custom Domain)
     const host = req.headers['x-forwarded-host'] || req.headers.host || '';
     const cleanHost = host.toLowerCase().trim().replace(/^www\./, '');
@@ -451,6 +457,7 @@ export default async function handler(req, res) {
         '/api/whatsapp-webhook',
         '/api/ifood-webhook',
         '/api/cron-automations',
+        '/api/journey-schedule',
         '/api/app-version',
         '/api/google-auth',
         '/api/google-callback',
@@ -495,7 +502,12 @@ export default async function handler(req, res) {
    // ------------------------------------------------------------------------
     // BUILD VERSION (SEM CACHE) - usado pelo atualizador automático do painel
     // ------------------------------------------------------------------------
-    if (path === '/api/app-version') {
+    if (path === '/api/journey-schedule') {
+        res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
+        return scheduleJourneyRequest(req, res);
+    }
+
+    else if (path === '/api/app-version') {
         res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
         return res.status(200).json({
             version: process.env.VERCEL_GIT_COMMIT_SHA || process.env.VERCEL_DEPLOYMENT_ID || null,
