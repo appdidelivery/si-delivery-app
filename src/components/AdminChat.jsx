@@ -1241,9 +1241,21 @@ export default function AdminChat() {
                                     >
                                         <option value="">Sem template (Chat Livre - Risco de bloqueio)</option>
                                         <option value="velo_atendimento_geral">👋 Iniciar Atendimento (Genérico)</option>
-                                        <option value="velo_oferta_nova">🍔 Novidades e Ofertas (Marketing)</option>
                                         <option value="velo_contato_logistica">🛵 Contato sobre Entrega (Logística)</option>
-                                        <option value="velo_saudade_cliente">🥺 Saudade / Pós-venda (Recuperação)</option>
+                                        {isBeverageStore ? (
+                                            <>
+                                                <option value="velo_oferta_nova">🧊 Novidades e Ofertas (Bebidas)</option>
+                                                <option value="velo_saudade_cliente">🥤 Saudade / Recuperação (Bebidas)</option>
+                                                <option value="velo_retencao_30_bebidas">30 dias · Retenção leve</option>
+                                                <option value="velo_retencao_60_bebidas">60 dias · Oportunidade</option>
+                                                <option value="velo_retencao_90_bebidas">90 dias · Recuperação</option>
+                                            </>
+                                        ) : (
+                                            <>
+                                                <option value="velo_oferta_nova">🍔 Novidades e Ofertas (Marketing)</option>
+                                                <option value="velo_saudade_cliente">🥺 Saudade / Pós-venda (Recuperação)</option>
+                                            </>
+                                        )}
                                     </select>
                                 </div>
 
