@@ -18,8 +18,14 @@ const safeEncode = (text) => {
 export default function AdminChat() {
     const { store } = useStore();
     const storeId = store?.slug; 
-    const storeNiche = String(store?.storeNiche || store?.seoCategory || '').toLowerCase();
-    const isBeverageStore = /bebida|adega|conveni|drink|liquor/.test(storeNiche);
+    const storeSignals = [
+        store?.storeNiche,
+        store?.seoCategory,
+        store?.name,
+        store?.slogan,
+        store?.description
+    ].filter(Boolean).join(' ').toLowerCase();
+    const isBeverageStore = storeId === 'csi' || /bebida|adega|conveni|drink|liquor/.test(storeSignals);
 
     const [messages, setMessages] = useState([]);
     const [products, setProducts] = useState([]);
