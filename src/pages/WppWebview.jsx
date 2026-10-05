@@ -46,7 +46,7 @@ export default function WppWebview() {
 
   // Dados do Cliente e Logística
   const [customer, setCustomer] = useState({
-      name: '', phone: customerPhoneQuery || '', cep: '', street: '', number: '', neighborhood: '', city: '', state: '', payment: '', changeFor: ''
+      name: '', phone: customerPhoneQuery || '', cep: '', street: '', number: '', neighborhood: '', city: '', state: '', payment: '', changeFor: '', whatsappMarketingOptIn: false
   });
   const [deliveryMethod, setDeliveryMethod] = useState('delivery');
   
@@ -285,6 +285,8 @@ export default function WppWebview() {
               customerName: customer.name, 
               customerAddress: addr, 
               customerPhone: customer.phone,
+              whatsappMarketingOptIn: customer.whatsappMarketingOptIn === true,
+              marketingOptInAt: customer.whatsappMarketingOptIn === true ? new Date().toISOString() : null,
               // --- INÍCIO: CORREÇÃO FISCAL FOCUS NFE ---
               customer: {
                   name: customer.name,
