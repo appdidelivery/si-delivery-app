@@ -1192,10 +1192,16 @@ const aiResponse = await fetchGeminiWithRetry(`https://generativelanguage.google
                             return Number.isFinite(parsed) ? parsed : 0;
                         };
 
-                        const inboundSnap = await db.collection('whatsapp_inbound')
-                            .where('storeId', '==', journeyStoreId)
-                            .limit(5000)
-                            .get();
+                        const [inboundSnap, blockedSnap] = await Promise.all([
+                            db.collection('whatsapp_inbound')
+                                .where('storeId', '==', journeyStoreId)
+                                .limit(5000)
+                                .get(),
+                            db.collection('blocked_contacts')
+                                .where('storeId', '==', journeyStoreId)
+                                .limit(2000)
+                                .get()
+                        ]);
 
                         const relationshipPhones = new Set();
                         inboundSnap.forEach(d => {
@@ -1205,10 +1211,18 @@ const aiResponse = await fetchGeminiWithRetry(`https://generativelanguage.google
                             if (phone) relationshipPhones.add(phone);
                         });
 
+                        const blockedPhones = new Set();
+                        blockedSnap.forEach(d => {
+                            const phone = normalizeJourneyPhone(d.data().phone);
+                            if (phone) blockedPhones.add(phone);
+                        });
+
                         const canReceiveMarketing = (phone, source = {}) =>
-                            relationshipPhones.has(phone) ||
-                            source.marketingOptIn === true ||
-                            source.whatsappMarketingOptIn === true;
+                            !blockedPhones.has(phone) && (
+                                relationshipPhones.has(phone) ||
+                                source.marketingOptIn === true ||
+                                source.whatsappMarketingOptIn === true
+                            );
 
                         const sendJourneyTemplate = async ({ phone, templateCandidates, stage, sourceId, sourceType }) => {
                             const safePhone = `55${phone}`;
@@ -1273,9 +1287,12 @@ const aiResponse = await fetchGeminiWithRetry(`https://generativelanguage.google
                             post_sale: { eligible: 0, sent: 0, skippedNoRelationship: 0 },
                             second_purchase: { eligible: 0, sent: 0, skippedNoRelationship: 0 }
                         };
+                        const journeyDailyLimit = Math.max(1, Math.min(50, Number(journeyConfig.dailyLimit) || 20));
+                        const hasJourneyCapacity = () => pre30JourneyAlertsSent < journeyDailyLimit;
 
                         // 1) Carrinho abandonado: 30+ minutos sem concluir.
                         for (const cartDoc of abandonedQuery.docs) {
+                            if (!hasJourneyCapacity()) break;
                             const cart = cartDoc.data();
                             if (cart.storeId !== journeyStoreId || cart.status !== 'abandoned') continue;
                             if (cart.journeyAbandonedSent === true) continue;
@@ -1322,7 +1339,6 @@ const aiResponse = await fetchGeminiWithRetry(`https://generativelanguage.google
                         journeyOrdersSnap.forEach(orderDoc => {
                             const order = orderDoc.data();
                             if (String(order.status || '').toLowerCase() !== 'completed') return;
-                            if (order.paymentStatus && String(order.paymentStatus).toLowerCase() !== 'paid') return;
 
                             const phone = normalizeJourneyPhone(order.customerPhone || order.customer?.phone);
                             if (!phone) return;
@@ -1338,6 +1354,7 @@ const aiResponse = await fetchGeminiWithRetry(`https://generativelanguage.google
 
                         // 2) Pós-venda: 30 minutos a 48 horas após conclusão.
                         for (const order of completedOrders) {
+                            if (!hasJourneyCapacity()) break;
                             if (order.data.journeyPostSaleSent === true) continue;
                             const ageMs = Date.now() - order.orderAtMs;
                             if (!order.orderAtMs || ageMs < 30 * 60000 || ageMs > 48 * 3600000) continue;
@@ -1380,6 +1397,7 @@ const aiResponse = await fetchGeminiWithRetry(`https://generativelanguage.google
                         const secondPurchaseMaxAgeDays = Math.max(secondPurchaseAfterDays + 1, Math.min(60, Number(journeyConfig.secondPurchaseMaxAgeDays) || 30));
 
                         for (const [phone, customerOrders] of ordersByPhone.entries()) {
+                            if (!hasJourneyCapacity()) break;
                             customerOrders.sort((a, b) => a.orderAtMs - b.orderAtMs);
                             if (customerOrders.length !== 1) continue;
 
@@ -1416,6 +1434,7 @@ const aiResponse = await fetchGeminiWithRetry(`https://generativelanguage.google
 
                         pre30JourneySummary.push({
                             storeId: journeyStoreId,
+                            dailyLimit: journeyDailyLimit,
                             secondPurchaseAfterDays,
                             ...stageCounts
                         });
