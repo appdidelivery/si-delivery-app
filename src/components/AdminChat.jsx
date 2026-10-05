@@ -222,6 +222,8 @@ export default function AdminChat() {
     const [reactivationMaxRecipients, setReactivationMaxRecipients] = useState(20);
     const [reactivationPreview, setReactivationPreview] = useState(null);
     const [isLoadingAudience, setIsLoadingAudience] = useState(false);
+    const [lifecycleMetrics, setLifecycleMetrics] = useState(null);
+    const [isLoadingLifecycleMetrics, setIsLoadingLifecycleMetrics] = useState(false);
 
     useEffect(() => {
         if (activeChat) {
@@ -267,6 +269,34 @@ export default function AdminChat() {
             setIsLoadingAudience(false);
         }
     };
+
+
+    const handleLoadLifecycleMetrics = async () => {
+        if (!storeId) return;
+        setIsLoadingLifecycleMetrics(true);
+        try {
+            const res = await authenticatedFetch('/api/whatsapp-send', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    action: 'lifecycle_metrics',
+                    storeId,
+                    attributionDays: 7
+                })
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || 'Não foi possível carregar as métricas.');
+            setLifecycleMetrics(data);
+        } catch (error) {
+            console.error('Erro ao carregar métricas da jornada:', error);
+        } finally {
+            setIsLoadingLifecycleMetrics(false);
+        }
+    };
+
+    useEffect(() => {
+        if (showBroadcastModal && storeId) handleLoadLifecycleMetrics();
+    }, [showBroadcastModal, storeId]);
 
     const formatMessageTime = (dateObj) => {
         if (!dateObj || isNaN(dateObj.getTime())) return '';
@@ -1343,6 +1373,73 @@ export default function AdminChat() {
                                         <strong className="block mb-1 text-blue-900">Campanhas pela API Oficial da Meta 🚀</strong>
                                         Segmente clientes por tempo sem comprar, calcule o público antes do envio e use somente templates aprovados. Campanhas não usam o failover da Evolution API.
                                     </p>
+                                </div>
+
+
+                                <div className="bg-slate-900 text-white rounded-2xl p-4 shadow-sm">
+                                    <div className="flex items-center justify-between gap-3 mb-3">
+                                        <div>
+                                            <p className="text-[10px] uppercase tracking-widest text-slate-400 font-black">Resultados da Jornada Automática</p>
+                                            <p className="text-sm font-black">Retenção 30 / 60 / 90 dias</p>
+                                        </div>
+                                        <button
+                                            onClick={handleLoadLifecycleMetrics}
+                                            disabled={isLoadingLifecycleMetrics}
+                                            className="px-3 py-2 rounded-lg bg-white/10 hover:bg-white/20 text-[10px] font-black uppercase tracking-wider flex items-center gap-2"
+                                        >
+                                            {isLoadingLifecycleMetrics && <Loader2 size={13} className="animate-spin" />}
+                                            Atualizar
+                                        </button>
+                                    </div>
+
+                                    {lifecycleMetrics ? (
+                                        <>
+                                            <div className="grid grid-cols-3 gap-2 mb-3">
+                                                <div className="bg-white/10 rounded-xl p-3">
+                                                    <p className="text-[9px] uppercase text-slate-400 font-black">Enviadas</p>
+                                                    <p className="text-xl font-black">{lifecycleMetrics.overall?.sent || 0}</p>
+                                                </div>
+                                                <div className="bg-white/10 rounded-xl p-3">
+                                                    <p className="text-[9px] uppercase text-slate-400 font-black">Pedidos atribuídos</p>
+                                                    <p className="text-xl font-black">{lifecycleMetrics.overall?.attributedOrders || 0}</p>
+                                                </div>
+                                                <div className="bg-white/10 rounded-xl p-3">
+                                                    <p className="text-[9px] uppercase text-slate-400 font-black">Receita atribuída</p>
+                                                    <p className="text-lg font-black">R$ {Number(lifecycleMetrics.overall?.attributedRevenue || 0).toFixed(2).replace('.', ',')}</p>
+                                                </div>
+                                            </div>
+
+                                            <div className="grid grid-cols-4 gap-2 mb-4 text-center">
+                                                <div><p className="text-[9px] text-slate-400 uppercase font-bold">Entrega</p><strong>{lifecycleMetrics.overall?.deliveryRate || 0}%</strong></div>
+                                                <div><p className="text-[9px] text-slate-400 uppercase font-bold">Leitura</p><strong>{lifecycleMetrics.overall?.readRate || 0}%</strong></div>
+                                                <div><p className="text-[9px] text-slate-400 uppercase font-bold">Resposta</p><strong>{lifecycleMetrics.overall?.responseRate || 0}%</strong></div>
+                                                <div><p className="text-[9px] text-slate-400 uppercase font-bold">Conversão</p><strong>{lifecycleMetrics.overall?.conversionRate || 0}%</strong></div>
+                                            </div>
+
+                                            <div className="space-y-2">
+                                                {[30, 60, 90].map(stage => {
+                                                    const metric = lifecycleMetrics.stages?.[stage] || {};
+                                                    return (
+                                                        <div key={stage} className="bg-white/5 rounded-xl px-3 py-2 grid grid-cols-5 gap-2 items-center text-[10px]">
+                                                            <strong className="text-white">{stage} dias</strong>
+                                                            <span><b>{metric.sent || 0}</b> env.</span>
+                                                            <span><b>{metric.readRate || 0}%</b> leitura</span>
+                                                            <span><b>{metric.convertedCustomers || 0}</b> conv.</span>
+                                                            <span className="text-right"><b>R$ {Number(metric.attributedRevenue || 0).toFixed(2).replace('.', ',')}</b></span>
+                                                        </div>
+                                                    );
+                                                })}
+                                            </div>
+
+                                            <p className="text-[9px] leading-relaxed text-slate-400 mt-3">
+                                                Atribuição: pedido do mesmo WhatsApp realizado até {lifecycleMetrics.attributionDays || 7} dias após o último disparo 30/60/90. Entregas e leituras vêm dos receipts oficiais da Meta.
+                                            </p>
+                                        </>
+                                    ) : (
+                                        <div className="text-xs text-slate-400 py-3">
+                                            {isLoadingLifecycleMetrics ? 'Calculando resultados...' : 'Ainda não há disparos automáticos suficientes para exibir resultados.'}
+                                        </div>
+                                    )}
                                 </div>
 
                                 <div className="mt-2">
