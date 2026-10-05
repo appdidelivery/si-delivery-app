@@ -103,6 +103,14 @@
       "destination": "/api/social"
     },
     {
+      "source": "/api/journey-schedule",
+      "destination": "/api/index"
+    },
+    {
+      "source": "/api/app-version",
+      "destination": "/api/index"
+    },
+    {
       "source": "/api/(.*)",
       "destination": "/api/index"
     },
