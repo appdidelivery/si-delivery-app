@@ -103,6 +103,18 @@
       "destination": "/api/social"
     },
     {
+      "source": "/api/journey-schedule",
+      "destination": "/api/index"
+    },
+    {
+      "source": "/api/app-version",
+      "destination": "/api/index"
+    },
+    {
+      "source": "/api/change-team-password",
+      "destination": "/api/index"
+    },
+    {
       "source": "/api/(.*)",
       "destination": "/api/index"
     },
@@ -177,5 +189,21 @@
         }
       ]
     }
-  ]
+  ],
+  "functions": {
+    "api/index.js": {
+      "maxDuration": 60
+    },
+    "api/queue-journey.js": {
+      "maxDuration": 60,
+      "experimentalTriggers": [
+        {
+          "type": "queue/v2beta",
+          "topic": "velo-whatsapp-journey",
+          "retryAfterSeconds": 60,
+          "initialDelaySeconds": 0
+        }
+      ]
+    }
+  }
 }

@@ -6,6 +6,8 @@ import pathModule from 'path';
 import { GoogleAuth } from 'google-auth-library'; // <-- NOVA AUTENTICAÇÃO SERVICE ACCOUNT
 import crypto from 'crypto'; // <-- OBRIGATÓRIO PARA A CAPI DA META
 import { fetchGeminiWithRetry } from '../lib/gemini.js';
+import { scheduleJourneyRequest } from '../server/journeyQueue.js';
+import { handleChangeTeamPassword } from '../server/changeTeamPassword.js';
 
 // --- IMPORTAÇÕES OFICIAIS SOLANA ---
 // 🛡️ REMOVIDO: Imports estáticos da Solana causam Erro 500 (ERR_REQUIRE_ESM) na Vercel.
@@ -451,6 +453,7 @@ export default async function handler(req, res) {
         '/api/whatsapp-webhook',
         '/api/ifood-webhook',
         '/api/cron-automations',
+        '/api/journey-schedule',
         '/api/app-version',
         '/api/google-auth',
         '/api/google-callback',
@@ -495,7 +498,16 @@ export default async function handler(req, res) {
    // ------------------------------------------------------------------------
     // BUILD VERSION (SEM CACHE) - usado pelo atualizador automático do painel
     // ------------------------------------------------------------------------
-    if (path === '/api/app-version') {
+    if (path === '/api/journey-schedule') {
+        res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
+        return scheduleJourneyRequest(req, res);
+    }
+
+    else if (path === '/api/change-team-password') {
+        return handleChangeTeamPassword({ req, res, admin, db });
+    }
+
+    else if (path === '/api/app-version') {
         res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
         return res.status(200).json({
             version: process.env.VERCEL_GIT_COMMIT_SHA || process.env.VERCEL_DEPLOYMENT_ID || null,

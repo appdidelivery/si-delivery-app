@@ -159,6 +159,16 @@ export default function DriverPanel() {
       }
 
       await updateDoc(doc(db, "orders", orderId), { status: 'completed', cashbackAwarded: true, completedAt: serverTimestamp() });
+
+      // Agenda o pós-venda durável sem depender do cron diário da Vercel.
+      if (storeId === 'csi') {
+        fetch('/api/journey-schedule', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ storeId, type: 'post_sale', sourceId: orderId })
+        }).catch((error) => console.warn('Falha ao agendar pós-venda:', error));
+      }
+
       await notifyCustomer('completed'); 
       setStatus('delivered');
     } catch (error) { 

@@ -229,12 +229,29 @@ export default function WppWebview() {
         let cId = customerPhoneQuery || localStorage.getItem('veloVisitorId') || Math.random().toString(36).substring(2);
         localStorage.setItem('veloVisitorId', cId);
         try {
-            await setDoc(doc(db, "abandoned_carts", `cart_${slug}_${cId}`), {
+            const abandonedCartId = `cart_${slug}_${cId}`;
+            await setDoc(doc(db, "abandoned_carts", abandonedCartId), {
                 storeId: slug, customerPhone: customer.phone || customerPhoneQuery || "", items: cart,
                 whatsappMarketingOptIn: customer.whatsappMarketingOptIn === true,
                 subtotal: cart.reduce((a, i) => a + (i.price * i.quantity), 0),
                 lastUpdated: serverTimestamp(), status: 'abandoned'
             }, { merge: true });
+
+            // Agenda a recuperação de forma durável. A fila revalida o carrinho
+            // após 30 minutos e se adapta caso o cliente continue mexendo nele.
+            if (slug === 'csi' && (customer.phone || customerPhoneQuery)) {
+                const throttleKey = `veloJourneyCartQueued_${slug}_${cId}`;
+                const lastQueuedAt = Number(localStorage.getItem(throttleKey) || 0);
+                if (Date.now() - lastQueuedAt > 5 * 60 * 1000) {
+                    fetch('/api/journey-schedule', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ storeId: slug, type: 'abandoned_cart', sourceId: abandonedCartId })
+                    }).then(res => {
+                        if (res.ok) localStorage.setItem(throttleKey, String(Date.now()));
+                    }).catch(() => {});
+                }
+            }
         } catch(e){}
     }, 3000);
     return () => clearTimeout(t);
@@ -321,6 +338,22 @@ export default function WppWebview() {
                               : 0
           };
 
+          const markCartConverted = async () => {
+              const cId = customerPhoneQuery || localStorage.getItem('veloVisitorId');
+              if (!cId) return;
+              const abandonedCartId = `cart_${slug}_${cId}`;
+              try {
+                  await setDoc(doc(db, "abandoned_carts", abandonedCartId), {
+                      status: 'converted',
+                      convertedOrderId: orderRef.id,
+                      convertedAt: serverTimestamp()
+                  }, { merge: true });
+                  localStorage.removeItem(`veloJourneyCartQueued_${slug}_${cId}`);
+              } catch (e) {
+                  console.warn('Não foi possível marcar o carrinho como convertido:', e);
+              }
+          };
+
           // Função auxiliar para abater o saldo da carteira
           const deductCashback = async () => {
               if (cashbackDiscount > 0) {
@@ -341,6 +374,7 @@ export default function WppWebview() {
               await deductCashback();
               const res = await authenticatedFetch('/api/velopay-pix', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ storeId: slug, orderId: orderRef.id, totalAmount: cartTotal }) });
               if (!res.ok) throw new Error((await res.json()).error);
+              await markCartConverted();
               setCart([]); localStorage.removeItem(`veloCart_${slug}`);
               setTimeout(() => { window.location.href = `/track/${orderRef.id}?payment=pix_pending`; }, 500);
               return;
@@ -380,6 +414,7 @@ export default function WppWebview() {
                   }
 
                   if (res.ok && data.success) {
+                      await markCartConverted();
                       setCart([]); localStorage.removeItem(`veloCart_${slug}`);
                       setTimeout(() => { window.location.href = `/track/${orderRef.id}?payment=pix_generated`; }, 500);
                       return;
@@ -397,6 +432,7 @@ export default function WppWebview() {
           if (customer.payment === 'mercadopago_link') {
               await setDoc(orderRef, oData);
               await deductCashback();
+              await markCartConverted();
               setCart([]); localStorage.removeItem(`veloCart_${slug}`);
               setTimeout(() => { window.location.href = `/track/${orderRef.id}?payment=mp_link`; }, 500);
               return;
