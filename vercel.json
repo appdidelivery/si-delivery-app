@@ -103,14 +103,6 @@
       "destination": "/api/social"
     },
     {
-      "source": "/api/queue/journey",
-      "destination": "/api/queue/journey"
-    },
-    {
-      "source": "/api/journey-schedule",
-      "destination": "/api/journey-schedule"
-    },
-    {
       "source": "/api/(.*)",
       "destination": "/api/index"
     },
@@ -187,7 +179,7 @@
     }
   ],
   "functions": {
-    "api/queue/journey.js": {
+    "api/index.js": {
       "maxDuration": 60,
       "experimentalTriggers": [
         {
@@ -197,9 +189,6 @@
           "initialDelaySeconds": 0
         }
       ]
-    },
-    "api/journey-schedule.js": {
-      "maxDuration": 30
     }
   }
 }
