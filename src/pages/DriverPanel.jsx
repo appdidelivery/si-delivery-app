@@ -158,7 +158,7 @@ export default function DriverPanel() {
           }
       }
 
-      await updateDoc(doc(db, "orders", orderId), { status: 'completed', cashbackAwarded: true });
+      await updateDoc(doc(db, "orders", orderId), { status: 'completed', cashbackAwarded: true, completedAt: serverTimestamp() });
       await notifyCustomer('completed'); 
       setStatus('delivered');
     } catch (error) { 

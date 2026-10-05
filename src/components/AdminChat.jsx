@@ -1282,6 +1282,9 @@ export default function AdminChat() {
                                             <>
                                                 <option value="velo_oferta_nova">🧊 Novidades e Ofertas (Bebidas)</option>
                                                 <option value="velo_saudade_cliente">🥤 Saudade / Recuperação (Bebidas)</option>
+                                                <option value="velo_carrinho_bebidas">🛒 Carrinho abandonado</option>
+                                                <option value="1_velo_pos_venda_bebidas">✨ Pós-venda</option>
+                                                <option value="velo_segunda_compra_bebidas">🔁 Segunda compra</option>
                                                 <option value="velo_retencao_30_bebidas">30 dias · Retenção leve</option>
                                                 <option value="velo_retencao_60_bebidas">60 dias · Oportunidade</option>
                                                 <option value="velo_retencao_90_bebidas">90 dias · Recuperação</option>
@@ -1417,6 +1420,28 @@ export default function AdminChat() {
                                             </div>
 
                                             <div className="space-y-2">
+                                            <div className="mt-4 pt-3 border-t border-white/10">
+                                                <p className="text-[9px] uppercase tracking-widest text-slate-400 font-black mb-2">Antes dos 30 dias</p>
+                                                <div className="space-y-2">
+                                                    {[
+                                                        ['abandoned_cart', 'Carrinho'],
+                                                        ['post_sale', 'Pós-venda'],
+                                                        ['second_purchase', '2ª compra']
+                                                    ].map(([stage, label]) => {
+                                                        const metric = lifecycleMetrics.pre30Stages?.[stage] || {};
+                                                        return (
+                                                            <div key={stage} className="bg-white/5 rounded-xl px-3 py-2 grid grid-cols-5 gap-2 items-center text-[10px]">
+                                                                <strong className="text-white">{label}</strong>
+                                                                <span><b>{metric.sent || 0}</b> env.</span>
+                                                                <span><b>{metric.readRate || 0}%</b> leitura</span>
+                                                                <span><b>{metric.convertedCustomers || 0}</b> conv.</span>
+                                                                <span className="text-right"><b>R$ {Number(metric.attributedRevenue || 0).toFixed(2).replace('.', ',')}</b></span>
+                                                            </div>
+                                                        );
+                                                    })}
+                                                </div>
+                                            </div>
+
                                                 {[30, 60, 90].map(stage => {
                                                     const metric = lifecycleMetrics.stages?.[stage] || {};
                                                     return (
@@ -1557,6 +1582,9 @@ export default function AdminChat() {
                                                 <optgroup label="Bebidas e Conveniência">
                                                     <option value="velo_oferta_nova">🧊 Novidades e Ofertas</option>
                                                     <option value="velo_saudade_cliente">🥤 Saudade / Recuperar Clientes</option>
+                                                    <option value="velo_carrinho_bebidas">🛒 Carrinho abandonado</option>
+                                                    <option value="1_velo_pos_venda_bebidas">✨ Pós-venda</option>
+                                                    <option value="velo_segunda_compra_bebidas">🔁 Incentivo à segunda compra</option>
                                                     <option value="velo_retencao_30_bebidas">30 dias · Retenção leve</option>
                                                     <option value="velo_retencao_60_bebidas">60 dias · Oportunidade</option>
                                                     <option value="velo_retencao_90_bebidas">90 dias · Recuperação</option>
