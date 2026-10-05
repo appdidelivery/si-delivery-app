@@ -1282,6 +1282,9 @@ export default function AdminChat() {
                                             <>
                                                 <option value="velo_oferta_nova">🧊 Novidades e Ofertas (Bebidas)</option>
                                                 <option value="velo_saudade_cliente">🥤 Saudade / Recuperação (Bebidas)</option>
+                                                <option value="velo_carrinho_bebidas">🛒 Carrinho abandonado</option>
+                                                <option value="1_velo_pos_venda_bebidas">✨ Pós-venda</option>
+                                                <option value="velo_segunda_compra_bebidas">🔁 Segunda compra</option>
                                                 <option value="velo_retencao_30_bebidas">30 dias · Retenção leve</option>
                                                 <option value="velo_retencao_60_bebidas">60 dias · Oportunidade</option>
                                                 <option value="velo_retencao_90_bebidas">90 dias · Recuperação</option>
@@ -1557,6 +1560,9 @@ export default function AdminChat() {
                                                 <optgroup label="Bebidas e Conveniência">
                                                     <option value="velo_oferta_nova">🧊 Novidades e Ofertas</option>
                                                     <option value="velo_saudade_cliente">🥤 Saudade / Recuperar Clientes</option>
+                                                    <option value="velo_carrinho_bebidas">🛒 Carrinho abandonado</option>
+                                                    <option value="1_velo_pos_venda_bebidas">✨ Pós-venda</option>
+                                                    <option value="velo_segunda_compra_bebidas">🔁 Incentivo à segunda compra</option>
                                                     <option value="velo_retencao_30_bebidas">30 dias · Retenção leve</option>
                                                     <option value="velo_retencao_60_bebidas">60 dias · Oportunidade</option>
                                                     <option value="velo_retencao_90_bebidas">90 dias · Recuperação</option>
