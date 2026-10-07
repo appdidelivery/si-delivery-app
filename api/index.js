@@ -540,7 +540,7 @@ export default async function handler(req, res) {
                 }))
                 .filter(({ linvix }) =>
                     linvix?.connected === true &&
-                    linvix?.autoSyncEnabled !== false &&
+                    linvix?.autoSyncEnabled === true &&
                     (linvix?.selectedLocation?.id || linvix?.selectedLocation?.name)
                 );
 
