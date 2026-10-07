@@ -611,9 +611,22 @@ export default async function handler(req, res) {
 
     else if (path === '/api/app-version') {
         res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
+
+        const commitSha = process.env.VERCEL_GIT_COMMIT_SHA || null;
+        const deploymentId = process.env.VERCEL_DEPLOYMENT_ID || null;
+        const buildVersion = commitSha || deploymentId || null;
+        const displayVersion = commitSha
+            ? commitSha.slice(0, 7)
+            : (deploymentId ? deploymentId.replace(/^dpl_/, '').slice(0, 10) : 'local');
+
         return res.status(200).json({
-            version: process.env.VERCEL_GIT_COMMIT_SHA || process.env.VERCEL_DEPLOYMENT_ID || null,
-            deploymentId: process.env.VERCEL_DEPLOYMENT_ID || null
+            version: buildVersion,
+            displayVersion,
+            commitSha,
+            commitRef: process.env.VERCEL_GIT_COMMIT_REF || null,
+            commitMessage: process.env.VERCEL_GIT_COMMIT_MESSAGE || null,
+            deploymentId,
+            deploymentUrl: process.env.VERCEL_URL || null
         });
     }
 
