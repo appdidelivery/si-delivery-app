@@ -34,7 +34,9 @@ A documentação pública da Linvix não descreve um webhook de saída específi
 
 Recomendação inicial: sincronização a cada 5 minutos, além do botão manual “Sincronizar estoque agora”. Ajustar a frequência depois de medir volume e eventuais limites informados pela Linvix.
 
-A Velo está atualmente no plano Hobby da Vercel. Para não exigir upgrade apenas por causa da frequência do cron, o endpoint automático foi separado e pode ser acionado por Google Cloud Scheduler ou outro scheduler HTTP confiável.
+A Velo está atualmente no plano Hobby da Vercel. A integração foi implementada sem criar uma nova Serverless Function: o endpoint automático usa o roteador `api/index.js` já existente. Para frequências de poucos minutos enquanto o projeto estiver no Hobby, o endpoint pode ser acionado por Google Cloud Scheduler ou outro scheduler HTTP confiável.
+
+Observação operacional: embora a integração Linvix, isoladamente, não exija Pro, os termos atuais da Vercel restringem Hobby a uso pessoal/não comercial. Como a Velo Delivery é uma operação comercial, o plano Pro deve ser tratado como custo de infraestrutura geral da Velo, e não como custo específico do Mercado Monte Verde. Ao migrar para Pro, a rotina poderá usar Vercel Cron nativo com frequência por minuto.
 
 ## Pendências para ativar no Mercado Monte Verde
 
@@ -60,11 +62,12 @@ O site público da Linvix não apresenta preço específico da API. “API Linvi
 
 ### Velo / agendamento
 
-Não é necessário migrar a Velo para Vercel Pro apenas para esta integração.
+A integração foi desenhada para não obrigar um upgrade apenas por limitação técnica. O eventual Vercel Pro é uma decisão/compliance da plataforma Velo como um todo.
 
 Para o agendamento:
 - Google Cloud Scheduler: primeiros 3 jobs por conta de faturamento são gratuitos; acima disso, preço de tabela é US$ 0,10 por job/mês.
 - Alternativa sem custo: cron-job.org, adequada para baixo custo, porém sem o mesmo compromisso operacional de um serviço cloud gerenciado.
+- Vercel Pro: US$ 20/mês de taxa de plataforma (com crédito de uso incluído conforme política vigente); se contratado para a Velo, permite Cron nativo por minuto e elimina a necessidade de scheduler externo.
 
 O consumo adicional de Vercel Functions/Firestore tende a ser pequeno para duas lojas e deve ser acompanhado pela auditoria de custos já existente.
 
