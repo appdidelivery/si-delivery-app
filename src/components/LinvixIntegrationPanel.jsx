@@ -70,7 +70,7 @@ export default function LinvixIntegrationPanel({ storeId, settings }) {
       const data = await callLinvix('connect', credentials);
       setConnected(true);
       setLocations(data.locations || []);
-      setStatus((prev) => ({ ...prev, connected: true, healthStatus: 'healthy' }));
+      setStatus((prev) => ({ ...prev, connected: true, autoSyncEnabled: false, healthStatus: 'healthy' }));
       setCredentials(initialCredentials);
       setMessage({
         type: 'success',
@@ -308,6 +308,28 @@ export default function LinvixIntegrationPanel({ storeId, settings }) {
               <p className="text-[9px] font-black uppercase text-slate-400">Sem correspondência</p>
               <p className="text-xl font-black text-slate-800 mt-1">
                 {status?.lastSyncStats?.unmatchedProducts ?? '—'}
+              </p>
+            </div>
+          </div>
+
+          <div className={`flex items-start gap-3 p-4 rounded-2xl border ${
+            status?.autoSyncEnabled === true
+              ? 'bg-green-50 border-green-100 text-green-700'
+              : 'bg-amber-50 border-amber-100 text-amber-700'
+          }`}>
+            {status?.autoSyncEnabled === true ? (
+              <CheckCircle size={16} className="shrink-0 mt-0.5" />
+            ) : (
+              <AlertTriangle size={16} className="shrink-0 mt-0.5" />
+            )}
+            <div>
+              <p className="text-[10px] font-black uppercase tracking-widest">
+                Automação: {status?.autoSyncEnabled === true ? 'Ativa' : 'Aguardando homologação'}
+              </p>
+              <p className="text-[10px] font-bold mt-1 leading-relaxed">
+                {status?.autoSyncEnabled === true
+                  ? 'O estoque desta unidade está habilitado para sincronização automática com a Linvix.'
+                  : 'Primeiro validamos o saldo desta unidade e o fluxo de pedidos/baixa no ERP. Até lá, use a sincronização manual para homologação.'}
               </p>
             </div>
           </div>
