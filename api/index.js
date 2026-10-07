@@ -8,7 +8,7 @@ import crypto from 'crypto'; // <-- OBRIGATÓRIO PARA A CAPI DA META
 import { fetchGeminiWithRetry } from '../lib/gemini.js';
 import { scheduleJourneyRequest } from '../server/journeyQueue.js';
 import { handleChangeTeamPassword } from '../server/changeTeamPassword.js';
-import { handleLinvixRequest } from '../lib/linvix.js';
+import { handleLinvixRequest, syncLinvixStore } from '../lib/linvix.js';
 
 // --- IMPORTAÇÕES OFICIAIS SOLANA ---
 // 🛡️ REMOVIDO: Imports estáticos da Solana causam Erro 500 (ERR_REQUIRE_ESM) na Vercel.
@@ -454,6 +454,7 @@ export default async function handler(req, res) {
         '/api/whatsapp-webhook',
         '/api/ifood-webhook',
         '/api/cron-automations',
+        '/api/linvix-stock-sync',
         '/api/journey-schedule',
         '/api/app-version',
         '/api/google-auth',
@@ -506,6 +507,88 @@ export default async function handler(req, res) {
 
     else if (path === '/api/change-team-password') {
         return handleChangeTeamPassword({ req, res, admin, db });
+    }
+
+    else if (path === '/api/linvix-stock-sync') {
+        res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
+
+        if (!['GET', 'POST'].includes(req.method)) {
+            return res.status(405).json({ success: false, error: 'Método não permitido.' });
+        }
+
+        const expectedSecret = process.env.LINVIX_SYNC_SECRET || process.env.CRON_SECRET;
+        if (!expectedSecret) {
+            console.error('[LINVIX CRON] CRON_SECRET/LINVIX_SYNC_SECRET não configurado.');
+            return res.status(503).json({
+                success: false,
+                error: 'Sincronização automática ainda não configurada no servidor.'
+            });
+        }
+
+        const schedulerAuth = req.headers.authorization || req.headers.Authorization || '';
+        if (schedulerAuth !== `Bearer ${expectedSecret}`) {
+            return res.status(401).json({ success: false, error: 'Não autorizado.' });
+        }
+
+        try {
+            // Sem query composta: mantém compatibilidade com lojas antigas.
+            const settingsSnap = await db.collection('settings').get();
+            const storesToSync = settingsSnap.docs
+                .map((docSnap) => ({
+                    storeId: docSnap.id,
+                    linvix: docSnap.data()?.integrations?.linvix || null
+                }))
+                .filter(({ linvix }) =>
+                    linvix?.connected === true &&
+                    linvix?.autoSyncEnabled !== false &&
+                    (linvix?.selectedLocation?.id || linvix?.selectedLocation?.name)
+                );
+
+            const results = [];
+
+            // Sequencial para evitar rajadas de chamadas na Linvix.
+            for (const storeConfig of storesToSync) {
+                try {
+                    const stats = await syncLinvixStore({
+                        storeId: storeConfig.storeId,
+                        admin,
+                        db
+                    });
+
+                    results.push({
+                        storeId: storeConfig.storeId,
+                        success: true,
+                        stats: {
+                            location: stats.location,
+                            matchedProducts: stats.matchedProducts,
+                            updatedProducts: stats.updatedProducts,
+                            unmatchedProducts: stats.unmatchedProducts
+                        }
+                    });
+                } catch (error) {
+                    console.error(`[LINVIX CRON] Falha em ${storeConfig.storeId}:`, error);
+                    results.push({
+                        storeId: storeConfig.storeId,
+                        success: false,
+                        error: String(error?.message || error).slice(0, 300)
+                    });
+                }
+            }
+
+            const failed = results.filter((item) => !item.success).length;
+            return res.status(failed ? 207 : 200).json({
+                success: failed === 0,
+                processed: results.length,
+                failed,
+                results
+            });
+        } catch (error) {
+            console.error('[LINVIX CRON] Erro geral:', error);
+            return res.status(500).json({
+                success: false,
+                error: 'Falha ao executar a sincronização automática Linvix.'
+            });
+        }
     }
 
     else if (path === '/api/linvix') {
