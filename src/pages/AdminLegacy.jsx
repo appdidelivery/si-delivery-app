@@ -1006,12 +1006,15 @@ const educationalBanners = [
     // -------------------------------------
     const [isUpdateModalOpen, setIsUpdateModalOpen] = useState(false);
     const [showAllCriticalStock, setShowAllCriticalStock] = useState(false);
-    // NOVO: Estado que vai receber as novidades do Firebase em tempo real
-    const [systemUpdate, setSystemUpdate] = useState({ 
-        version: "7.1.0", 
+    // Versão/changelog vêm do deployment Git ativo na Vercel.
+    const [systemUpdate, setSystemUpdate] = useState({
+        version: "carregando",
+        commit: "",
+        branch: "",
+        deploymentId: "",
         log: [
-            { title: "🚀 Veloapp Dinâmico", desc: "Aguardando conexão com o servidor central..." }
-        ] 
+            { title: "Velo Delivery", desc: "Consultando a versão publicada..." }
+        ]
     });
     // --- ESTADOS DE EQUIPE / USUÁRIOS ---
     const [teamMembers, setTeamMembers] = useState([]);
@@ -2724,10 +2727,44 @@ const [vipMissions, setVipMissions] = useState([]);
             setTotalLeadsCount(allSenders.size);
         });
 
-       // NOVO: Escuta a versão e changelog global do sistema
-        const unsubSystem = onSnapshot(doc(db, "system", "updates"), (d) => {
-            if (d.exists()) setSystemUpdate({ version: d.data().version, log: d.data().log || [] });
-        });
+       // Versão e changelog reais do deployment: sempre vinculados ao commit que foi publicado.
+        const loadSystemUpdate = async () => {
+            try {
+                const response = await fetch(`/api/app-version?t=${Date.now()}`, {
+                    cache: 'no-store',
+                    headers: { 'Cache-Control': 'no-cache' }
+                });
+                if (!response.ok) throw new Error(`HTTP ${response.status}`);
+
+                const data = await response.json();
+                const rawMessage = String(data.commitMessage || '').trim();
+                const messageLines = rawMessage.split('\n').map(line => line.trim()).filter(Boolean);
+                const rawTitle = messageLines[0] || 'Atualização publicada';
+                const friendlyTitle = rawTitle
+                    .replace(/^feat:\s*/i, '🚀 ')
+                    .replace(/^fix:\s*/i, '🛠️ ')
+                    .replace(/^docs:\s*/i, '📝 ')
+                    .replace(/^refactor:\s*/i, '⚙️ ')
+                    .replace(/^chore:\s*/i, '🔧 ');
+
+                setSystemUpdate({
+                    version: data.displayVersion || String(data.version || 'atual').slice(0, 7),
+                    commit: data.commitSha || data.version || '',
+                    branch: data.commitRef || 'main',
+                    deploymentId: data.deploymentId || '',
+                    log: [{
+                        title: friendlyTitle,
+                        desc: messageLines.slice(1).join(' ') || `Publicado automaticamente do GitHub na branch ${data.commitRef || 'main'}.`
+                    }]
+                });
+            } catch (error) {
+                console.warn('[Velo Update] Não foi possível carregar o changelog do deployment:', error?.message || error);
+            }
+        };
+
+        loadSystemUpdate();
+        const systemUpdateInterval = window.setInterval(loadSystemUpdate, 60000);
+        const unsubSystem = () => window.clearInterval(systemUpdateInterval);
 
         // NOVO: MOTOR DE SAQUES VELOPAY (Substitui o stats que não estava atualizando)
         const unsubWithdrawals = onSnapshot(query(collection(db, "withdrawals"), where("storeId", "==", storeId)), (s) => setWithdrawalsList(s.docs.map(d => ({ id: d.id, ...d.data() }))));
@@ -5027,7 +5064,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                 {/* Versão do App na barra lateral do desktop */}
                 {/* Versão do App na barra lateral do desktop */}
                 <div className="mt-4 flex flex-col items-center gap-2">
-                    <div className="text-[9px] font-medium text-slate-400 text-center">Veloapp V{systemUpdate.version}</div>
+                    <div className="text-[9px] font-medium text-slate-400 text-center">Veloapp · {systemUpdate.version}</div>
                     <button onClick={() => setIsUpdateModalOpen(true)} className="flex items-center gap-1 text-[9px] font-bold text-blue-500 hover:text-blue-600 bg-blue-50 px-3 py-1.5 rounded-full transition-all">
                         <RefreshCw size={10} /> Atualizar Painel
                     </button>
@@ -16202,6 +16239,11 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                 </div>
                                 <h2 className="text-2xl font-black italic uppercase text-slate-900 leading-none">Novidades da Atualização</h2>
                                 <p className="text-xs font-bold text-slate-400 mt-2 uppercase tracking-widest">Versão {systemUpdate.version}</p>
+                                {systemUpdate.commit && (
+                                    <p className="text-[9px] font-bold text-slate-400 mt-1 font-mono">
+                                        Commit {systemUpdate.commit.slice(0, 7)} · {systemUpdate.branch || 'main'}
+                                    </p>
+                                )}
                             </div>
 
                             <div className="bg-slate-50 border border-slate-100 rounded-3xl p-6 mb-8 max-h-60 overflow-y-auto custom-scrollbar">
