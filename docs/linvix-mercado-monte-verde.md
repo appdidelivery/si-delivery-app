@@ -30,9 +30,22 @@ A arquitetura é multi-tenant. Cada unidade Velo possui seu próprio `storeId`, 
 
 ## Estratégia de sincronização
 
-A documentação pública da Linvix não descreve um webhook de saída específico para mudança de estoque. Por isso, a primeira versão usa polling.
+A documentação pública da Linvix não descreve um webhook de saída específico para mudança de estoque. Por isso, a sincronização de saldo usa polling.
 
-Recomendação inicial: sincronização a cada 5 minutos, além do botão manual “Sincronizar estoque agora”. Ajustar a frequência depois de medir volume e eventuais limites informados pela Linvix.
+A automação fica **desativada por padrão** durante a homologação. Isso evita que um saldo antigo do ERP volte para a Velo depois de uma venda online ainda não registrada na Linvix.
+
+Depois da homologação do ciclo completo, a recomendação inicial é sincronizar a cada 5 minutos, além do botão manual “Sincronizar estoque agora”. A frequência deve ser ajustada conforme volume e eventuais limites informados pela Linvix.
+
+## Ciclo completo de pedido e estoque
+
+Para produção, não basta apenas ler o estoque da Linvix. O pedido feito na Velo também precisa chegar ao ERP para que o saldo oficial permaneça correto.
+
+A documentação da Linvix disponibiliza:
+- `POST /v1/private/pedidos/` para criar o pedido da Velo no ERP;
+- `POST /v1/private/estoque-movimento/saida` para registrar saída de estoque quando necessária;
+- identificação de canal de venda por `canal_venda_uuid`.
+
+Na homologação com as credenciais reais vamos confirmar se a criação do pedido já movimenta o estoque automaticamente na configuração do Mercado Monte Verde. Se não movimentar, a Velo registrará também a saída por item/local. Só depois dessa validação o `autoSyncEnabled` será ativado.
 
 A Velo está atualmente no plano Hobby da Vercel. A integração foi implementada sem criar uma nova Serverless Function: o endpoint automático usa o roteador `api/index.js` já existente. Para frequências de poucos minutos enquanto o projeto estiver no Hobby, o endpoint pode ser acionado por Google Cloud Scheduler ou outro scheduler HTTP confiável.
 
@@ -46,8 +59,11 @@ Observação operacional: embora a integração Linvix, isoladamente, não exija
 - Identificar e selecionar o Estoque Local correto de cada loja.
 - Executar sincronização manual de homologação.
 - Revisar itens sem correspondência de GTIN/código.
-- Ativar agendamento automático.
+- Obter/configurar o `canal_venda_uuid` da Velo Delivery na Linvix.
+- Testar um pedido Velo → Linvix e confirmar a movimentação de estoque.
+- Se a criação do pedido não baixar estoque automaticamente, configurar a saída via `/estoque-movimento/saida` e o respectivo `motivo_uuid`.
 - Validar alteração real de estoque no ERP e reflexo em cada vitrine Velo.
+- Somente depois, ativar `autoSyncEnabled` e o agendamento automático.
 
 ## Custos externos
 
@@ -79,5 +95,7 @@ O consumo adicional de Vercel Functions/Firestore tende a ser pequeno para duas 
 - Seleção de Estoque Local por unidade: implementada.
 - Sincronização manual: implementada.
 - Relatório de produtos correspondentes/não correspondentes: implementado.
-- Endpoint seguro de sincronização automática: implementado.
+- Endpoint seguro de sincronização automática: implementado no roteador existente, sem criar uma 13ª Serverless Function.
+- Automação automática: implementada, mas desativada por padrão até homologação.
+- Envio de pedido/baixa Velo → Linvix: endpoints identificados na documentação; homologação com credenciais reais ainda pendente.
 - Produção: depende de homologação com credenciais reais antes da liberação definitiva.
