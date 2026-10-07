@@ -8,6 +8,7 @@ import crypto from 'crypto'; // <-- OBRIGATÓRIO PARA A CAPI DA META
 import { fetchGeminiWithRetry } from '../lib/gemini.js';
 import { scheduleJourneyRequest } from '../server/journeyQueue.js';
 import { handleChangeTeamPassword } from '../server/changeTeamPassword.js';
+import { handleLinvixRequest } from '../lib/linvix.js';
 
 // --- IMPORTAÇÕES OFICIAIS SOLANA ---
 // 🛡️ REMOVIDO: Imports estáticos da Solana causam Erro 500 (ERR_REQUIRE_ESM) na Vercel.
@@ -505,6 +506,24 @@ export default async function handler(req, res) {
 
     else if (path === '/api/change-team-password') {
         return handleChangeTeamPassword({ req, res, admin, db });
+    }
+
+    else if (path === '/api/linvix') {
+        const requestedStoreId = String(req.body?.storeId || '').trim();
+        if (!requestedStoreId) {
+            return res.status(400).json({ success: false, error: 'storeId é obrigatório.' });
+        }
+
+        try {
+            await assertStoreAccess(req.user, requestedStoreId);
+        } catch (error) {
+            return res.status(error.statusCode || 403).json({
+                success: false,
+                error: error.message || 'Usuário sem acesso a esta loja.'
+            });
+        }
+
+        return handleLinvixRequest({ req, res, admin, db });
     }
 
     else if (path === '/api/app-version') {
