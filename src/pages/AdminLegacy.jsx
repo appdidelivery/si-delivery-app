@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { db, auth } from '../../src/services/firebase';
 import {
     collection, onSnapshot, doc, updateDoc, deleteDoc,
-    addDoc, query, orderBy, serverTimestamp, setDoc, getDoc, where, increment, writeBatch, limit
+    addDoc, query, orderBy, serverTimestamp, setDoc, getDoc, getDocs, where, increment, writeBatch, limit
 } from 'firebase/firestore';
 import {
     Store, ShoppingCart, LayoutDashboard, Clock, ShoppingBag, Package, Users, Plus, Trash2, Edit3,
@@ -935,6 +935,9 @@ const educationalBanners = [
     // --- NOVOS ESTADOS PARA O RELATÓRIO E CUPOM ---
     const [reportCustomStart, setReportCustomStart] = useState('');
     const [reportCustomEnd, setReportCustomEnd] = useState('');
+    const [reportOrders, setReportOrders] = useState([]); // Histórico carregado sob demanda, separado dos 800 pedidos do painel
+    const [isLoadingReport, setIsLoadingReport] = useState(false);
+    const [reportLoadError, setReportLoadError] = useState('');
     const [couponProductSearch, setCouponProductSearch] = useState('');
 
     // MODIFICADO: Recebe os totais por parâmetro para evitar o bug de Closure/Estado desatualizado
@@ -2389,7 +2392,7 @@ const [vipMissions, setVipMissions] = useState([]);
 
         // Pedidos
         let initialOrders = true;
-        // OTIMIZAÇÃO EXTREMA: Limita aos 800 últimos pedidos. Impede o download de anos de histórico, destravando a RAM.
+        // OTIMIZAÇÃO: a tela de pedidos mantém somente os 800 mais recentes. Relatórios históricos consultam o Firestore por período sob demanda.
         const unsubOrders = onSnapshot(query(collection(db, "orders"), where("storeId", "==", storeId), orderBy("createdAt", "desc"), limit(800)), async (s) => {
             if (!initialOrders) {
                 // Puxa as configurações da loja UMA VEZ por lote de atualizações (Otimização)
@@ -2597,8 +2600,8 @@ const [vipMissions, setVipMissions] = useState([]);
             setInfluencersList(s.docs.map(d => ({ id: d.id, ...d.data() })));
         });
 
-        // OTIMIZAÇÃO: Limita a 100 logs de caixa para poupar processamento
-        const unsubPosLogs = onSnapshot(query(collection(db, "pos_logs"), where("storeId", "==", storeId), orderBy("timestamp", "desc"), limit(100)), (s) => setPosLogs(s.docs.map(d => ({ id: d.id, ...d.data() }))));
+        // Logs são documentos pequenos: mantém uma janela ampla para auditoria sem remover o limite de segurança.
+        const unsubPosLogs = onSnapshot(query(collection(db, "pos_logs"), where("storeId", "==", storeId), orderBy("timestamp", "desc"), limit(1000)), (s) => setPosLogs(s.docs.map(d => ({ id: d.id, ...d.data() }))));
 // --- RESTAURANDO A LEITURA DA EQUIPE QUE SUMIU ---
         const unsubTeam = onSnapshot(query(collection(db, "team"), where("storeId", "==", storeId)), (s) => setTeamMembers(s.docs.map(d => ({ id: d.id, ...d.data() }))));
        // NOVO: Escuta as mensagens do WhatsApp para alertas de transbordo e som padrão
@@ -4474,6 +4477,109 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
         }
     };
 // --- LÓGICA GLOBAL DO FECHAMENTO DE CAIXA / RELATÓRIO ---
+    const getReportDateBounds = () => {
+        const now = new Date();
+        let start = null;
+        let end = new Date(now);
+
+        if (reportDateRange === 'hoje' || reportDateRange === 'ontem') {
+            const sellerLogs = (reportSeller !== 'todos' && reportSeller !== 'online')
+                ? posLogs.filter(log => log.userEmail === reportSeller)
+                : posLogs;
+
+            const aberturas = sellerLogs.filter(log => log.action === 'ABRIU O CAIXA');
+            const targetAbertura = reportDateRange === 'hoje' ? aberturas[0] : aberturas[1];
+
+            if (targetAbertura) {
+                const targetDate = targetAbertura.timestamp?.toDate
+                    ? targetAbertura.timestamp.toDate()
+                    : new Date(targetAbertura.timestamp?.seconds ? targetAbertura.timestamp.seconds * 1000 : targetAbertura.timestamp);
+
+                start = targetDate;
+                const targetTime = targetDate.getTime();
+
+                const fechamentosValidos = sellerLogs.filter(log => {
+                    if (log.action !== 'FECHOU O CAIXA') return false;
+                    const logDate = log.timestamp?.toDate
+                        ? log.timestamp.toDate()
+                        : new Date(log.timestamp?.seconds ? log.timestamp.seconds * 1000 : log.timestamp);
+                    return logDate.getTime() > targetTime;
+                });
+
+                if (fechamentosValidos.length > 0) {
+                    const fechamentoCorreto = fechamentosValidos[fechamentosValidos.length - 1];
+                    end = fechamentoCorreto.timestamp?.toDate
+                        ? fechamentoCorreto.timestamp.toDate()
+                        : new Date(fechamentoCorreto.timestamp?.seconds ? fechamentoCorreto.timestamp.seconds * 1000 : fechamentoCorreto.timestamp);
+                }
+            } else {
+                const fallbackStart = new Date(now);
+                if (now.getHours() < 6) fallbackStart.setDate(fallbackStart.getDate() - 1);
+                fallbackStart.setHours(6, 0, 0, 0);
+
+                if (reportDateRange === 'hoje') {
+                    start = fallbackStart;
+                    end = now;
+                } else {
+                    start = new Date(fallbackStart);
+                    start.setDate(start.getDate() - 1);
+                    end = new Date(fallbackStart);
+                    end.setMilliseconds(end.getMilliseconds() - 1);
+                }
+            }
+        } else if (reportDateRange === '7dias') {
+            start = new Date(now);
+            start.setDate(start.getDate() - 7);
+        } else if (reportDateRange === '30dias') {
+            start = new Date(now);
+            start.setDate(start.getDate() - 30);
+        } else if (reportDateRange === 'mes') {
+            start = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0);
+        } else if (reportDateRange === 'personalizado') {
+            if (!reportCustomStart || !reportCustomEnd) {
+                throw new Error('Informe a data/hora inicial e final do período personalizado.');
+            }
+            start = new Date(reportCustomStart);
+            end = new Date(reportCustomEnd);
+            if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || start > end) {
+                throw new Error('O período personalizado informado é inválido.');
+            }
+        }
+
+        return { start, end };
+    };
+
+    const handleGenerateReport = async () => {
+        if (!storeId) return;
+
+        setIsLoadingReport(true);
+        setReportLoadError('');
+        setShowReportResults(false);
+
+        try {
+            const { start, end } = getReportDateBounds();
+            if (!start || !end) throw new Error('Não foi possível determinar o período do relatório.');
+
+            const reportQuery = query(
+                collection(db, "orders"),
+                where("storeId", "==", storeId),
+                where("createdAt", ">=", start),
+                where("createdAt", "<=", end),
+                orderBy("createdAt", "desc")
+            );
+
+            const snapshot = await getDocs(reportQuery);
+            setReportOrders(snapshot.docs.map(d => ({ id: d.id, ...d.data() })));
+            setShowReportResults(true);
+        } catch (error) {
+            console.error("Erro ao carregar histórico do fechamento de caixa:", error);
+            setReportOrders([]);
+            setReportLoadError(error?.message || 'Não foi possível carregar o histórico deste período.');
+        } finally {
+            setIsLoadingReport(false);
+        }
+    };
+
    const getFilteredOrdersForReport = () => {
         const now = new Date();
         
@@ -4541,7 +4647,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
         }
         // ----------------------------------------------------------------
 
-        return orders.filter(o => {
+        return reportOrders.filter(o => {
             // Ignora cancelados
             if (o.status === 'canceled' || !o.createdAt) return false;
 
@@ -4560,20 +4666,19 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
             const orderDate = o.createdAt.toDate ? o.createdAt.toDate() : new Date(o.createdAt.seconds * 1000 || o.createdAt);
             
             if (reportDateRange === 'hoje' || reportDateRange === 'ontem') {
-                if (!shiftStart) return false;
-                return orderDate >= shiftStart && orderDate <= shiftEnd;
+                if (!shiftStart || orderDate < shiftStart || orderDate > shiftEnd) return false;
             } else if (reportDateRange === '7dias') {
                 const sevenDaysAgo = new Date(now);
                 sevenDaysAgo.setDate(now.getDate() - 7);
-                return orderDate >= sevenDaysAgo;
-           } else if (reportDateRange === '30dias') {
+                if (orderDate < sevenDaysAgo) return false;
+            } else if (reportDateRange === '30dias') {
                 const thirtyDaysAgo = new Date(now);
                 thirtyDaysAgo.setDate(now.getDate() - 30);
-                return orderDate >= thirtyDaysAgo;
+                if (orderDate < thirtyDaysAgo) return false;
             } else if (reportDateRange === 'mes') {
-                return orderDate.getMonth() === now.getMonth() && orderDate.getFullYear() === now.getFullYear();
+                if (orderDate.getMonth() !== now.getMonth() || orderDate.getFullYear() !== now.getFullYear()) return false;
             } else if (reportDateRange === 'personalizado') {
-                if (!reportCustomStart || !reportCustomEnd) return true;
+                if (!reportCustomStart || !reportCustomEnd) return false;
                 const start = new Date(reportCustomStart);
                 const end = new Date(reportCustomEnd);
                 if (!(orderDate >= start && orderDate <= end)) return false;
@@ -16378,11 +16483,21 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                     </div>
 
                                     {/* BOTÃO PARA GERAR O RELATÓRIO NA TELA */}
+                                    {reportLoadError && (
+                                        <div className="mb-4 p-4 rounded-2xl bg-red-50 border border-red-200 text-red-700 text-xs font-bold">
+                                            {reportLoadError}
+                                        </div>
+                                    )}
                                     <button 
-                                        onClick={() => setShowReportResults(true)}
-                                        className="w-full bg-slate-900 text-white py-5 rounded-4xl font-black text-sm shadow-xl uppercase tracking-widest hover:bg-slate-800 transition-all active:scale-95 flex items-center justify-center gap-2 mb-8"
+                                        onClick={handleGenerateReport}
+                                        disabled={isLoadingReport}
+                                        className="w-full bg-slate-900 text-white py-5 rounded-4xl font-black text-sm shadow-xl uppercase tracking-widest hover:bg-slate-800 transition-all active:scale-95 flex items-center justify-center gap-2 mb-8 disabled:opacity-60 disabled:cursor-wait"
                                     >
-                                        <Printer size={18}/> Gerar Relatório
+                                        {isLoadingReport ? (
+                                            <><Loader2 size={18} className="animate-spin"/> Buscando Histórico...</>
+                                        ) : (
+                                            <><Printer size={18}/> Gerar Relatório</>
+                                        )}
                                     </button>
 
                                     {/* RESULTADOS SÓ APARECEM SE O BOTÃO FOR CLICADO */}
