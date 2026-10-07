@@ -53,6 +53,7 @@ const AdminChat = lazy(() => import('../components/AdminChat'));
 const PartnersMarketplace = lazy(() => import('../components/PartnersMarketplace'));
 const GoogleIntegrationDashboard = lazy(() => import('../components/GoogleIntegrationDashboard'));
 const MetaAdsDashboard = lazy(() => import('../components/MetaAdsDashboard'));
+const LinvixIntegrationPanel = lazy(() => import('../components/LinvixIntegrationPanel'));
 
 // Helper para mostrar algo enquanto a aba pesada está baixando
 const LoadingTab = () => (
@@ -13495,6 +13496,9 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                         </div>
                                     );
                                 })}
+                                <Suspense fallback={<LoadingTab />}>
+                                    <LinvixIntegrationPanel storeId={storeId} settings={settings} />
+                                </Suspense>
                             </div>
                         </div>
                     );
