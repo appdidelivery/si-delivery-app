@@ -13,7 +13,7 @@ if (!admin.apps.length) {
 const db = admin.firestore();
 const LINVIX_BASE_URL = 'https://api-main.linvix.com';
 const MAX_PAGES = 100;
-const PAGE_SIZE = 500;
+const PAGE_SIZE = 50;
 
 const normalizeText = (value) =>
   String(value ?? '')
@@ -31,7 +31,7 @@ function safeLocations(raw) {
 
   return (Array.isArray(items) ? items : [])
     .map((item) => ({
-      id: item.id_uuid || item.uuid || item.codigo_uuid || item.codigo || '',
+      id: item.id_uuid || item.uuid || item.codigo_uuid || item.codigo || item.descricao || item.nome || '',
       code: item.codigo || '',
       name: item.descricao || item.nome || item.localizacao || '',
       active: item.ativo !== false,
@@ -503,11 +503,12 @@ export default async function handler(req, res) {
     console.error('[LINVIX]', error);
 
     try {
-      await savePublicConfig(storeId, {
+      const errorPatch = {
         healthStatus: 'degraded',
-        lastSyncStatus: action === 'sync' ? 'error' : undefined,
         lastError: String(error?.message || error).slice(0, 500),
-      });
+      };
+      if (action === 'sync') errorPatch.lastSyncStatus = 'error';
+      await savePublicConfig(storeId, errorPatch);
     } catch {
       // Não mascara o erro principal se o log no Firestore falhar.
     }
