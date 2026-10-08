@@ -112,3 +112,22 @@ O consumo adicional de Vercel Functions/Firestore tende a ser pequeno para duas 
 - Há testes de regressão em `tests/linvix-stock.test.mjs`; execução: `npm run test:linvix`.
 
 **Homologação pendente:** a implementação não comprova que existem credenciais Linvix ativas, nem que os dois painéis já foram vinculados aos respectivos estoques. É necessário conectar cada unidade com os acessos concedidos pelo ERP, mapear os UUIDs reais e conferir saldos. O fluxo pedido Velo → Linvix também precisa ser validado antes de ativar a sincronização automática.
+
+## Pré-homologação concluível sem o cliente — 08/10/2026
+
+A Velo entrega uma auditoria por painel sem consumir a API Linvix:
+1. Confirmar total de produtos e total com EAN/GTIN ou `linvixCode`.
+2. Identificar itens sem identificador e códigos repetidos, por `storeId`.
+3. Corrigir duplicidades antes de sincronizar. Produtos de lojas diferentes com o mesmo EAN **não** são duplicidade.
+
+Fluxo do painel após receber credenciais:
+1. Conectar a conta Linvix e listar Estoques Locais.
+2. Selecionar um estoque exclusivo da unidade.
+3. Executar **Simular sincronização**, que consulta saldos e calcula alterações **sem gravar** no Firebase.
+4. Conferir correspondência, não encontrados e diferenças; só então executar **Sincronizar estoque agora** em até 30 minutos.
+5. Repetir em painel independente da segunda unidade.
+6. Validar pedidos/baixas reais na Linvix antes de habilitar qualquer agenda automática.
+
+A prévia tem validade curta, é invalidada por reconexão ou troca de local e não ativa automações. Testes adicionais cobrem a auditoria, códigos duplicados e simulação sem escrita (`npm run test:linvix`).
+
+**Limite técnico ainda existente:** não há credenciais, locais reais ou exemplos de pedido da Linvix disponíveis. A documentação interativa de pedidos não ficou legível nesta etapa, portanto o envio real do pedido, definição de `canal_venda_uuid`/`motivo_uuid` e confirmação da baixa automática dependem do contrato efetivo da API e de uma homologação com dados de teste. Não assumir silenciosamente que cadastrar o pedido baixa estoque; também não usar `/estoque-movimento/saida` antes de constatar se a baixa é automática, para não duplicar a movimentação.

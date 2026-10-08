@@ -30,6 +30,8 @@ export default function LinvixIntegrationPanel({ storeId, settings }) {
   const [status, setStatus] = useState(saved);
   const [busy, setBusy] = useState('');
   const [message, setMessage] = useState(null);
+  const [catalogAudit, setCatalogAudit] = useState(null);
+  const [preview, setPreview] = useState(null);
 
   const selectedLocation = useMemo(
     () =>
@@ -59,6 +61,29 @@ export default function LinvixIntegrationPanel({ storeId, settings }) {
     return data;
   };
 
+  const runCatalogAudit = async () => {
+    setBusy('preflight');
+    setMessage(null);
+    try {
+      const result = await callLinvix('preflight');
+      setCatalogAudit(result);
+    } catch (error) {
+      setMessage({ type: 'error', text: error.message });
+    } finally {
+      setBusy('');
+    }
+  };
+
+  useEffect(() => {
+    if (!storeId) return;
+    // A auditoria não usa a API Linvix e funciona antes de receber credenciais.
+    let live = true;
+    callLinvix('preflight').then((data) => {
+      if (live) setCatalogAudit(data);
+    }).catch(() => {});
+    return () => { live = false; };
+  }, [storeId]);
+
   const connect = async () => {
     if (!credentials.codigoLinvix || !credentials.clientId || !credentials.clientSecret) {
       return setMessage({ type: 'error', text: 'Preencha Código Linvix/Emitente, Client ID e Client Secret.' });
@@ -71,6 +96,8 @@ export default function LinvixIntegrationPanel({ storeId, settings }) {
       setConnected(true);
       setLocations(data.locations || []);
       setSelectedLocationId('');
+      setPreview(null);
+      setCatalogAudit(null);
       setStatus((prev) => ({
         ...prev,
         connected: true,
@@ -119,6 +146,7 @@ export default function LinvixIntegrationPanel({ storeId, settings }) {
     setMessage(null);
     try {
       const data = await callLinvix('saveLocation', { selectedLocation: location });
+      setPreview(null);
       setStatus((prev) => ({
         ...prev,
         selectedLocation: data.selectedLocation || location,
@@ -137,11 +165,30 @@ export default function LinvixIntegrationPanel({ storeId, settings }) {
     }
   };
 
+  const previewSync = async () => {
+    setBusy('preview');
+    setMessage(null);
+    try {
+      const data = await callLinvix('previewSync');
+      setPreview({ ...data.stats, expiresAt: Date.now() + 30 * 60 * 1000 });
+      setMessage({
+        type: data.stats?.unmatchedProducts ? 'warning' : 'success',
+        text: 'Simulação concluída sem alterações no estoque. Revise os números antes de sincronizar.',
+      });
+    } catch (error) {
+      setPreview(null);
+      setMessage({ type: 'error', text: error.message });
+    } finally {
+      setBusy('');
+    }
+  };
+
   const syncNow = async () => {
     setBusy('sync');
     setMessage(null);
     try {
       const data = await callLinvix('sync');
+      setPreview(null);
       setStatus((prev) => ({
         ...prev,
         lastSyncAt: new Date().toISOString(),
@@ -174,6 +221,8 @@ export default function LinvixIntegrationPanel({ storeId, settings }) {
       setLocations([]);
       setSelectedLocationId('');
       setStatus({ connected: false });
+      setPreview(null);
+      setCatalogAudit(null);
       setMessage({ type: 'success', text: 'Integração Linvix desconectada.' });
     } catch (error) {
       setMessage({ type: 'error', text: error.message });
@@ -205,7 +254,7 @@ export default function LinvixIntegrationPanel({ storeId, settings }) {
             </div>
             <p className="text-xs text-slate-400 mt-2 font-medium max-w-xl">
               Sincroniza o saldo disponível do Estoque Local da Linvix com esta unidade da Velo Delivery.
-              Para o Mercado Monte Verde, configure uma vez em cada painel e selecione o estoque correspondente de cada loja.
+              Para o Mercado Monte Verde, configure cada painel individualmente e selecione o estoque exclusivo daquela unidade. Antes de gravar novos saldos, execute a simulação.
             </p>
           </div>
         </div>
@@ -219,6 +268,31 @@ export default function LinvixIntegrationPanel({ storeId, settings }) {
           >
             <Unplug size={14} /> Desconectar
           </button>
+        )}
+      </div>
+
+      <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 flex flex-col gap-3">
+        <div className="flex flex-wrap justify-between items-center gap-2">
+          <div>
+            <p className="text-[11px] font-black uppercase tracking-wider text-slate-700">Auditoria do catálogo desta loja</p>
+            <p className="text-xs text-slate-500">Executada no Firebase, sem consumir chamadas à Linvix.</p>
+          </div>
+          <button type="button" onClick={runCatalogAudit} disabled={!!busy || !storeId}
+            className="px-4 py-2 rounded-lg bg-slate-200 text-slate-700 font-black text-xs disabled:opacity-50">
+            {busy === 'preflight' ? 'Verificando...' : 'Verificar cadastro'}
+          </button>
+        </div>
+        {catalogAudit && (
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs">
+            <div><strong className="block text-base text-slate-800">{catalogAudit.catalog?.totalProducts ?? 0}</strong>Produtos da loja</div>
+            <div><strong className="block text-base text-slate-800">{catalogAudit.catalog?.withBarcode ?? 0}</strong>Com EAN/GTIN</div>
+            <div><strong className="block text-base text-slate-800">{catalogAudit.catalog?.withoutIdentifier ?? 0}</strong>Sem identificador</div>
+            <div><strong className="block text-base text-slate-800">{(catalogAudit.catalog?.duplicatedBarcodes || 0) + (catalogAudit.catalog?.duplicatedLinvixCodes || 0)}</strong>Códigos duplicados</div>
+            <p className="col-span-2 md:col-span-4 text-slate-600">
+              {catalogAudit.credentialsConfigured ? 'Credenciais configuradas.' : 'Aguardando credenciais Linvix do cliente.'}
+              {' '}O diagnóstico é individual por loja e não altera estoques.
+            </p>
+          </div>
         )}
       </div>
 
@@ -351,8 +425,23 @@ export default function LinvixIntegrationPanel({ storeId, settings }) {
 
           <button
             type="button"
+            onClick={previewSync}
+            disabled={!!busy || !(status?.selectedLocation?.name || status?.selectedLocation?.id || selectedLocation?.name)}
+            className="w-full py-4 rounded-2xl bg-slate-900 text-white font-black text-xs uppercase tracking-widest hover:bg-slate-800 disabled:opacity-50"
+          >
+            {busy === 'preview' ? 'Simulando...' : 'Simular sincronização (sem alterar estoque)'}
+          </button>
+          {preview && (
+            <div className="rounded-2xl p-4 border border-indigo-200 bg-indigo-50 text-xs text-slate-700">
+              <p className="font-black uppercase mb-2">Resultado da simulação — só leitura</p>
+              <p>{preview.matchedProducts} produtos correspondentes • {preview.updatedProducts} saldos seriam atualizados • {preview.unmatchedProducts} sem correspondência.</p>
+              <p className="mt-2">A autorização para sincronização real expira em 30 minutos.</p>
+            </div>
+          )}
+          <button
+            type="button"
             onClick={syncNow}
-            disabled={!!busy || !(status?.selectedLocation?.name || selectedLocation?.name)}
+            disabled={!!busy || !preview || preview.expiresAt < Date.now() || !(status?.selectedLocation?.name || selectedLocation?.name)}
             className="w-full py-4 rounded-2xl bg-indigo-600 text-white font-black text-xs uppercase tracking-widest hover:bg-indigo-700 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
           >
             {busy === 'sync' ? <Loader2 size={16} className="animate-spin" /> : <RefreshCw size={16} />}

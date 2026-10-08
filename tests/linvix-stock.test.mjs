@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { linvixStockInternals } from '../lib/linvix.js';
 
-const { belongsToLocation, getAvailableStock, updateProductsFromLocation } = linvixStockInternals;
+const { belongsToLocation, getAvailableStock, updateProductsFromLocation, inspectCatalog } = linvixStockInternals;
 
 test('localização: não confundir estoques com nomes repetidos', () => {
   const selected = { id: 'local-a', code: '1', name: 'Central' };
@@ -112,4 +112,43 @@ test('sincronização: sem produto identificável não alterar saldo', async () 
     /Nenhum produto identificável/
   );
   assert.equal(products[0].stock, 4);
+});
+
+test('pré-validação: encontrar códigos repetidos e produtos sem identificador', () => {
+  const items = [{ gtin: '78901', linvixCode: 'A' },{ gtin: '78901', linvixCode: 'B' },{ name: 'sem EAN' }];
+  const audit = inspectCatalog({ docs: items.map((item) => ({ data: () => item })), size: items.length });
+  assert.equal(audit.totalProducts, 3);
+  assert.equal(audit.duplicatedBarcodes, 1);
+  assert.equal(audit.withoutIdentifier, 1);
+  assert.equal(audit.catalogReady, false);
+});
+
+test('simulação: não gravar nada na vitrine', async () => {
+  const products = [{ id: 'p1', storeId: 'loja-a', barcode: '78900001', stock: 8 }];
+  const db = createMockDatabase(products);
+  db.batch = () => { throw new Error('Proibido gravar no modo de prévia'); };
+  const stats = await updateProductsFromLocation({
+    db, admin, storeId: 'loja-a', dryRun: true,
+    selectedLocation: { id: 'local-a', name: 'Loja A' },
+    balances: [{ estoque_local_uuid: 'local-a', cod_barras: '78900001', estoque_disponivel: 25 }],
+  });
+  assert.equal(stats.dryRun, true);
+  assert.equal(stats.updatedProducts, 1);
+  assert.equal(products[0].stock, 8);
+});
+
+test('códigos duplicados bloqueiam alterações de estoque', async () => {
+  const products = [
+    { id: 'p1', storeId: 'loja-a', barcode: '78900001', stock: 8 },
+    { id: 'p2', storeId: 'loja-a', barcode: '78900001', stock: 9 },
+  ];
+  await assert.rejects(
+    updateProductsFromLocation({
+      db: createMockDatabase(products), admin, storeId: 'loja-a',
+      selectedLocation: { id: 'local-a', name: 'Loja A' },
+      balances: [{ estoque_local_uuid: 'local-a', cod_barras: '78900001', estoque_disponivel: 25 }],
+    }), /duplicados/
+  );
+  assert.equal(products[0].stock, 8);
+  assert.equal(products[1].stock, 9);
 });
