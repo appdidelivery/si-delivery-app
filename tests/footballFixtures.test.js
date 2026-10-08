@@ -44,7 +44,7 @@ test('only opted-in adults see their chosen club fixture, Gre-Nal includes local
 });
 
 test('alerts are disabled until separate compliance clearance and verified template',()=>{
-  const good={enabled:true,policyClearedForThisStore:true,contentType:'sports_information_only',approvedTemplateName:'alerta_futebol'};
+  const good={enabled:true,policyClearedForThisStore:true,contentType:'sports_information_only',approvedTemplateName:'alerta_futebol',templateBodyVariableCount:1};
   assert.equal(footballNotificationReady({}),false);
   assert.equal(footballNotificationReady({...good,enabled:false}),false);
   assert.equal(footballNotificationReady({...good,policyClearedForThisStore:false}),false);
@@ -53,5 +53,6 @@ test('alerts are disabled until separate compliance clearance and verified templ
   assert.equal(footballNotificationReady({...good,contentType:'beverage_marketing',regulatedMarketingReviewed:true}),true);
   assert.equal(footballNotificationReady({...good,contentType:'beverage_marketing',regulatedMarketingReviewed:true,policyClearedForThisStore:false}),false);
   assert.equal(footballNotificationReady({...good,approvedTemplateName:''}),false);
+  assert.equal(footballNotificationReady({...good,templateBodyVariableCount:2}),false);
   assert.equal(footballNotificationReady(good),true);
 });
