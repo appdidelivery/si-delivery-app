@@ -75,6 +75,22 @@
     {
       "path": "/api/sync-google-reviews",
       "schedule": "0 9 * * *"
+    },
+    {
+      "path": "/api/whatsapp-retention-wed",
+      "schedule": "0 20 * * 3"
+    },
+    {
+      "path": "/api/whatsapp-retention-fri",
+      "schedule": "30 20 * * 5"
+    },
+    {
+      "path": "/api/whatsapp-retention-sat",
+      "schedule": "0 14 * * 6"
+    },
+    {
+      "path": "/api/whatsapp-retention-sun",
+      "schedule": "0 14 * * 0"
     }
   ],
   "rewrites": [
@@ -204,6 +220,18 @@
           "initialDelaySeconds": 0
         }
       ]
+    },
+    "api/whatsapp-retention-wed.js": {
+      "maxDuration": 60
+    },
+    "api/whatsapp-retention-fri.js": {
+      "maxDuration": 60
+    },
+    "api/whatsapp-retention-sat.js": {
+      "maxDuration": 60
+    },
+    "api/whatsapp-retention-sun.js": {
+      "maxDuration": 60
     }
   }
 }
