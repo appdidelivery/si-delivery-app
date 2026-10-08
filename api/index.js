@@ -8,6 +8,7 @@ import crypto from 'crypto'; // <-- OBRIGATÓRIO PARA A CAPI DA META
 import { fetchGeminiWithRetry } from '../lib/gemini.js';
 import { scheduleJourneyRequest } from '../server/journeyQueue.js';
 import { handleOccasionLifecycle } from '../server/lifecycleDispatch.js';
+import { handleFootballRadar } from '../server/footballRadar.js';
 import { hasMarketingOptIn, hasEligibleMarketingConsent, normalizeMarketingPhone as normalizeVerifiedMarketingPhone, getLifecycleStage, isMarketingOptedOut, reserveMarketingAttempt } from '../lib/whatsappMarketingGuard.js';
 import { handleChangeTeamPassword } from '../server/changeTeamPassword.js';
 import { handleLinvixRequest, syncLinvixStore } from '../lib/linvix.js';
@@ -456,6 +457,7 @@ export default async function handler(req, res) {
         '/api/whatsapp-webhook',
         '/api/ifood-webhook',
         '/api/cron-automations',
+        '/api/football-radar',
         '/api/whatsapp-retention-wed',
         '/api/whatsapp-retention-fri',
         '/api/whatsapp-retention-sat',
@@ -514,6 +516,9 @@ export default async function handler(req, res) {
     };
     if (Object.hasOwn(occasionRoutes, path)) {
         return handleOccasionLifecycle(req, res, occasionRoutes[path]);
+    }
+    if (path === '/api/football-radar') {
+        return handleFootballRadar(req, res, db);
     }
 
     // BUILD VERSION (SEM CACHE) - usado pelo atualizador automático do painel
