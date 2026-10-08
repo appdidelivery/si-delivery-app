@@ -91,6 +91,18 @@
     {
       "path": "/api/whatsapp-retention-sun",
       "schedule": "0 14 * * 0"
+    },
+    {
+      "path": "/api/football-radar",
+      "schedule": "0 12 * * *"
+    },
+    {
+      "path": "/api/football-alert-early",
+      "schedule": "0 17 * * *"
+    },
+    {
+      "path": "/api/football-alert-late",
+      "schedule": "0 21 * * *"
     }
   ],
   "rewrites": [
