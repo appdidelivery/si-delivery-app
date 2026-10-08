@@ -1,7 +1,7 @@
 import admin from 'firebase-admin';
 import crypto from 'node:crypto';
 import { brazilLocalParts, isStoreOpenForSlot, confirmedMatchEvent } from '../lib/lifecycleSchedule.js';
-import { safeCurrentFixture } from '../lib/footballFixtures.js';
+import { safeCurrentFixture, matchAudienceAllowed } from '../lib/footballFixtures.js';
 import {
   normalizeMarketingPhone, hasEligibleMarketingConsent,
   reserveMarketingAttempt, isMarketingOptedOut
@@ -14,15 +14,6 @@ function millis(v) {
   if(typeof v.seconds==='number') return v.seconds*1000;
   const ms=new Date(v).getTime();
   return Number.isFinite(ms)?ms:0;
-}
-
-export function matchAudienceAllowed(customer,event,unsegmented=false) {
-  if(!customer || !customer.consent || !customer.adult) return false;
-  if(customer.team==='none') return false;
-  if(event.isGreNal===true) return true;
-  if(customer.team==='both') return true;
-  return (event.teams || []).includes(customer.team) ||
-    (unsegmented===true && !customer.team);
 }
 
 export async function handleFootballAlert(req,res,db,windowName) {
