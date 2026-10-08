@@ -17,9 +17,10 @@ test('unrecognized occasions fail closed',()=>{
   assert.equal(occasionPhrase('unknown'),null);
 });
 test('template never substitutes automatically before approval and policy review',()=>{
-  const base={occasionTemplateName:'velo_momentos_bebidas',occasionTemplateApproved:true,marketingPolicyReviewed:true};
+  const base={occasionTemplateName:'velo_momentos_bebidas',occasionTemplateApproved:true,marketingPolicyReviewed:true,occasionTemplateBodyVariableCount:1};
   assert.equal(canUseGenericOccasionTemplate(base),true);
   assert.equal(canUseGenericOccasionTemplate({...base,occasionTemplateApproved:false}),false);
   assert.equal(canUseGenericOccasionTemplate({...base,marketingPolicyReviewed:false}),false);
+  assert.equal(canUseGenericOccasionTemplate({...base,occasionTemplateBodyVariableCount:2}),false);
   assert.equal(canUseGenericOccasionTemplate({...base,occasionTemplateName:'!invalid!'}),false);
 });
