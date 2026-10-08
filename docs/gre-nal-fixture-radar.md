@@ -30,13 +30,43 @@ Portanto:
 - O radar de partidas é uma coleta informativa e pode funcionar sem enviar qualquer mensagem.
 - Antes de ativar alertas de futebol para clientes da Conveniência Santa Isabel, confirmar em revisão da conta da Meta, licenças locais, consentimento para WhatsApp, maioridade e **aprovação exata do template**. A aprovação por si só não cobre outras exigências.
 - Manter a separação entre aviso esportivo, eventual marketing permitido pela exceção brasileira e venda efetiva: **não usar o WhatsApp como meio de transação de produtos regulados**.
-- O módulo de envio continua **desligado por padrão**, com proteção por `footballAutomation.enabled`, `policyClearedForThisStore`, `contentType:'sports_information_only'`, `approvedTemplateName`, opt-in esportivo específico, aceite de WhatsApp, maioridade e cota compartilhada de 20 tentativas/dia.
+- O módulo de envio continua **desligado por padrão** e exige `footballAutomation.enabled`, `policyClearedForThisStore`, `approvedTemplateName`, opt-in esportivo específico, aceite de WhatsApp, maioridade e cota compartilhada de 20 tentativas/dia. Para mensagens comerciais sobre bebidas, exige ainda `contentType:'beverage_marketing'` e `regulatedMarketingReviewed:true` (revisão explícita de elegibilidade da conta, idade, localização e das regras da Meta).
 
 A preferência do clube é opcional no checkout. Para o template informativo em avaliação, sem CTAs comerciais:
 
 > Lembrete esportivo solicitado: {{1}} será disputado em {{2}}. Se não quiser receber mais avisos, responda PARAR.
 
-Se desejarmos passar a mensagens de marketing de bebidas, criar um template e um fluxo separados, com a revisão específica da exceção para o Brasil e das regras aplicáveis. **Não reutilizar o template informativo para propaganda**, e não habilitar o envio sem aprovação e avaliação de elegibilidade.
+Para o fluxo comercial de ocasião do Gre-Nal, criar um **template de marketing específico**, separado do informativo (não reutilizar o informativo para publicidade):
+
+```text
+Nome: velo_alerta_futebol_csi
+Categoria: MARKETING
+Idioma: pt_BR
+Cabeçalho: nenhum
+Corpo:
+⚽ Hoje tem {{1}}! O jogo começa {{2}}.
+
+🥤 Bateu a sede? Confira as opções de bebidas geladas da
+Conveniência Santa Isabel e prepare tudo para acompanhar a partida.
+
+Para não receber mais novidades, responda PARAR.
+```
+
+A chamada atual da Cloud API envia **exatamente dois parâmetros no corpo**, `{{1}}` = jogo e `{{2}}` = horário da partida em Brasília. Qualquer mudança no número, na ordem ou na posição das variáveis exige ajuste simultâneo no backend. Para o primeiro template, não configurar variáveis no cabeçalho e não configurar botões dinâmicos. Um botão estático pode ser avaliado separadamente na Meta.
+
+**O envio comercial permanece desativado** até que o template esteja realmente aprovado, publicação de produção esteja READY e a conta esteja revisada conforme políticas e legislação. Após isso, um operador autorizado deve configurar em `settings/csi.integrations.whatsapp.footballAutomation`:
+```js
+{
+  enabled: true,
+  approvedTemplateName: 'velo_alerta_futebol_csi',
+  contentType: 'beverage_marketing',
+  policyClearedForThisStore: true,
+  regulatedMarketingReviewed: true,
+  allowUnsegmented: false,
+  dailyLimit: 20
+}
+```
+Esses valores são **instruções futuras**, não autorizações para alterar o Firestore sem a revisão e aprovação. Não enviar mensagens de teste a clientes reais.
  
 ## Homologação e segurança
 ```sh
