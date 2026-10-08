@@ -49,6 +49,9 @@ test('alerts are disabled until separate compliance clearance and verified templ
   assert.equal(footballNotificationReady({...good,enabled:false}),false);
   assert.equal(footballNotificationReady({...good,policyClearedForThisStore:false}),false);
   assert.equal(footballNotificationReady({...good,contentType:'alcohol_promotions'}),false);
+  assert.equal(footballNotificationReady({...good,contentType:'beverage_marketing'}),false);
+  assert.equal(footballNotificationReady({...good,contentType:'beverage_marketing',regulatedMarketingReviewed:true}),true);
+  assert.equal(footballNotificationReady({...good,contentType:'beverage_marketing',regulatedMarketingReviewed:true,policyClearedForThisStore:false}),false);
   assert.equal(footballNotificationReady({...good,approvedTemplateName:''}),false);
   assert.equal(footballNotificationReady(good),true);
 });
