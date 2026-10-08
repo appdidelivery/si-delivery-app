@@ -7,6 +7,7 @@ import { GoogleAuth } from 'google-auth-library'; // <-- NOVA AUTENTICAÇÃO SER
 import crypto from 'crypto'; // <-- OBRIGATÓRIO PARA A CAPI DA META
 import { fetchGeminiWithRetry } from '../lib/gemini.js';
 import { scheduleJourneyRequest } from '../server/journeyQueue.js';
+import { handleOccasionLifecycle } from '../server/lifecycleDispatch.js';
 import { hasMarketingOptIn, hasEligibleMarketingConsent, normalizeMarketingPhone as normalizeVerifiedMarketingPhone, getLifecycleStage, isMarketingOptedOut, reserveMarketingAttempt } from '../lib/whatsappMarketingGuard.js';
 import { handleChangeTeamPassword } from '../server/changeTeamPassword.js';
 import { handleLinvixRequest, syncLinvixStore } from '../lib/linvix.js';
@@ -455,6 +456,10 @@ export default async function handler(req, res) {
         '/api/whatsapp-webhook',
         '/api/ifood-webhook',
         '/api/cron-automations',
+        '/api/whatsapp-retention-wed',
+        '/api/whatsapp-retention-fri',
+        '/api/whatsapp-retention-sat',
+        '/api/whatsapp-retention-sun',
         '/api/linvix-stock-sync',
         '/api/journey-schedule',
         '/api/app-version',
@@ -499,8 +504,19 @@ export default async function handler(req, res) {
     // ========================================================================
 
    // ------------------------------------------------------------------------
-    // BUILD VERSION (SEM CACHE) - usado pelo atualizador automático do painel
+    // CAMPANHAS POR OCASIÃO — usa a API monolítica para não criar Functions extras.
     // ------------------------------------------------------------------------
+    const occasionRoutes = {
+        '/api/whatsapp-retention-wed': 'wed',
+        '/api/whatsapp-retention-fri': 'fri',
+        '/api/whatsapp-retention-sat': 'sat',
+        '/api/whatsapp-retention-sun': 'sun'
+    };
+    if (Object.hasOwn(occasionRoutes, path)) {
+        return handleOccasionLifecycle(req, res, occasionRoutes[path]);
+    }
+
+    // BUILD VERSION (SEM CACHE) - usado pelo atualizador automático do painel
     if (path === '/api/journey-schedule') {
         res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
         return scheduleJourneyRequest(req, res);
