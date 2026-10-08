@@ -5,7 +5,7 @@ import {
   normalizeMarketingPhone, reserveMarketingAttempt
 } from '../lib/whatsappMarketingGuard.js';
 import {
-  dispatchWindow, confirmedMatchEvent, occasionPurchaseScore
+  dispatchWindow, confirmedMatchEvent, occasionPurchaseScore, isStoreOpenForSlot
 } from '../lib/lifecycleSchedule.js';
 
 function toMillis(value) {
@@ -63,8 +63,8 @@ export async function handleOccasionLifecycle(req, res, slot) {
   }
 
   const store = storeDoc.data() || {};
-  if (store.isOpen === false) {
-    return res.status(200).json({ success: true, skipped: 'store_closed' });
+  if (!isStoreOpenForSlot(store, dispatch.now)) {
+    return res.status(200).json({ success: true, skipped: 'store_closed_at_slot' });
   }
   if (store.vacationMode?.active) {
     const start = toMillis(store.vacationMode.start);
