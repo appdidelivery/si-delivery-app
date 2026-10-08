@@ -1,5 +1,6 @@
 import admin from 'firebase-admin';
 import { QueueClient, send } from '@vercel/queue';
+import { hasMarketingOptIn, isMarketingOptedOut, reserveMarketingAttempt } from '../lib/whatsappMarketingGuard.js';
 
 export const JOURNEY_TOPIC = 'velo-whatsapp-journey';
 export const CSI_STORE_ID = 'csi';
@@ -51,32 +52,22 @@ async function canReceiveJourneyMarketing(phone, source = {}) {
   const normalized = normalizePhone(phone);
   if (!normalized) return false;
 
-  const [blockedSnap, inboundSnap] = await Promise.all([
-    db.collection('blocked_contacts').where('storeId', '==', CSI_STORE_ID).limit(2000).get(),
-    db.collection('whatsapp_inbound').where('storeId', '==', CSI_STORE_ID).limit(5000).get(),
-  ]);
-
-  let blocked = false;
-  blockedSnap.forEach((doc) => {
-    if (normalizePhone(doc.data().phone) === normalized) blocked = true;
-  });
-  if (blocked) return false;
-
-  if (source.marketingOptIn === true || source.whatsappMarketingOptIn === true) return true;
-
-  let related = false;
-  inboundSnap.forEach((doc) => {
-    const data = doc.data();
-    if (data.direction === 'outbound') return;
-    if (normalizePhone(data.from || data.phone) === normalized) related = true;
-  });
-
-  return related;
+  if (!hasMarketingOptIn(source)) return false;
+  const blockedSnap = await db.collection('blocked_contacts').doc(`${CSI_STORE_ID}_${normalized}`).get();
+  return !blockedSnap.exists;
 }
 
 async function sendJourneyTemplate({ phone, templateCandidates, stage, sourceId, sourceType }) {
   const normalized = normalizePhone(phone);
   if (!normalized) return { ok: false, reason: 'invalid_phone' };
+  if (await isMarketingOptedOut(db, CSI_STORE_ID, normalized)) {
+    return { ok: false, reason: 'unsubscribed' };
+  }
+
+  const reserved = await reserveMarketingAttempt(db, {
+    storeId: CSI_STORE_ID, phone: normalized, type: stage, dailyLimit: 20
+  });
+  if (!reserved.allowed) return { ok: false, reason: reserved.reason };
 
   const settingsDoc = await db.collection('settings').doc(CSI_STORE_ID).get();
   const waConfig = settingsDoc.data()?.integrations?.whatsapp;

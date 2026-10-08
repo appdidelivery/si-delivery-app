@@ -7,6 +7,7 @@ import { GoogleAuth } from 'google-auth-library'; // <-- NOVA AUTENTICAÇÃO SER
 import crypto from 'crypto'; // <-- OBRIGATÓRIO PARA A CAPI DA META
 import { fetchGeminiWithRetry } from '../lib/gemini.js';
 import { scheduleJourneyRequest } from '../server/journeyQueue.js';
+import { hasMarketingOptIn, normalizeMarketingPhone as normalizeVerifiedMarketingPhone, getLifecycleStage, isMarketingOptedOut, reserveMarketingAttempt } from '../lib/whatsappMarketingGuard.js';
 import { handleChangeTeamPassword } from '../server/changeTeamPassword.js';
 import { handleLinvixRequest, syncLinvixStore } from '../lib/linvix.js';
 
@@ -938,7 +939,7 @@ export default async function handler(req, res) {
         }
 
         // Verifica se a requisição veio da própria Vercel ou se possui o Token Bearer correto
-        if (req.headers['user-agent'] !== 'Vercel Cron' && authHeader !== `Bearer ${cronSecret}`) {
+        if (authHeader !== `Bearer ${cronSecret}`) {
             console.warn("🚨 [SECURITY M2] Tentativa de invasão detectada na rota do CRON. Bloqueado.");
             return res.status(401).json({ error: 'Acesso Não Autorizado' });
         }
@@ -1045,6 +1046,7 @@ export default async function handler(req, res) {
                 const data = doc.data();
                 if (data.lastUpdated && data.lastUpdated.toDate() < thirtyMinutesAgo && data.customerPhone) {
                     const storeId = data.storeId;
+                    if (storeId === 'csi') continue; // Template Meta oficial evita lembrete legado duplicado.
                     if (data.abandonmentAlertSent === true) continue;
                     
                     const storeSettingsDoc = await db.collection('settings').doc(storeId).get();
@@ -1319,24 +1321,9 @@ const aiResponse = await fetchGeminiWithRetry(`https://generativelanguage.google
                             return Number.isFinite(parsed) ? parsed : 0;
                         };
 
-                        const [inboundSnap, blockedSnap] = await Promise.all([
-                            db.collection('whatsapp_inbound')
-                                .where('storeId', '==', journeyStoreId)
-                                .limit(5000)
-                                .get(),
-                            db.collection('blocked_contacts')
-                                .where('storeId', '==', journeyStoreId)
-                                .limit(2000)
-                                .get()
-                        ]);
-
-                        const relationshipPhones = new Set();
-                        inboundSnap.forEach(d => {
-                            const data = d.data();
-                            if (data.direction === 'outbound') return;
-                            const phone = normalizeJourneyPhone(data.from || data.phone);
-                            if (phone) relationshipPhones.add(phone);
-                        });
+                        const blockedSnap = await db.collection('blocked_contacts')
+                            .where('storeId', '==', journeyStoreId)
+                            .limit(2000).get();
 
                         const blockedPhones = new Set();
                         blockedSnap.forEach(d => {
@@ -1345,13 +1332,16 @@ const aiResponse = await fetchGeminiWithRetry(`https://generativelanguage.google
                         });
 
                         const canReceiveMarketing = (phone, source = {}) =>
-                            !blockedPhones.has(phone) && (
-                                relationshipPhones.has(phone) ||
-                                source.marketingOptIn === true ||
-                                source.whatsappMarketingOptIn === true
-                            );
+                            !blockedPhones.has(phone) && hasMarketingOptIn(source);
 
                         const sendJourneyTemplate = async ({ phone, templateCandidates, stage, sourceId, sourceType }) => {
+                            if (await isMarketingOptedOut(db, journeyStoreId, phone)) {
+                                return { ok: false, reason: 'unsubscribed' };
+                            }
+                            const reserved = await reserveMarketingAttempt(db, {
+                                storeId: journeyStoreId, phone, type: stage, dailyLimit: journeyDailyLimit
+                            });
+                            if (!reserved.allowed) return { ok: false, reason: reserved.reason };
                             const safePhone = `55${phone}`;
                             let lastError = null;
 
@@ -1586,7 +1576,7 @@ const aiResponse = await fetchGeminiWithRetry(`https://generativelanguage.google
                 const waConfig = settingsData.integrations?.whatsapp;
                 const lifecycleConfig = waConfig?.lifecycleAutomation || {};
 
-                const lifecycleEnabled = lifecycleConfig.enabled === true || lifecycleStoreId === 'csi';
+                const lifecycleEnabled = lifecycleStoreId === 'csi' ? lifecycleConfig.enabled !== false : lifecycleConfig.enabled === true;
                 if (!lifecycleEnabled || !waConfig?.phoneNumberId || !waConfig?.apiToken) continue;
 
                 const defaultTemplates = profile.key === 'beverage'
@@ -1622,10 +1612,9 @@ const aiResponse = await fetchGeminiWithRetry(`https://generativelanguage.google
                     return Number.isFinite(parsed) ? parsed : 0;
                 };
 
-                const [ordersSnap, blockedSnap, inboundSnap, lifecycleSnap] = await Promise.all([
+                const [ordersSnap, blockedSnap, lifecycleSnap] = await Promise.all([
                     db.collection('orders').where('storeId', '==', lifecycleStoreId).limit(5000).get(),
                     db.collection('blocked_contacts').where('storeId', '==', lifecycleStoreId).limit(2000).get(),
-                    db.collection('whatsapp_inbound').where('storeId', '==', lifecycleStoreId).limit(3000).get(),
                     db.collection('whatsapp_lifecycle_contacts').where('storeId', '==', lifecycleStoreId).limit(3000).get()
                 ]);
 
@@ -1633,15 +1622,6 @@ const aiResponse = await fetchGeminiWithRetry(`https://generativelanguage.google
                 blockedSnap.forEach(d => {
                     const phone = normalizePhone(d.data().phone);
                     if (phone) blockedPhones.add(phone);
-                });
-
-                // O piloto só aborda contatos que já tiveram relação pelo WhatsApp.
-                const inboundPhones = new Set();
-                inboundSnap.forEach(d => {
-                    const data = d.data();
-                    if (data.direction === 'outbound') return;
-                    const phone = normalizePhone(data.from || data.phone);
-                    if (phone) inboundPhones.add(phone);
                 });
 
                 const lifecycleByHash = new Map();
@@ -1665,6 +1645,7 @@ const aiResponse = await fetchGeminiWithRetry(`https://generativelanguage.google
                         customersByPhone.set(phone, {
                             phone,
                             customerName: order.customerName || order.customer?.name || 'Cliente',
+                            marketingOptIn: hasMarketingOptIn(order),
                             lastOrderAtMs
                         });
                     }
@@ -1688,12 +1669,12 @@ const aiResponse = await fetchGeminiWithRetry(`https://generativelanguage.google
                         skippedBlocked++;
                         continue;
                     }
-                    if (!inboundPhones.has(customer.phone)) {
+                    if (!customer.marketingOptIn) {
                         skippedNoRelationship++;
                         continue;
                     }
 
-                    const stage = customer.daysInactive >= 90 ? 90 : customer.daysInactive >= 60 ? 60 : 30;
+                    const stage = getLifecycleStage(customer.daysInactive);
                     const templateName = templates[stage];
                     if (!templateName) continue;
 
@@ -1710,6 +1691,11 @@ const aiResponse = await fetchGeminiWithRetry(`https://generativelanguage.google
                     const GRAPH_API_URL = `https://graph.facebook.com/v19.0/${waConfig.phoneNumberId}/messages`;
 
                     try {
+                        if (await isMarketingOptedOut(db, lifecycleStoreId, customer.phone)) continue;
+                        const reserved = await reserveMarketingAttempt(db, {
+                            storeId: lifecycleStoreId, phone: customer.phone, type: `lifecycle_${stage}`, dailyLimit
+                        });
+                        if (!reserved.allowed) continue;
                         const response = await fetch(GRAPH_API_URL, {
                             method: 'POST',
                             headers: {
@@ -2362,11 +2348,7 @@ const aiResponse = await fetchGeminiWithRetry(`https://generativelanguage.google
 
             // Segmentação de reativação: considera a última compra por telefone,
             // ignora pedidos cancelados e contatos bloqueados e nunca mistura tenants.
-            const normalizeMarketingPhone = (value) => {
-                let digits = String(value || '').replace(/\D/g, '');
-                if (digits.startsWith('55') && (digits.length === 12 || digits.length === 13)) digits = digits.slice(2);
-                return (digits.length === 10 || digits.length === 11) ? digits : null;
-            };
+            const normalizeMarketingPhone = normalizeVerifiedMarketingPhone;
 
             const orderTimeMs = (value) => {
                 if (!value) return 0;
@@ -2386,13 +2368,17 @@ const aiResponse = await fetchGeminiWithRetry(`https://generativelanguage.google
                 const recentCutoffMs = Date.now() - COOLDOWN_DAYS * 86400000;
                 const hashPhone = (phone) => crypto.createHash('sha256').update(`${storeId}:${phone}`).digest('hex');
 
-                const [blockedSnap, campaignSnap] = await Promise.all([
+                const [blockedSnap, campaignSnap, optoutSnap] = await Promise.all([
                     db.collection('blocked_contacts').where('storeId', '==', storeId).limit(2000).get(),
-                    db.collection('whatsapp_campaigns').where('storeId', '==', storeId).limit(200).get()
+                    db.collection('whatsapp_campaigns').where('storeId', '==', storeId).limit(200).get(),
+                    db.collection('whatsapp_marketing_optouts').where('storeId', '==', storeId).limit(2000).get()
                 ]);
-
                 const blockedPhones = new Set();
                 blockedSnap.forEach(doc => {
+                    const phone = normalizeMarketingPhone(doc.data().phone);
+                    if (phone) blockedPhones.add(phone);
+                });
+                optoutSnap.forEach(doc => {
                     const phone = normalizeMarketingPhone(doc.data().phone);
                     if (phone) blockedPhones.add(phone);
                 });
@@ -2446,6 +2432,7 @@ const aiResponse = await fetchGeminiWithRetry(`https://generativelanguage.google
                             byPhone.set(phone, {
                                 phone,
                                 customerName: data.customerName || data.customer?.name || 'Cliente',
+                                marketingOptIn: hasMarketingOptIn(data),
                                 lastOrderAtMs: createdAtMs
                             });
                         }
@@ -2461,6 +2448,7 @@ const aiResponse = await fetchGeminiWithRetry(`https://generativelanguage.google
                 const sortedCandidates = Array.from(byPhone.values())
                     .filter(customer =>
                         customer.lastOrderAtMs <= cutoffMs &&
+                        customer.marketingOptIn &&
                         !blockedPhones.has(customer.phone) &&
                         !recentRecipientHashes.has(hashPhone(customer.phone))
                     )
@@ -2739,7 +2727,7 @@ const aiResponse = await fetchGeminiWithRetry(`https://generativelanguage.google
 
             if (action === 'reactivation_preview') {
                 const audience = await buildReactivationAudience(req.body.inactivityDays);
-                const maxRecipients = Math.max(1, Math.min(200, Number(req.body.maxRecipients) || 20));
+                const maxRecipients = Math.max(1, Math.min(20, Number(req.body.maxRecipients) || 20));
                 return res.status(200).json({
                     success: true,
                     inactivityDays: audience.safeDays,
@@ -2766,7 +2754,7 @@ const aiResponse = await fetchGeminiWithRetry(`https://generativelanguage.google
                 if (!templateName) return res.status(400).json({ error: 'Nome do template obrigatório' });
 
                 const audience = await buildReactivationAudience(req.body.inactivityDays);
-                const maxRecipients = Math.max(1, Math.min(200, Number(req.body.maxRecipients) || 20));
+                const maxRecipients = Math.max(1, Math.min(20, Number(req.body.maxRecipients) || 20));
                 const recipients = audience.eligible.slice(0, maxRecipients);
 
                 if (recipients.length === 0) {
@@ -2801,9 +2789,17 @@ const aiResponse = await fetchGeminiWithRetry(`https://generativelanguage.google
                 // Lotes pequenos preservam estabilidade da função e evitam pico de requisições na Meta.
                 for (let i = 0; i < recipients.length; i += 20) {
                     const chunk = recipients.slice(i, i + 20);
-                    const results = await Promise.all(chunk.map(customer =>
-                        sendMessageToMeta(customer.phone, templateName, 'pt_BR', templateVariables, { allowFailover: false })
-                    ));
+                    const results = [];
+                    for (const customer of chunk) {
+                        const reserved = await reserveMarketingAttempt(db, {
+                            storeId, phone: customer.phone, type: 'manual_reactivation', dailyLimit: 20
+                        });
+                        if (!reserved.allowed) {
+                            results.push({ ok: false, quotaReason: reserved.reason });
+                            continue;
+                        }
+                        results.push(await sendMessageToMeta(customer.phone, templateName, 'pt_BR', templateVariables, { allowFailover: false }));
+                    }
 
                     const historyBatch = db.batch();
 
@@ -2875,35 +2871,52 @@ const aiResponse = await fetchGeminiWithRetry(`https://generativelanguage.google
             }
 
             if (action === 'broadcast') {
-                const templateVariables = req.body.variables || []; 
+                const templateVariables = req.body.variables || [];
                 if (!templateName) return res.status(400).json({ error: 'Nome do template obrigatório' });
-                
-                // 1. Busca todos os Leads (Qualquer pessoa que já interagiu no WhatsApp)
-                // Limite de 1500 para proteger o servidor da Vercel contra erro 504 (Timeout)
-                const inboundSnap = await db.collection('whatsapp_inbound')
-                    .where('storeId', '==', storeId)
-                    .where('direction', '!=', 'outbound')
-                    .limit(1500) 
-                    .get();
-
-                const uniquePhones = new Set();
-                inboundSnap.forEach(doc => { 
-                    if (doc.data().from) uniquePhones.add(doc.data().from); 
+                // Apenas compradores com consentimento expresso, sem inferir aceite de conversas recebidas.
+                const [ordersSnap, blockedSnap] = await Promise.all([
+                    db.collection('orders').where('storeId', '==', storeId).limit(5000).get(),
+                    db.collection('blocked_contacts').where('storeId', '==', storeId).limit(2000).get()
+                ]);
+                const blocked = new Set(blockedSnap.docs.map(d => normalizeMarketingPhone(d.data().phone)).filter(Boolean));
+                const byPhone = new Map();
+                ordersSnap.forEach(doc => {
+                    const data = doc.data();
+                    const phone = normalizeMarketingPhone(data.customerPhone || data.customer?.phone);
+                    if (!phone) return;
+                    const atMs = orderTimeMs(data.createdAt || data.paidAt);
+                    const prev = byPhone.get(phone);
+                    if (!prev || atMs > prev.atMs) byPhone.set(phone, { atMs, consent: hasMarketingOptIn(data) });
                 });
-
-                // 2. Fallback de Segurança: Se a loja acabou de ligar o WhatsApp e não tem histórico de chat, pega dos pedidos antigos
-                if (uniquePhones.size < 50) {
-                    const ordersSnap = await db.collection('orders').where('storeId', '==', storeId).limit(1000).get();
-                    ordersSnap.forEach(doc => { 
-                        if (doc.data().customerPhone) uniquePhones.add(doc.data().customerPhone); 
+                const recipients = Array.from(byPhone.entries())
+                    .filter(([phone, value]) => value.consent && !blocked.has(phone))
+                    .map(([phone]) => phone).slice(0, 20);
+                let sent = 0;
+                let failed = 0;
+                let skippedDailyLimit = 0;
+                for (const phone of recipients) {
+                    const reserved = await reserveMarketingAttempt(db, {
+                        storeId, phone, type: 'manual_broadcast', dailyLimit: 20
+                    });
+                    if (!reserved.allowed) { skippedDailyLimit++; continue; }
+                    if (await isMarketingOptedOut(db, storeId, phone)) { skippedDailyLimit++; continue; }
+                    const result = await sendMessageToMeta(phone, templateName, 'pt_BR', templateVariables, { allowFailover: false });
+                    if (!result?.ok) { failed++; continue; }
+                    sent++;
+                    await db.collection('whatsapp_inbound').add({
+                        storeId, to: phone, templateName,
+                        text: `[Campanha Geral] Template oficial enviado: ${templateName}`,
+                        metaMessageId: result.data?.messages?.[0]?.id || null,
+                        campaignType: 'broadcast', deliveryStatus: 'sent',
+                        sentAt: admin.firestore.FieldValue.serverTimestamp(),
+                        receivedAt: admin.firestore.FieldValue.serverTimestamp(),
+                        direction: 'outbound', status: 'sent'
                     });
                 }
-                
-                // 3. Repassa as variáveis para a função base
-                const sendPromises = Array.from(uniquePhones).map(phone => sendMessageToMeta(phone, templateName, 'pt_BR', templateVariables, { allowFailover: false }));
-                await Promise.allSettled(sendPromises);
-                
-                return res.status(200).json({ success: true, message: `Disparado para ${uniquePhones.size} clientes/leads.` });
+                return res.status(200).json({
+                    success: true, sent, failed, skippedDailyLimit,
+                    message: `Campanha: ${sent} aceitos pela Meta, ${failed} falhas, ${skippedDailyLimit} bloqueados pelo limite diário. Somente opt-in foi considerado.`
+                });
             }
 
             // --- INÍCIO: ENVIAR TEMPLATE INDIVIDUAL (ABRIR JANELA 24H) ---
@@ -3282,10 +3295,12 @@ const aiResponse = await fetchGeminiWithRetry(`https://generativelanguage.google
 
                                 const outboundDoc = outboundSnap.docs[0];
                                 const outboundData = outboundDoc.data();
-                                const rank = { sent: 1, delivered: 2, read: 3, failed: 4 };
+                                const rank = { sent: 1, delivered: 2, read: 3 };
                                 const currentStatus = String(outboundData.deliveryStatus || '').toLowerCase();
 
-                                // Evita regressão causada por receipts chegando fora de ordem.
+                                // Webhooks podem chegar fora de ordem. Não rebaixa leituras/entregas,
+                                // mas aceita recuperação de uma falha transitória posterior.
+                                if (metaStatus === 'failed' && ['delivered', 'read'].includes(currentStatus)) continue;
                                 if (metaStatus !== 'failed' && (rank[currentStatus] || 0) > (rank[metaStatus] || 0)) continue;
 
                                 const receiptUpdate = {
@@ -3481,6 +3496,38 @@ const aiResponse = await fetchGeminiWithRetry(`https://generativelanguage.google
                                         mediaType: finalMediaType,
                                         receivedAt: admin.firestore.FieldValue.serverTimestamp(), status: 'unread', direction: 'inbound'
                                     });
+
+                                    // Exclusão de marketing: preserva o atendimento e os pedidos normais.
+                                    // Não bloqueia o contato inteiro; apenas futuras campanhas promocionais.
+                                    const marketingCommand = String(messageText || '').trim().toLowerCase()
+                                        .normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, ' ');
+                                    const unsubscribeWords = new Set([
+                                        'parar', 'stop', 'sair da lista', 'remover da lista',
+                                        'nao quero receber ofertas', 'cancelar mensagens'
+                                    ]);
+                                    if (unsubscribeWords.has(marketingCommand)) {
+                                        await db.collection('whatsapp_marketing_optouts').doc(`${storeId}_${normalizedPhone}`).set({
+                                            storeId, phone: normalizedPhone, source: 'whatsapp_inbound',
+                                            optedOutAt: admin.firestore.FieldValue.serverTimestamp()
+                                        }, { merge: true });
+                                        if (apiToken) {
+                                            try {
+                                                await fetch(`https://graph.facebook.com/v19.0/${phoneNumberId}/messages`, {
+                                                    method: 'POST',
+                                                    headers: { Authorization: `Bearer ${apiToken}`, 'Content-Type': 'application/json' },
+                                                    body: JSON.stringify({
+                                                        messaging_product: 'whatsapp',
+                                                        to: message.from,
+                                                        type: 'text',
+                                                        text: { body: 'Certo! Você não receberá mais ofertas automáticas desta loja. Pode continuar pedindo e falando conosco normalmente.' }
+                                                    })
+                                                });
+                                            } catch (error) {
+                                                console.error('[WhatsApp Marketing] Falha na confirmação de descadastro:', error.message);
+                                            }
+                                        }
+                                        continue;
+                                    }
 
                                     // Se este contato veio de uma campanha recente, marca a campanha como respondida.
                                     // O hash usa a mesma regra da reativação e não expõe o telefone no ID do documento.

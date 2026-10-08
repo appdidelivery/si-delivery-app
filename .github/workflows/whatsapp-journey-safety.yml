@@ -1,0 +1,27 @@
+name: WhatsApp journey safety
+on:
+  pull_request:
+    paths:
+      - 'api/index.js'
+      - 'server/journeyQueue.js'
+      - 'lib/whatsappMarketingGuard.js'
+      - 'src/pages/WppWebview.jsx'
+      - 'src/components/AdminChat.jsx'
+      - 'tests/whatsappMarketingGuard.test.js'
+      - '.github/workflows/whatsapp-journey-safety.yml'
+permissions:
+  contents: read
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - name: Syntax checks
+        run: |
+          node --check api/index.js
+          node --check server/journeyQueue.js
+          node --check lib/whatsappMarketingGuard.js
+      - name: Marketing opt-in and quota tests
+        run: node --test tests/whatsappMarketingGuard.test.js

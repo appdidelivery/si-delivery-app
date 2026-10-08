@@ -635,7 +635,7 @@ export default function WppWebview() {
                           className="mt-0.5 h-4 w-4"
                       />
                       <span className="text-[11px] leading-relaxed text-slate-300">
-                          Quero receber novidades, ofertas e lembretes de pedido pelo WhatsApp. Posso cancelar quando quiser.
+                          Quero receber novidades, ofertas e lembretes de pedido da {store?.name || 'loja'} pelo WhatsApp. Posso cancelar quando quiser respondendo PARAR.
                       </span>
                   </label>
                   {deliveryMethod === 'delivery' && (

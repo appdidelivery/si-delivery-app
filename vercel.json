@@ -70,7 +70,7 @@
   "crons": [
     {
       "path": "/api/cron-automations",
-      "schedule": "0 8 * * *"
+      "schedule": "0 13 * * *"
     },
     {
       "path": "/api/sync-google-reviews",
