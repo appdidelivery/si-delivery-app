@@ -46,7 +46,7 @@ export default function WppWebview() {
 
   // Dados do Cliente e Logística
   const [customer, setCustomer] = useState({
-      name: '', phone: customerPhoneQuery || '', cep: '', street: '', number: '', neighborhood: '', city: '', state: '', payment: '', changeFor: '', whatsappMarketingOptIn: false, alcoholMarketingAgeConfirmed: false, footballTeam: null
+      name: '', phone: customerPhoneQuery || '', cep: '', street: '', number: '', neighborhood: '', city: '', state: '', payment: '', changeFor: '', whatsappMarketingOptIn: false, alcoholMarketingAgeConfirmed: false, footballTeam: null, footballAlertsOptIn: false
   });
   const [deliveryMethod, setDeliveryMethod] = useState('delivery');
   
@@ -308,6 +308,7 @@ export default function WppWebview() {
                 alcoholMarketingAgeConfirmed: customer.alcoholMarketingAgeConfirmed === true,
               marketingOptInAt: customer.whatsappMarketingOptIn === true ? new Date().toISOString() : null,
               footballTeam: slug === 'csi' && customer.whatsappMarketingOptIn === true ? customer.footballTeam : null,
+              footballAlertsOptIn: slug === 'csi' && customer.whatsappMarketingOptIn === true && customer.footballAlertsOptIn === true,
               // --- INÍCIO: CORREÇÃO FISCAL FOCUS NFE ---
               customer: {
                   name: customer.name,
@@ -671,7 +672,16 @@ export default function WppWebview() {
                         <option value="none">Não quero comunicados sobre futebol</option>
                       </select>
                       <span className="block mt-2 text-[11px] text-slate-400">
-                        Usamos essa preferência apenas para tornar as ofertas e avisos de jogos mais relevantes.
+                        Sua preferência de time nos ajuda a evitar mensagens sobre jogos que não são do seu interesse.
+                      </span>
+                      <span className="block mt-3 text-[11px] text-slate-300">
+                        <input
+                          type="checkbox"
+                          checked={customer.footballAlertsOptIn === true}
+                          onChange={e => setCustomer({...customer, footballAlertsOptIn: e.target.checked})}
+                          className="mr-2 h-4 w-4 align-middle"
+                        />
+                        Quero receber pelo WhatsApp avisos informativos sobre jogos do Grêmio e/ou Internacional. Posso cancelar enviando PARAR.
                       </span>
                     </label>
                   )}
