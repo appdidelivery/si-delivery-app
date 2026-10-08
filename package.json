@@ -7,6 +7,7 @@
     "dev": "vite",
     "build": "vite build",
     "lint": "eslint .",
+    "test:linvix": "node --test tests/linvix-stock.test.mjs",
     "preview": "vite preview"
   },
   "dependencies": {
