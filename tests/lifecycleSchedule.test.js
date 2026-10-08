@@ -16,11 +16,14 @@ test('all slots are São Paulo time and use only allowed days', () => {
 });
 
 test('no invented Wednesday games', () => {
-  const valid = {type:'football_match',active:true,confirmed:true,date:'2026-10-07',matchLabel:'Time A x Time B'};
-  assert.equal(confirmedMatchEvent(valid,'2026-10-07'),true);
-  assert.equal(confirmedMatchEvent({...valid,confirmed:false},'2026-10-07'),false);
-  assert.equal(confirmedMatchEvent(valid,'2026-10-14'),false);
-  assert.equal(confirmedMatchEvent({...valid,matchLabel:''},'2026-10-07'),false);
+  const now = new Date('2026-10-07T20:30:00Z');
+  const valid = {type:'football_match',active:true,confirmed:true,date:'2026-10-07',matchLabel:'Time A x Time B',kickoffAt:'2026-10-08T00:00:00Z'};
+  assert.equal(confirmedMatchEvent(valid,'2026-10-07',now),true);
+  assert.equal(confirmedMatchEvent({...valid,confirmed:false},'2026-10-07',now),false);
+  assert.equal(confirmedMatchEvent(valid,'2026-10-14',now),false);
+  assert.equal(confirmedMatchEvent({...valid,matchLabel:''},'2026-10-07',now),false);
+  assert.equal(confirmedMatchEvent({...valid,kickoffAt:'2026-10-07T18:00:00Z'},'2026-10-07',now),false);
+  assert.equal(confirmedMatchEvent({...valid,kickoffAt:'2026-10-08T04:00:00Z'},'2026-10-07',now),false);
 });
 
 test('weekday historical purchase gets higher occasion score', () => {
