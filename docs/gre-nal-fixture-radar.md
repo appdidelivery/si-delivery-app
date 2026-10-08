@@ -22,31 +22,21 @@ No Vercel Hobby a execução pode acontecer ao longo da hora programada, sem pre
 - `football_radar_status/csi`: data de consulta, quantidade de partidas detectadas e erros.
 - `whatsapp_football_contacts/csi_<phonehash>`: último aviso por contato para impedir repetição.
 
-## Ativação de mensagens — bloqueio por política Meta
+## Ativação de mensagens — exceção regulamentada do Brasil
 
-**Somente o radar de partidas pode ficar ativo automaticamente. Nenhum alerta para clientes deve ser habilitado antes de análise expressa de conformidade da conta/empresa.**
+A [Política Empresarial atual do WhatsApp](https://whatsappbusiness.com/pt-br/policy/) permite, **na Plataforma/API do WhatsApp Business**, mensagens sobre bebidas alcoólicas **no Brasil** entre os países autorizados. A exceção **não** se estende ao aplicativo WhatsApp Business comum nem a recursos comerciais que permitem comprar/vender diretamente produtos regulados no WhatsApp. A política exige conformidade com leis locais, licenças e códigos setoriais, controle geográfico, medidas técnicas/organizacionais de maioridade e **nenhum destinatário menor de 18 anos**. Consultado em 08/10/2026, seção 5, "Álcool – Países permitidos".
 
-A Política de Mensagens do WhatsApp Business (consulta de 08/10/2026) inclui **álcool e tabaco** entre os produtos regulados cuja compra, venda e promoção são proibidas no serviço, independentemente de licença local:
-https://business.whatsapp.com/policy/preview?lang=pt_BR
+Portanto:
+- O radar de partidas é uma coleta informativa e pode funcionar sem enviar qualquer mensagem.
+- Antes de ativar alertas de futebol para clientes da Conveniência Santa Isabel, confirmar em revisão da conta da Meta, licenças locais, consentimento para WhatsApp, maioridade e **aprovação exata do template**. A aprovação por si só não cobre outras exigências.
+- Manter a separação entre aviso esportivo, eventual marketing permitido pela exceção brasileira e venda efetiva: **não usar o WhatsApp como meio de transação de produtos regulados**.
+- O módulo de envio continua **desligado por padrão**, com proteção por `footballAutomation.enabled`, `policyClearedForThisStore`, `contentType:'sports_information_only'`, `approvedTemplateName`, opt-in esportivo específico, aceite de WhatsApp, maioridade e cota compartilhada de 20 tentativas/dia.
 
-Em consequência, **não sugerir ou ativar templates promocionais de álcool, bebidas ou CTA comercial vinculados à partida**. Mesmo um template aprovado pela Meta pode não conferir elegibilidade à operação. Qualquer mensagem informativa sobre o jogo precisa ser avaliada quanto à conta emissora, finalidade e políticas em vigor.
-
-O módulo de mensagens de futebol permanece **desligado por padrão** e exige, simultaneamente:
-- `settings/csi.integrations.whatsapp.footballAutomation.enabled===true`
-- `policyClearedForThisStore===true`: revisão documentada das regras atuais e liberação expressa da conta;
-- `contentType==='sports_information_only'`: nada de promoção, preço, álcool, cupom, pedido ou chamada comercial;
-- `approvedTemplateName` realmente aprovado e com **exatamente 2 parâmetros de texto**, conferidos na conta Meta;
-- confirmação de consentimento **separado** `footballAlertsOptIn===true`, aceite geral de WhatsApp, idade 18+, time de interesse, sem opt-out PARAR;
-- limite compartilhado 20 tentativas/dia e 7 dias entre alertas do mesmo contato;
-- loja aberta, partida atualizada no radar e antes do início.
-
-Modelo estritamente informativo para **avaliação de políticas**, não aprovado:
+A preferência do clube é opcional no checkout. Para o template informativo em avaliação, sem CTAs comerciais:
 
 > Lembrete esportivo solicitado: {{1}} será disputado em {{2}}. Se não quiser receber mais avisos, responda PARAR.
 
-**Não enviar, submeter ou ativar automaticamente** antes de verificar se a própria conta/empresa está autorizada a usar esses modelos em conformidade com as políticas.
-
-A preferência por Grêmio/Internacional e o aceite separado são registrados no checkout, sem disparos automáticos enquanto este bloqueio permanecer.
+Se desejarmos passar a mensagens de marketing de bebidas, criar um template e um fluxo separados, com a revisão específica da exceção para o Brasil e das regras aplicáveis. **Não reutilizar o template informativo para propaganda**, e não habilitar o envio sem aprovação e avaliação de elegibilidade.
  
 ## Homologação e segurança
 ```sh
