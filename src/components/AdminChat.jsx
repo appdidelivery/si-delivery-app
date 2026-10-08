@@ -1502,16 +1502,14 @@ export default function AdminChat() {
                                         </div>
 
                                         <div>
-                                            <p className="text-sm text-amber-900 font-bold mb-2">Limite deste envio:</p>
+                                            <p className="text-sm text-amber-900 font-bold mb-2">Limite deste envio (teto 20 por loja/dia):</p>
                                             <select
                                                 value={reactivationMaxRecipients}
                                                 onChange={(e) => { setReactivationMaxRecipients(Number(e.target.value)); setReactivationPreview(null); }}
                                                 className="w-full p-3 bg-white border border-amber-200 rounded-xl font-bold text-amber-900 outline-none"
                                             >
                                                 <option value={20}>20 clientes — teste seguro</option>
-                                                <option value={50}>50 clientes</option>
-                                                <option value={100}>100 clientes</option>
-                                                <option value={200}>200 clientes</option>
+                                                {/* Piloto: teto compartilhado de 20 tentativas de marketing por loja/dia. */}
                                             </select>
                                         </div>
 
@@ -1527,7 +1525,7 @@ export default function AdminChat() {
                                         {reactivationPreview && (
                                             <div className="bg-white border border-amber-200 rounded-xl p-4 text-sm text-slate-700">
                                                 <div className="flex items-center justify-between gap-3">
-                                                    <span className="font-bold">Clientes elegíveis</span>
+                                                    <span className="font-bold">Clientes elegíveis com consentimento</span>
                                                     <span className="text-xl font-black text-amber-700">{reactivationPreview.eligibleCount}</span>
                                                 </div>
                                                 <div className="flex items-center justify-between gap-3 mt-1">
