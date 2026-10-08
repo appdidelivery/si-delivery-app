@@ -4,10 +4,15 @@ on:
     paths:
       - 'api/index.js'
       - 'server/journeyQueue.js'
+      - 'server/lifecycleDispatch.js'
+      - 'lib/lifecycleSchedule.js'
+      - 'api/whatsapp-retention-*.js'
+      - 'vercel.json'
       - 'lib/whatsappMarketingGuard.js'
       - 'src/pages/WppWebview.jsx'
       - 'src/components/AdminChat.jsx'
       - 'tests/whatsappMarketingGuard.test.js'
+      - 'tests/lifecycleSchedule.test.js'
       - '.github/workflows/whatsapp-journey-safety.yml'
 permissions:
   contents: read
@@ -23,5 +28,9 @@ jobs:
           node --check api/index.js
           node --check server/journeyQueue.js
           node --check lib/whatsappMarketingGuard.js
+          node --check lib/lifecycleSchedule.js
+          node --check server/lifecycleDispatch.js
+          for file in api/whatsapp-retention-{wed,fri,sat,sun}.js; do node --check "$file"; done
+          node -e "JSON.parse(require('fs').readFileSync('vercel.json','utf8'))"
       - name: Marketing opt-in and quota tests
-        run: node --test tests/whatsappMarketingGuard.test.js
+        run: node --test tests/whatsappMarketingGuard.test.js tests/lifecycleSchedule.test.js
