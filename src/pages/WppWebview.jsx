@@ -46,7 +46,7 @@ export default function WppWebview() {
 
   // Dados do Cliente e Logística
   const [customer, setCustomer] = useState({
-      name: '', phone: customerPhoneQuery || '', cep: '', street: '', number: '', neighborhood: '', city: '', state: '', payment: '', changeFor: '', whatsappMarketingOptIn: false
+      name: '', phone: customerPhoneQuery || '', cep: '', street: '', number: '', neighborhood: '', city: '', state: '', payment: '', changeFor: '', whatsappMarketingOptIn: false, alcoholMarketingAgeConfirmed: false
   });
   const [deliveryMethod, setDeliveryMethod] = useState('delivery');
   
@@ -233,6 +233,7 @@ export default function WppWebview() {
             await setDoc(doc(db, "abandoned_carts", abandonedCartId), {
                 storeId: slug, customerPhone: customer.phone || customerPhoneQuery || "", items: cart,
                 whatsappMarketingOptIn: customer.whatsappMarketingOptIn === true,
+                alcoholMarketingAgeConfirmed: customer.alcoholMarketingAgeConfirmed === true,
                 subtotal: cart.reduce((a, i) => a + (i.price * i.quantity), 0),
                 lastUpdated: serverTimestamp(), status: 'abandoned'
             }, { merge: true });
@@ -304,6 +305,7 @@ export default function WppWebview() {
               customerAddress: addr, 
               customerPhone: customer.phone,
               whatsappMarketingOptIn: customer.whatsappMarketingOptIn === true,
+                alcoholMarketingAgeConfirmed: customer.alcoholMarketingAgeConfirmed === true,
               marketingOptInAt: customer.whatsappMarketingOptIn === true ? new Date().toISOString() : null,
               // --- INÍCIO: CORREÇÃO FISCAL FOCUS NFE ---
               customer: {
@@ -638,6 +640,19 @@ export default function WppWebview() {
                           Quero receber novidades, ofertas e lembretes de pedido da {store?.name || 'loja'} pelo WhatsApp. Posso cancelar quando quiser respondendo PARAR.
                       </span>
                   </label>
+                  {slug === 'csi' && customer.whatsappMarketingOptIn === true && (
+                    <label className="flex items-start gap-3 rounded-2xl border border-amber-600/40 bg-amber-900/20 p-4 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={customer.alcoholMarketingAgeConfirmed === true}
+                        onChange={e => setCustomer({...customer, alcoholMarketingAgeConfirmed: e.target.checked})}
+                        className="mt-0.5 h-4 w-4"
+                      />
+                      <span className="text-[11px] leading-relaxed text-amber-100">
+                        Confirmo que tenho 18 anos ou mais e autorizo o recebimento de ofertas de bebidas desta loja. Sem esta confirmação, não receberei campanhas promocionais.
+                      </span>
+                    </label>
+                  )}
                   {deliveryMethod === 'delivery' && (
                       <div className="relative">
                           <input type="text" value={customer.cep} onChange={e => setCustomer({...customer, cep: e.target.value})} placeholder="CEP *" maxLength="8" className="w-full bg-[#1E293B] border border-slate-700 rounded-2xl p-4 text-sm font-bold outline-none focus:border-white" />
