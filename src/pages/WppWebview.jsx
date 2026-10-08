@@ -46,7 +46,7 @@ export default function WppWebview() {
 
   // Dados do Cliente e Logística
   const [customer, setCustomer] = useState({
-      name: '', phone: customerPhoneQuery || '', cep: '', street: '', number: '', neighborhood: '', city: '', state: '', payment: '', changeFor: '', whatsappMarketingOptIn: false, alcoholMarketingAgeConfirmed: false
+      name: '', phone: customerPhoneQuery || '', cep: '', street: '', number: '', neighborhood: '', city: '', state: '', payment: '', changeFor: '', whatsappMarketingOptIn: false, alcoholMarketingAgeConfirmed: false, footballTeam: null
   });
   const [deliveryMethod, setDeliveryMethod] = useState('delivery');
   
@@ -307,6 +307,7 @@ export default function WppWebview() {
               whatsappMarketingOptIn: customer.whatsappMarketingOptIn === true,
                 alcoholMarketingAgeConfirmed: customer.alcoholMarketingAgeConfirmed === true,
               marketingOptInAt: customer.whatsappMarketingOptIn === true ? new Date().toISOString() : null,
+              footballTeam: slug === 'csi' && customer.whatsappMarketingOptIn === true ? customer.footballTeam : null,
               // --- INÍCIO: CORREÇÃO FISCAL FOCUS NFE ---
               customer: {
                   name: customer.name,
@@ -650,6 +651,27 @@ export default function WppWebview() {
                       />
                       <span className="text-[11px] leading-relaxed text-amber-100">
                         Confirmo que tenho 18 anos ou mais e autorizo o recebimento de ofertas de bebidas desta loja. Sem esta confirmação, não receberei campanhas promocionais.
+                      </span>
+                    </label>
+                  )}
+                  {slug === 'csi' && customer.whatsappMarketingOptIn === true && (
+                    <label className="block rounded-2xl border border-slate-700 bg-slate-800/60 p-4">
+                      <span className="block mb-2 text-xs font-bold text-white">
+                        Você torce para qual time? (opcional)
+                      </span>
+                      <select
+                        value={customer.footballTeam || ''}
+                        onChange={e => setCustomer({...customer, footballTeam: e.target.value || null})}
+                        className="w-full bg-slate-900 border border-slate-600 rounded-xl p-3 text-sm text-white"
+                      >
+                        <option value="">Não informar</option>
+                        <option value="gremio">Grêmio</option>
+                        <option value="internacional">Internacional</option>
+                        <option value="both">Acompanho os dois</option>
+                        <option value="none">Não quero comunicados sobre futebol</option>
+                      </select>
+                      <span className="block mt-2 text-[11px] text-slate-400">
+                        Usamos essa preferência apenas para tornar as ofertas e avisos de jogos mais relevantes.
                       </span>
                     </label>
                   )}

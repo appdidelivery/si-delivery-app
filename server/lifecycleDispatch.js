@@ -7,6 +7,7 @@ import {
 import {
   dispatchWindow, confirmedMatchEvent, occasionPurchaseScore, isStoreOpenForSlot
 } from '../lib/lifecycleSchedule.js';
+import { safeCurrentFixture } from '../lib/footballFixtures.js';
 
 function toMillis(value) {
   if (!value) return 0;
@@ -78,7 +79,7 @@ export async function handleOccasionLifecycle(req, res, slot) {
     // Não usar linguagem de jogo sem partida confirmada.
     const eventDoc = await db.collection('whatsapp_marketing_events')
       .doc(`${storeId}_${dispatch.now.dateKey}`).get();
-    if (!eventDoc.exists || !confirmedMatchEvent(eventDoc.data(), dispatch.now.dateKey)) {
+    if (!eventDoc.exists || !safeCurrentFixture(eventDoc.data(), dispatch.now.dateKey) || !confirmedMatchEvent(eventDoc.data(), dispatch.now.dateKey)) {
       return res.status(200).json({ success: true, skipped: 'football_match_not_confirmed' });
     }
   }
