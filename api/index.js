@@ -1320,24 +1320,9 @@ const aiResponse = await fetchGeminiWithRetry(`https://generativelanguage.google
                             return Number.isFinite(parsed) ? parsed : 0;
                         };
 
-                        const [inboundSnap, blockedSnap] = await Promise.all([
-                            db.collection('whatsapp_inbound')
-                                .where('storeId', '==', journeyStoreId)
-                                .limit(5000)
-                                .get(),
-                            db.collection('blocked_contacts')
-                                .where('storeId', '==', journeyStoreId)
-                                .limit(2000)
-                                .get()
-                        ]);
-
-                        const relationshipPhones = new Set();
-                        inboundSnap.forEach(d => {
-                            const data = d.data();
-                            if (data.direction === 'outbound') return;
-                            const phone = normalizeJourneyPhone(data.from || data.phone);
-                            if (phone) relationshipPhones.add(phone);
-                        });
+                        const blockedSnap = await db.collection('blocked_contacts')
+                            .where('storeId', '==', journeyStoreId)
+                            .limit(2000).get();
 
                         const blockedPhones = new Set();
                         blockedSnap.forEach(d => {
@@ -1626,10 +1611,9 @@ const aiResponse = await fetchGeminiWithRetry(`https://generativelanguage.google
                     return Number.isFinite(parsed) ? parsed : 0;
                 };
 
-                const [ordersSnap, blockedSnap, inboundSnap, lifecycleSnap] = await Promise.all([
+                const [ordersSnap, blockedSnap, lifecycleSnap] = await Promise.all([
                     db.collection('orders').where('storeId', '==', lifecycleStoreId).limit(5000).get(),
                     db.collection('blocked_contacts').where('storeId', '==', lifecycleStoreId).limit(2000).get(),
-                    db.collection('whatsapp_inbound').where('storeId', '==', lifecycleStoreId).limit(3000).get(),
                     db.collection('whatsapp_lifecycle_contacts').where('storeId', '==', lifecycleStoreId).limit(3000).get()
                 ]);
 
@@ -1637,15 +1621,6 @@ const aiResponse = await fetchGeminiWithRetry(`https://generativelanguage.google
                 blockedSnap.forEach(d => {
                     const phone = normalizePhone(d.data().phone);
                     if (phone) blockedPhones.add(phone);
-                });
-
-                // O piloto só aborda contatos que já tiveram relação pelo WhatsApp.
-                const inboundPhones = new Set();
-                inboundSnap.forEach(d => {
-                    const data = d.data();
-                    if (data.direction === 'outbound') return;
-                    const phone = normalizePhone(data.from || data.phone);
-                    if (phone) inboundPhones.add(phone);
                 });
 
                 const lifecycleByHash = new Map();
@@ -3319,10 +3294,12 @@ const aiResponse = await fetchGeminiWithRetry(`https://generativelanguage.google
 
                                 const outboundDoc = outboundSnap.docs[0];
                                 const outboundData = outboundDoc.data();
-                                const rank = { sent: 1, delivered: 2, read: 3, failed: 4 };
+                                const rank = { sent: 1, delivered: 2, read: 3 };
                                 const currentStatus = String(outboundData.deliveryStatus || '').toLowerCase();
 
-                                // Evita regressão causada por receipts chegando fora de ordem.
+                                // Webhooks podem chegar fora de ordem. Não rebaixa leituras/entregas,
+                                // mas aceita recuperação de uma falha transitória posterior.
+                                if (metaStatus === 'failed' && ['delivered', 'read'].includes(currentStatus)) continue;
                                 if (metaStatus !== 'failed' && (rank[currentStatus] || 0) > (rank[metaStatus] || 0)) continue;
 
                                 const receiptUpdate = {
