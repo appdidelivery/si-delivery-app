@@ -1046,6 +1046,7 @@ export default async function handler(req, res) {
                 const data = doc.data();
                 if (data.lastUpdated && data.lastUpdated.toDate() < thirtyMinutesAgo && data.customerPhone) {
                     const storeId = data.storeId;
+                    if (storeId === 'csi') continue; // Template Meta oficial evita lembrete legado duplicado.
                     if (data.abandonmentAlertSent === true) continue;
                     
                     const storeSettingsDoc = await db.collection('settings').doc(storeId).get();
