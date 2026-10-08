@@ -34,6 +34,13 @@ export default function LinvixIntegrationPanel({ storeId, settings }) {
   const [preview, setPreview] = useState(null);
   const [ordersPreview, setOrdersPreview] = useState(null);
 
+  useEffect(() => {
+    // Trocar de unidade invalida quaisquer resultados temporários da anterior.
+    setCatalogAudit(null);
+    setOrdersPreview(null);
+    setPreview(null);
+  }, [storeId]);
+
   const selectedLocation = useMemo(
     () =>
       locations.find((location) => locationKey(location) === String(selectedLocationId)) ||
