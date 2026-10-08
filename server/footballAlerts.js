@@ -2,6 +2,7 @@ import admin from 'firebase-admin';
 import crypto from 'node:crypto';
 import { brazilLocalParts, isStoreOpenForSlot, confirmedMatchEvent } from '../lib/lifecycleSchedule.js';
 import { safeCurrentFixture, matchAudienceAllowed, footballNotificationReady } from '../lib/footballFixtures.js';
+import { occasionTemplateComponents } from '../lib/csiOccasionTemplate.js';
 import {
   normalizeMarketingPhone, hasEligibleMarketingConsent,
   reserveMarketingAttempt, isMarketingOptedOut
@@ -111,10 +112,7 @@ export async function handleFootballAlert(req,res,db,windowName) {
           to:`55${customer.phone}`,type:'template',
           template:{
             name:template,language:{code:'pt_BR'},
-            components:[{type:'body',parameters:[
-              {type:'text',text:String(event.matchLabel).slice(0,100)},
-              {type:'text',text:localTime}
-            ]}]
+            components:occasionTemplateComponents('football')
           }
         })
       });

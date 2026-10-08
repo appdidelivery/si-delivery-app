@@ -32,33 +32,64 @@ Portanto:
 - Manter a separação entre aviso esportivo, eventual marketing permitido pela exceção brasileira e venda efetiva: **não usar o WhatsApp como meio de transação de produtos regulados**.
 - O módulo de envio continua **desligado por padrão** e exige `footballAutomation.enabled`, `policyClearedForThisStore`, `approvedTemplateName`, opt-in esportivo específico, aceite de WhatsApp, maioridade e cota compartilhada de 20 tentativas/dia. Para mensagens comerciais sobre bebidas, exige ainda `contentType:'beverage_marketing'` e `regulatedMarketingReviewed:true` (revisão explícita de elegibilidade da conta, idade, localização e das regras da Meta).
 
-A preferência do clube é opcional no checkout. Para o template informativo em avaliação, sem CTAs comerciais:
+## Um único modelo para futebol, fim de semana e churrasco
 
-> Lembrete esportivo solicitado: {{1}} será disputado em {{2}}. Se não quiser receber mais avisos, responda PARAR.
+A preferência por Grêmio/Inter é opcional no checkout e utilizada **somente** para segmentação esportiva. O template principal **não** menciona Grêmio, Inter, Gre-Nal ou jogos específicos. A ocasião entra na variável `{{1}}` e o restante do texto é fixo.
 
-Para o fluxo comercial de ocasião do Gre-Nal, criar um **template de marketing específico**, separado do informativo (não reutilizar o informativo para publicidade):
+**Modelo Meta a criar:**
+- Nome exato: `velo_momentos_bebidas`
+- Categoria: **MARKETING**
+- Idioma: **pt_BR**
+- Cabeçalho: **nenhum**
+- Corpo: **uma única variável** (`{{1}}`), sem parâmetros de data ou time
+- Botões: nenhum dinâmico na primeira versão
 
 ```text
-Nome: velo_alerta_futebol_csi
-Categoria: MARKETING
-Idioma: pt_BR
-Cabeçalho: nenhum
-Corpo:
-⚽ Hoje tem {{1}}! O jogo começa {{2}}.
+🥤 {{1}} combina com bebida gelada!
 
-🥤 Bateu a sede? Confira as opções de bebidas geladas da
-Conveniência Santa Isabel e prepare tudo para acompanhar a partida.
+Vai reunir o pessoal ou aproveitar um momento especial?
+
+Na Conveniência Santa Isabel você encontra opções para matar a sede e deixar tudo mais prático.
+
+🛵 Confira nosso cardápio e programe seu pedido!
 
 Para não receber mais novidades, responda PARAR.
 ```
 
-A chamada atual da Cloud API envia **exatamente dois parâmetros no corpo**, `{{1}}` = jogo e `{{2}}` = horário da partida em Brasília. Qualquer mudança no número, na ordem ou na posição das variáveis exige ajuste simultâneo no backend. Para o primeiro template, não configurar variáveis no cabeçalho e não configurar botões dinâmicos. Um botão estático pode ser avaliado separadamente na Meta.
+### Preenchimento automático da variável de ocasião
 
-**O envio comercial permanece desativado** até que o template esteja realmente aprovado, publicação de produção esteja READY e a conta esteja revisada conforme políticas e legislação. Após isso, um operador autorizado deve configurar em `settings/csi.integrations.whatsapp.footballAutomation`:
+| Canal / janela | Valor para {{1}} |
+|---|---|
+| Quarta-feira com jogo verificado | Um bom jogo de futebol |
+| Sexta, 17h30 | O início do fim de semana |
+| Sábado, 11h | Um encontro com os amigos |
+| Domingo, 11h | Um churrasco de domingo |
+| Alerta específico de partida de Grêmio ou Inter | Um bom jogo de futebol |
+
+O modelo pode ser reaproveitado em inúmeras datas; a mensagem mantém o mesmo contrato técnico (uma variável de texto). O calendário de partidas serve somente para definir **quando** e **para quem** avisar, sem necessidade de atualizar o template ao mudar o confronto. O backend não prevê disparo sobre uma partida não confirmada.
+
+### Ativação após aprovação — duas rotinas, um mesmo template
+
+**Jornada de retenção 30/60/90**: continuará usando os três modelos atuais **até** o responsável configurar, em `settings/csi.integrations.whatsapp.lifecycleAutomation`:
+
+```js
+{
+  occasionTemplateName: 'velo_momentos_bebidas',
+  occasionTemplateApproved: true,
+  occasionTemplateBodyVariableCount: 1,
+  marketingPolicyReviewed: true
+}
+```
+
+É uma configuração opcional: não remover os três templates aprovados existentes, mantendo fallback seguro. As janelas de quarta/sexta/sábado/domingo continuam respeitando a regra de 30/60/90 dias, opt-in, confirmação de idade, frequência mínima e cota compartilhada.
+
+**Alerta de futebol para inscritos no assunto**: usa a mesma variável de ocasião, mas segue um público distinto com aceite expresso de jogos. Somente habilitar após aprovação, validação da conta e da versão de produção, em `settings/csi.integrations.whatsapp.footballAutomation`:
+
 ```js
 {
   enabled: true,
-  approvedTemplateName: 'velo_alerta_futebol_csi',
+  approvedTemplateName: 'velo_momentos_bebidas',
+  templateBodyVariableCount: 1,
   contentType: 'beverage_marketing',
   policyClearedForThisStore: true,
   regulatedMarketingReviewed: true,
@@ -66,8 +97,13 @@ A chamada atual da Cloud API envia **exatamente dois parâmetros no corpo**, `{{
   dailyLimit: 20
 }
 ```
-Esses valores são **instruções futuras**, não autorizações para alterar o Firestore sem a revisão e aprovação. Não enviar mensagens de teste a clientes reais.
- 
+
+Esses exemplos descrevem configuração **futura**, não são alteração ou autorização de envio. A Meta precisa aprovar o modelo exato, inclusive o número de parâmetros. Exigir aceite, maioridade, geografia/leis/política e opt-out. **Não enviar mensagens sem consentimento**.
+
+### Limite do público no MVP
+
+O modelo reutilizável foi preparado para todos os dias temáticos, porém **as campanhas de sexta/sábado/domingo da jornada continuam segmentadas aos clientes elegíveis de 30/60/90 dias sem compras**. Elas ainda **não** constituem um disparo semanal para toda a base. O envio baseado em jogos tem aceite esportivo separado e depende do radar e da liberação acima.
+
 ## Homologação e segurança
 ```sh
 node --check server/footballRadar.js
@@ -80,4 +116,4 @@ Nenhum script de teste aciona Meta ou Firestore reais. A chamada do radar exige 
 Grêmio x Internacional — 17h30 (Brasília), Arena do Grêmio, confirmado oficialmente pela CBF:
 https://www.cbf.com.br/futebol-brasileiro/jogos/campeonato-brasileiro/serie-a/2026/gremio-x-internacional/832187
 
-O radar deve encontrar a partida pelo ESPN ID 401841267. Se a fonte for indisponível, o sistema não inventa ou dispara jogo. Não há alertas Meta específicos até o template aprovado.
+O radar deve encontrar a partida pelo ESPN ID 401841267. Se a fonte for indisponível, o sistema não inventa ou dispara jogo. Mesmo em Gre-Nal, o template usa a frase genérica de futebol; não é necessário criar outro modelo. Não há alertas Meta específicos até aprovação e ativação controlada.

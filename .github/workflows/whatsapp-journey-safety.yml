@@ -8,10 +8,8 @@ on:
       - 'server/footballRadar.js'
       - 'server/footballAlerts.js'
       - 'lib/footballFixtures.js'
-      - 'tests/footballFixtures.test.js'
-      - 'server/footballRadar.js'
-      - 'server/footballAlerts.js'
-      - 'lib/footballFixtures.js'
+      - 'lib/csiOccasionTemplate.js'
+      - 'tests/csiOccasionTemplate.test.js'
       - 'tests/footballFixtures.test.js'
       - 'lib/lifecycleSchedule.js'
       - 'vercel.json'
@@ -40,9 +38,7 @@ jobs:
           node --check server/footballRadar.js
           node --check server/footballAlerts.js
           node --check lib/footballFixtures.js
-          node --check server/footballRadar.js
-          node --check server/footballAlerts.js
-          node --check lib/footballFixtures.js
+          node --check lib/csiOccasionTemplate.js
           node -e "JSON.parse(require('fs').readFileSync('vercel.json','utf8'))"
       - name: Marketing opt-in and quota tests
-        run: node --test tests/whatsappMarketingGuard.test.js tests/lifecycleSchedule.test.js tests/footballFixtures.test.js tests/footballFixtures.test.js
+        run: node --test tests/whatsappMarketingGuard.test.js tests/lifecycleSchedule.test.js tests/footballFixtures.test.js tests/csiOccasionTemplate.test.js
