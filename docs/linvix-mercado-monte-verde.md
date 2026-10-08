@@ -99,3 +99,16 @@ O consumo adicional de Vercel Functions/Firestore tende a ser pequeno para duas 
 - Automação automática: implementada, mas desativada por padrão até homologação.
 - Envio de pedido/baixa Velo → Linvix: endpoints identificados na documentação; homologação com credenciais reais ainda pendente.
 - Produção: depende de homologação com credenciais reais antes da liberação definitiva.
+
+## Reforços de segurança e isolamento — 08/10/2026
+
+- Cada loja Velo é autenticada e configurada separadamente (um `storeId` por painel).
+- Ao vincular o Estoque Local, o servidor consulta novamente a API Linvix e valida a seleção. O navegador não pode escolher um identificador arbitrário.
+- Para o mesmo `codigo_linvix`, o mesmo Estoque Local não pode ser vinculado a duas lojas Velo simultaneamente; cada unidade escolhe seu local exclusivo.
+- Ao trocar credenciais ou desconectar a integração, o vínculo anterior é apagado e o sincronismo automático continua desligado.
+- A leitura de saldos não considera a ausência de quantidade como zero; respostas inválidas interrompem a operação antes de alterar produtos.
+- A identificação de local prefere UUID, depois código, evitando cruzamento pelo nome quando identificadores comparáveis estão presentes.
+- A gravação de produtos sempre exige `where('storeId', '==', storeId)`, mesmo quando as duas lojas têm o mesmo EAN.
+- Há testes de regressão em `tests/linvix-stock.test.mjs`; execução: `npm run test:linvix`.
+
+**Homologação pendente:** a implementação não comprova que existem credenciais Linvix ativas, nem que os dois painéis já foram vinculados aos respectivos estoques. É necessário conectar cada unidade com os acessos concedidos pelo ERP, mapear os UUIDs reais e conferir saldos. O fluxo pedido Velo → Linvix também precisa ser validado antes de ativar a sincronização automática.

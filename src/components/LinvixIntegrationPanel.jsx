@@ -8,6 +8,8 @@ const initialCredentials = {
   clientSecret: '',
 };
 
+const locationKey = (location) => String(location?.id || location?.code || location?.name || '');
+
 const formatTimestamp = (value) => {
   if (!value) return 'Ainda não sincronizado';
   if (value?.toDate) return value.toDate().toLocaleString('pt-BR');
@@ -24,15 +26,15 @@ export default function LinvixIntegrationPanel({ storeId, settings }) {
   const [credentials, setCredentials] = useState(initialCredentials);
   const [connected, setConnected] = useState(!!saved.connected);
   const [locations, setLocations] = useState(saved.availableLocations || []);
-  const [selectedLocationId, setSelectedLocationId] = useState(saved.selectedLocation?.id || '');
+  const [selectedLocationId, setSelectedLocationId] = useState(locationKey(saved.selectedLocation));
   const [status, setStatus] = useState(saved);
   const [busy, setBusy] = useState('');
   const [message, setMessage] = useState(null);
 
   const selectedLocation = useMemo(
     () =>
-      locations.find((location) => String(location.id) === String(selectedLocationId)) ||
-      (saved.selectedLocation?.name ? saved.selectedLocation : null),
+      locations.find((location) => locationKey(location) === String(selectedLocationId)) ||
+      (selectedLocationId && locationKey(saved.selectedLocation) === String(selectedLocationId) ? saved.selectedLocation : null),
     [locations, selectedLocationId, saved.selectedLocation]
   );
 
@@ -40,9 +42,7 @@ export default function LinvixIntegrationPanel({ storeId, settings }) {
     setConnected(!!saved.connected);
     setLocations(saved.availableLocations || []);
     setStatus(saved);
-    if (saved.selectedLocation?.id) {
-      setSelectedLocationId(saved.selectedLocation.id);
-    }
+    setSelectedLocationId(locationKey(saved.selectedLocation));
   }, [saved.connected, saved.availableLocations, saved.selectedLocation, saved.lastSyncAt]);
 
   const callLinvix = async (action, payload = {}) => {
@@ -70,7 +70,16 @@ export default function LinvixIntegrationPanel({ storeId, settings }) {
       const data = await callLinvix('connect', credentials);
       setConnected(true);
       setLocations(data.locations || []);
-      setStatus((prev) => ({ ...prev, connected: true, autoSyncEnabled: false, healthStatus: 'healthy' }));
+      setSelectedLocationId('');
+      setStatus((prev) => ({
+        ...prev,
+        connected: true,
+        autoSyncEnabled: false,
+        selectedLocation: null,
+        lastSyncStats: null,
+        lastSyncStatus: 'pending',
+        healthStatus: 'healthy',
+      }));
       setCredentials(initialCredentials);
       setMessage({
         type: 'success',
@@ -99,7 +108,7 @@ export default function LinvixIntegrationPanel({ storeId, settings }) {
 
   const saveLocation = async () => {
     const location = locations.find(
-      (item) => String(item.id) === String(selectedLocationId)
+      (item) => locationKey(item) === String(selectedLocationId)
     );
 
     if (!location) {
@@ -109,8 +118,14 @@ export default function LinvixIntegrationPanel({ storeId, settings }) {
     setBusy('saveLocation');
     setMessage(null);
     try {
-      await callLinvix('saveLocation', { selectedLocation: location });
-      setStatus((prev) => ({ ...prev, selectedLocation: location }));
+      const data = await callLinvix('saveLocation', { selectedLocation: location });
+      setStatus((prev) => ({
+        ...prev,
+        selectedLocation: data.selectedLocation || location,
+        lastSyncStats: null,
+        lastSyncStatus: 'pending',
+        autoSyncEnabled: false,
+      }));
       setMessage({
         type: 'success',
         text: `Unidade vinculada ao estoque "${location.name}".`,
@@ -257,7 +272,7 @@ export default function LinvixIntegrationPanel({ storeId, settings }) {
               >
                 <option value="">Selecione o Estoque Local...</option>
                 {locations.map((location) => (
-                  <option key={location.id || location.name} value={location.id}>
+                  <option key={locationKey(location)} value={locationKey(location)}>
                     {location.name}{location.code ? ` — ${location.code}` : ''}
                   </option>
                 ))}
