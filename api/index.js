@@ -7,7 +7,7 @@ import { GoogleAuth } from 'google-auth-library'; // <-- NOVA AUTENTICAÇÃO SER
 import crypto from 'crypto'; // <-- OBRIGATÓRIO PARA A CAPI DA META
 import { fetchGeminiWithRetry } from '../lib/gemini.js';
 import { scheduleJourneyRequest } from '../server/journeyQueue.js';
-import { hasMarketingOptIn, normalizeMarketingPhone as normalizeVerifiedMarketingPhone, isMarketingOptedOut, reserveMarketingAttempt } from '../lib/whatsappMarketingGuard.js';
+import { hasMarketingOptIn, normalizeMarketingPhone as normalizeVerifiedMarketingPhone, getLifecycleStage, isMarketingOptedOut, reserveMarketingAttempt } from '../lib/whatsappMarketingGuard.js';
 import { handleChangeTeamPassword } from '../server/changeTeamPassword.js';
 import { handleLinvixRequest, syncLinvixStore } from '../lib/linvix.js';
 
@@ -1673,7 +1673,7 @@ const aiResponse = await fetchGeminiWithRetry(`https://generativelanguage.google
                         continue;
                     }
 
-                    const stage = customer.daysInactive >= 90 ? 90 : customer.daysInactive >= 60 ? 60 : 30;
+                    const stage = getLifecycleStage(customer.daysInactive);
                     const templateName = templates[stage];
                     if (!templateName) continue;
 
