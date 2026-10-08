@@ -8,6 +8,7 @@ import {
   dispatchWindow, confirmedMatchEvent, occasionPurchaseScore, isStoreOpenForSlot
 } from '../lib/lifecycleSchedule.js';
 import { safeCurrentFixture } from '../lib/footballFixtures.js';
+import { occasionTemplateComponents, canUseGenericOccasionTemplate } from '../lib/csiOccasionTemplate.js';
 
 function toMillis(value) {
   if (!value) return 0;
@@ -84,6 +85,11 @@ export async function handleOccasionLifecycle(req, res, slot) {
     }
   }
 
+  // A jornada 30/60/90 existente continua válida. Somente usar o modelo
+  // genérico após aprovação explícita na Meta e revisão de política.
+  const useGenericOccasion = canUseGenericOccasionTemplate(cfg);
+  const genericTemplate = useGenericOccasion ? String(cfg.occasionTemplateName) : null;
+  const genericComponents = useGenericOccasion ? occasionTemplateComponents(slot) : null;
   const templates = {
     30: 'velo_retencao_30_bebidas',
     60: 'velo_retencao_60_bebidas',
@@ -163,6 +169,7 @@ export async function handleOccasionLifecycle(req, res, slot) {
       continue;
     }
 
+    const selectedTemplate = useGenericOccasion ? genericTemplate : templates[customer.stage];
     try {
       const response = await fetch(`https://graph.facebook.com/v19.0/${wa.phoneNumberId}/messages`, {
         method: 'POST',
@@ -170,7 +177,11 @@ export async function handleOccasionLifecycle(req, res, slot) {
         body: JSON.stringify({
           messaging_product: 'whatsapp', recipient_type: 'individual',
           to: `55${customer.phone}`, type: 'template',
-          template: { name: templates[customer.stage], language: { code: 'pt_BR' } }
+          template: {
+            name: selectedTemplate,
+            language: { code: 'pt_BR' },
+            ...(useGenericOccasion ? { components: genericComponents } : {})
+          }
         })
       });
       const data = await response.json();
@@ -184,7 +195,7 @@ export async function handleOccasionLifecycle(req, res, slot) {
       const batch = db.batch();
       batch.set(db.collection('whatsapp_lifecycle_contacts').doc(customer.hash), {
         storeId, phoneHash: customer.hash, customerName: customer.customerName,
-        lastStageSent: customer.stage, lastTemplateName: templates[customer.stage],
+        lastStageSent: customer.stage, lastTemplateName: selectedTemplate,
         lastOrderAtMs: customer.lastOrderAtMs, lastDaysInactive: customer.daysInactive,
         lastMetaMessageId: metaMessageId,
         lastSentAt: admin.firestore.FieldValue.serverTimestamp(),
@@ -192,8 +203,8 @@ export async function handleOccasionLifecycle(req, res, slot) {
       }, { merge: true });
       batch.set(db.collection('whatsapp_inbound').doc(), {
         storeId, to: `55${customer.phone}`,
-        text: `[Jornada ${customer.stage}d / ${slot}] Template oficial: ${templates[customer.stage]}`,
-        templateName: templates[customer.stage], campaignType: 'lifecycle_retention',
+        text: `[Jornada ${customer.stage}d / ${slot}] Template oficial: ${selectedTemplate}`,
+        templateName: selectedTemplate, campaignType: 'lifecycle_retention',
         lifecycleStage: customer.stage, marketingOccasion: slot,
         metaMessageId, deliveryStatus: 'sent',
         sentAt: admin.firestore.FieldValue.serverTimestamp(),
