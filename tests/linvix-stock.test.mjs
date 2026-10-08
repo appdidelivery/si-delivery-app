@@ -8,6 +8,8 @@ test('localização: não confundir estoques com nomes repetidos', () => {
   const selected = { id: 'local-a', code: '1', name: 'Central' };
   assert.equal(belongsToLocation({ estoque_local_uuid: 'local-a', localizacao: 'Central' }, selected), true);
   assert.equal(belongsToLocation({ estoque_local_uuid: 'local-b', localizacao: 'Central' }, selected), false);
+  assert.equal(belongsToLocation({ localizacao: 'Central' }, selected), false, 'não aceitar somente nome quando há UUID');
+  assert.equal(belongsToLocation({ cod_local: '9', localizacao: 'Central' }, selected), false, 'não aceitar código conflitante');
   assert.equal(belongsToLocation({ cod_local: '1', localizacao: 'Central' }, { code: '1' }), true);
   assert.equal(belongsToLocation({ cod_local: '2', localizacao: 'Central' }, { code: '1' }), false);
 });

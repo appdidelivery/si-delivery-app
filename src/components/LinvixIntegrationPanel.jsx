@@ -32,6 +32,14 @@ export default function LinvixIntegrationPanel({ storeId, settings }) {
   const [message, setMessage] = useState(null);
   const [catalogAudit, setCatalogAudit] = useState(null);
   const [preview, setPreview] = useState(null);
+  const [ordersPreview, setOrdersPreview] = useState(null);
+
+  useEffect(() => {
+    // Trocar de unidade invalida quaisquer resultados temporários da anterior.
+    setCatalogAudit(null);
+    setOrdersPreview(null);
+    setPreview(null);
+  }, [storeId]);
 
   const selectedLocation = useMemo(
     () =>
@@ -83,6 +91,19 @@ export default function LinvixIntegrationPanel({ storeId, settings }) {
     }).catch(() => {});
     return () => { live = false; };
   }, [storeId]);
+
+  const inspectOrders = async () => {
+    setBusy('orders');
+    setMessage(null);
+    try {
+      const data = await callLinvix('previewOrders');
+      setOrdersPreview(data.preview);
+    } catch (error) {
+      setMessage({ type: 'error', text: error.message });
+    } finally {
+      setBusy('');
+    }
+  };
 
   const connect = async () => {
     if (!credentials.codigoLinvix || !credentials.clientId || !credentials.clientSecret) {
@@ -293,6 +314,39 @@ export default function LinvixIntegrationPanel({ storeId, settings }) {
               {' '}O diagnóstico é individual por loja e não altera estoques.
             </p>
           </div>
+        )}
+      </div>
+
+      <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 flex flex-col gap-3">
+        <div className="flex flex-wrap justify-between items-center gap-2">
+          <div>
+            <p className="text-[11px] font-black uppercase tracking-wider text-slate-700">Preparação de pedidos para o ERP</p>
+            <p className="text-xs text-slate-500">Auditoria somente leitura. Não transmite pedidos nem movimenta estoque.</p>
+          </div>
+          <button type="button" onClick={inspectOrders} disabled={!!busy || !storeId}
+            className="px-4 py-2 rounded-lg bg-slate-200 text-slate-700 font-black text-xs disabled:opacity-50">
+            {busy === 'orders' ? 'Analisando...' : 'Analisar pedidos'}
+          </button>
+        </div>
+        {ordersPreview && (
+          <>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs">
+              <div><strong className="block text-base text-slate-800">{ordersPreview.scanned || 0}</strong>Pedidos analisados</div>
+              <div><strong className="block text-base text-slate-800">{ordersPreview.mappingCandidates || 0}</strong>Candidatos ao mapeamento</div>
+              <div><strong className="block text-base text-slate-800">{ordersPreview.needReview || 0}</strong>Revisão necessária</div>
+              <div><strong className="block text-base text-slate-800">{ordersPreview.ignored || 0}</strong>Não elegíveis</div>
+            </div>
+            <p className="text-xs text-amber-700 font-bold">
+              {ordersPreview.paymentUnconfirmed || 0} com pagamento não confirmado,
+              {' '}{ordersPreview.missingErpCodes || 0} com códigos ERP ausentes e
+              {' '}{ordersPreview.incompleteItems || 0} com dados de itens incompletos.
+              {ordersPreview.truncated && ' Resultado limitado aos primeiros 200 pedidos retornados.'}
+            </p>
+            <p className="text-xs text-slate-600">
+              Exportação desativada até validar o esquema de pedidos e a baixa de estoque na Linvix.
+              Esta análise não altera os pedidos existentes.
+            </p>
+          </>
         )}
       </div>
 
