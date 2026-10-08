@@ -53,12 +53,8 @@ async function canReceiveJourneyMarketing(phone, source = {}) {
   if (!normalized) return false;
 
   if (!hasMarketingOptIn(source)) return false;
-  const blockedSnap = await db.collection('blocked_contacts').where('storeId', '==', CSI_STORE_ID).limit(2000).get();
-  let blocked = false;
-  blockedSnap.forEach((doc) => {
-    if (normalizePhone(doc.data().phone) === normalized) blocked = true;
-  });
-  return !blocked;
+  const blockedSnap = await db.collection('blocked_contacts').doc(`${CSI_STORE_ID}_${normalized}`).get();
+  return !blockedSnap.exists;
 }
 
 async function sendJourneyTemplate({ phone, templateCandidates, stage, sourceId, sourceType }) {
