@@ -1,11 +1,17 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { hasMarketingOptIn, normalizeMarketingPhone, brazilDayKey, reserveMarketingAttempt } from '../lib/whatsappMarketingGuard.js';
+import { hasMarketingOptIn, normalizeMarketingPhone, brazilDayKey, getLifecycleStage, reserveMarketingAttempt } from '../lib/whatsappMarketingGuard.js';
 
 test('inbound interaction alone is not marketing consent', () => {
   assert.equal(hasMarketingOptIn({ hasInboundChat: true }), false);
   assert.equal(hasMarketingOptIn({ whatsappMarketingOptIn: true }), true);
   assert.equal(hasMarketingOptIn({ marketingOptIn: true, marketingOptOut: true }), false);
+});
+
+test('30/60/90 lifecycle boundaries', () => {
+  for (const [days, stage] of [[0, null], [29, null], [30, 30], [59, 30], [60, 60], [89, 60], [90, 90], [120, 90]]) {
+    assert.equal(getLifecycleStage(days), stage);
+  }
 });
 
 test('phone normalization is consistent', () => {
