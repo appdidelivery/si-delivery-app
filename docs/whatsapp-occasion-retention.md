@@ -18,7 +18,7 @@
 
 ## Registrar um jogo confirmado de quarta
 
-O cron de quarta **não envia mensagens por padrão**. Para habilitar o disparo em uma quarta específica, cadastre em Firestore um documento sob:
+O cron de quarta **não envia mensagens por padrão**. Ele também valida que o início da partida está entre 45 minutos e 5 horas no futuro. Para habilitar o disparo em uma quarta específica, cadastre em Firestore um documento sob:
 
 `whatsapp_marketing_events/csi_YYYY-MM-DD`
 
@@ -32,6 +32,7 @@ com os campos:
   "active": true,
   "confirmed": true,
   "matchLabel": "Time mandante x Time visitante",
+  "kickoffAt": "2026-10-14T21:00:00-03:00",
   "sourceUrl": "https://exemplo.com/tabela-oficial"
 }
 ```
