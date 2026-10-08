@@ -220,18 +220,6 @@
           "initialDelaySeconds": 0
         }
       ]
-    },
-    "api/whatsapp-retention-wed.js": {
-      "maxDuration": 60
-    },
-    "api/whatsapp-retention-fri.js": {
-      "maxDuration": 60
-    },
-    "api/whatsapp-retention-sat.js": {
-      "maxDuration": 60
-    },
-    "api/whatsapp-retention-sun.js": {
-      "maxDuration": 60
     }
   }
 }
