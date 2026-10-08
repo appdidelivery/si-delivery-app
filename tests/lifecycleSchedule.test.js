@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { OCCASION_SLOTS, brazilLocalParts, dispatchWindow, confirmedMatchEvent, occasionPurchaseScore } from '../lib/lifecycleSchedule.js';
+import { OCCASION_SLOTS, brazilLocalParts, dispatchWindow, confirmedMatchEvent, occasionPurchaseScore, isStoreOpenForSlot } from '../lib/lifecycleSchedule.js';
 
 test('all slots are São Paulo time and use only allowed days', () => {
   assert.deepEqual(Object.keys(OCCASION_SLOTS), ['wed','fri','sat','sun']);
@@ -24,6 +24,14 @@ test('no invented Wednesday games', () => {
   assert.equal(confirmedMatchEvent({...valid,matchLabel:''},'2026-10-07',now),false);
   assert.equal(confirmedMatchEvent({...valid,kickoffAt:'2026-10-07T18:00:00Z'},'2026-10-07',now),false);
   assert.equal(confirmedMatchEvent({...valid,kickoffAt:'2026-10-08T04:00:00Z'},'2026-10-07',now),false);
+});
+
+test('slots respect store operating hours', () => {
+  const store = {isOpen:true, schedule:{5:{open:true,start:'16:00',end:'23:00'},6:{open:false}}};
+  assert.equal(isStoreOpenForSlot(store,{day:5,hour:17,minute:45}),true);
+  assert.equal(isStoreOpenForSlot(store,{day:5,hour:11,minute:0}),false);
+  assert.equal(isStoreOpenForSlot(store,{day:6,hour:11,minute:0}),false);
+  assert.equal(isStoreOpenForSlot({isOpen:false},{day:5,hour:17,minute:45}),false);
 });
 
 test('weekday historical purchase gets higher occasion score', () => {
