@@ -1,6 +1,6 @@
 import admin from 'firebase-admin';
 import { QueueClient, send } from '@vercel/queue';
-import { hasMarketingOptIn, isMarketingOptedOut, reserveMarketingAttempt } from '../lib/whatsappMarketingGuard.js';
+import { hasEligibleMarketingConsent, isMarketingOptedOut, reserveMarketingAttempt } from '../lib/whatsappMarketingGuard.js';
 
 export const JOURNEY_TOPIC = 'velo-whatsapp-journey';
 export const CSI_STORE_ID = 'csi';
@@ -52,7 +52,7 @@ async function canReceiveJourneyMarketing(phone, source = {}) {
   const normalized = normalizePhone(phone);
   if (!normalized) return false;
 
-  if (!hasMarketingOptIn(source)) return false;
+  if (!hasEligibleMarketingConsent(source, true)) return false;
   const blockedSnap = await db.collection('blocked_contacts').doc(`${CSI_STORE_ID}_${normalized}`).get();
   return !blockedSnap.exists;
 }

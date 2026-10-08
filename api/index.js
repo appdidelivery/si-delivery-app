@@ -7,7 +7,8 @@ import { GoogleAuth } from 'google-auth-library'; // <-- NOVA AUTENTICAÇÃO SER
 import crypto from 'crypto'; // <-- OBRIGATÓRIO PARA A CAPI DA META
 import { fetchGeminiWithRetry } from '../lib/gemini.js';
 import { scheduleJourneyRequest } from '../server/journeyQueue.js';
-import { hasMarketingOptIn, normalizeMarketingPhone as normalizeVerifiedMarketingPhone, getLifecycleStage, isMarketingOptedOut, reserveMarketingAttempt } from '../lib/whatsappMarketingGuard.js';
+import { handleOccasionLifecycle } from '../server/lifecycleDispatch.js';
+import { hasMarketingOptIn, hasEligibleMarketingConsent, normalizeMarketingPhone as normalizeVerifiedMarketingPhone, getLifecycleStage, isMarketingOptedOut, reserveMarketingAttempt } from '../lib/whatsappMarketingGuard.js';
 import { handleChangeTeamPassword } from '../server/changeTeamPassword.js';
 import { handleLinvixRequest, syncLinvixStore } from '../lib/linvix.js';
 
@@ -455,6 +456,10 @@ export default async function handler(req, res) {
         '/api/whatsapp-webhook',
         '/api/ifood-webhook',
         '/api/cron-automations',
+        '/api/whatsapp-retention-wed',
+        '/api/whatsapp-retention-fri',
+        '/api/whatsapp-retention-sat',
+        '/api/whatsapp-retention-sun',
         '/api/linvix-stock-sync',
         '/api/journey-schedule',
         '/api/app-version',
@@ -499,8 +504,19 @@ export default async function handler(req, res) {
     // ========================================================================
 
    // ------------------------------------------------------------------------
-    // BUILD VERSION (SEM CACHE) - usado pelo atualizador automático do painel
+    // CAMPANHAS POR OCASIÃO — usa a API monolítica para não criar Functions extras.
     // ------------------------------------------------------------------------
+    const occasionRoutes = {
+        '/api/whatsapp-retention-wed': 'wed',
+        '/api/whatsapp-retention-fri': 'fri',
+        '/api/whatsapp-retention-sat': 'sat',
+        '/api/whatsapp-retention-sun': 'sun'
+    };
+    if (Object.hasOwn(occasionRoutes, path)) {
+        return handleOccasionLifecycle(req, res, occasionRoutes[path]);
+    }
+
+    // BUILD VERSION (SEM CACHE) - usado pelo atualizador automático do painel
     if (path === '/api/journey-schedule') {
         res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
         return scheduleJourneyRequest(req, res);
@@ -1332,7 +1348,7 @@ const aiResponse = await fetchGeminiWithRetry(`https://generativelanguage.google
                         });
 
                         const canReceiveMarketing = (phone, source = {}) =>
-                            !blockedPhones.has(phone) && hasMarketingOptIn(source);
+                            !blockedPhones.has(phone) && hasEligibleMarketingConsent(source, true);
 
                         const sendJourneyTemplate = async ({ phone, templateCandidates, stage, sourceId, sourceType }) => {
                             if (await isMarketingOptedOut(db, journeyStoreId, phone)) {
@@ -1560,218 +1576,10 @@ const aiResponse = await fetchGeminiWithRetry(`https://generativelanguage.google
             }
             // --- FIM: MOTOR DE JORNADA PRÉ-30 DIAS ---
 
-            // --- INÍCIO: MOTOR DE JORNADA 30/60/90 (WHATSAPP LIFECYCLE) ---
-            // Piloto controlado: CSI fica habilitada por padrão; demais lojas precisam ativar
-            // integrations.whatsapp.lifecycleAutomation.enabled e configurar templates compatíveis.
+            // A jornada 30/60/90 roda nos horários comerciais programados, isolada do faturamento.
             let lifecycleAlertsSent = 0;
             const lifecycleSummary = [];
 
-            for (const storeDoc of storesQuery.docs) {
-                const lifecycleStoreId = storeDoc.id;
-                const storeData = storeDoc.data() || {};
-                const profile = getMarketingNicheProfile(storeData);
-
-                const settingsDoc = await db.collection('settings').doc(lifecycleStoreId).get();
-                const settingsData = settingsDoc.exists ? settingsDoc.data() : {};
-                const waConfig = settingsData.integrations?.whatsapp;
-                const lifecycleConfig = waConfig?.lifecycleAutomation || {};
-
-                const lifecycleEnabled = lifecycleStoreId === 'csi' ? lifecycleConfig.enabled !== false : lifecycleConfig.enabled === true;
-                if (!lifecycleEnabled || !waConfig?.phoneNumberId || !waConfig?.apiToken) continue;
-
-                const defaultTemplates = profile.key === 'beverage'
-                    ? {
-                        30: 'velo_retencao_30_bebidas',
-                        60: 'velo_retencao_60_bebidas',
-                        90: 'velo_retencao_90_bebidas'
-                    }
-                    : {};
-
-                const templates = {
-                    ...defaultTemplates,
-                    ...(lifecycleConfig.templates || {})
-                };
-
-                // Não envia nada para nichos que ainda não tenham templates aprovados/configurados.
-                if (!templates[30] || !templates[60] || !templates[90]) continue;
-
-                const dailyLimit = Math.max(1, Math.min(50, Number(lifecycleConfig.dailyLimit) || (lifecycleStoreId === 'csi' ? 20 : 10)));
-                const normalizePhone = (value) => {
-                    let digits = String(value || '').replace(/\D/g, '');
-                    if (digits.startsWith('55') && (digits.length === 12 || digits.length === 13)) digits = digits.slice(2);
-                    if (digits.length === 10) digits = digits.slice(0, 2) + '9' + digits.slice(2);
-                    return digits.length === 11 ? digits : null;
-                };
-                const hashPhone = (phone) => crypto.createHash('sha256').update(`${lifecycleStoreId}:${phone}`).digest('hex');
-                const toMillis = (value) => {
-                    if (!value) return 0;
-                    if (typeof value.toMillis === 'function') return value.toMillis();
-                    if (typeof value.toDate === 'function') return value.toDate().getTime();
-                    if (value.seconds) return Number(value.seconds) * 1000;
-                    const parsed = new Date(value).getTime();
-                    return Number.isFinite(parsed) ? parsed : 0;
-                };
-
-                const [ordersSnap, blockedSnap, lifecycleSnap] = await Promise.all([
-                    db.collection('orders').where('storeId', '==', lifecycleStoreId).limit(5000).get(),
-                    db.collection('blocked_contacts').where('storeId', '==', lifecycleStoreId).limit(2000).get(),
-                    db.collection('whatsapp_lifecycle_contacts').where('storeId', '==', lifecycleStoreId).limit(3000).get()
-                ]);
-
-                const blockedPhones = new Set();
-                blockedSnap.forEach(d => {
-                    const phone = normalizePhone(d.data().phone);
-                    if (phone) blockedPhones.add(phone);
-                });
-
-                const lifecycleByHash = new Map();
-                lifecycleSnap.forEach(d => lifecycleByHash.set(d.id, d.data()));
-
-                const canceledStatuses = new Set(['canceled', 'cancelado', 'cancelled', 'refunded', 'estornado']);
-                const customersByPhone = new Map();
-                ordersSnap.forEach(d => {
-                    const order = d.data();
-                    const status = String(order.status || '').toLowerCase();
-                    if (canceledStatuses.has(status)) return;
-
-                    const phone = normalizePhone(order.customerPhone || order.customer?.phone);
-                    if (!phone) return;
-
-                    const lastOrderAtMs = toMillis(order.createdAt || order.paidAt);
-                    if (!lastOrderAtMs) return;
-
-                    const prev = customersByPhone.get(phone);
-                    if (!prev || lastOrderAtMs > prev.lastOrderAtMs) {
-                        customersByPhone.set(phone, {
-                            phone,
-                            customerName: order.customerName || order.customer?.name || 'Cliente',
-                            marketingOptIn: hasMarketingOptIn(order),
-                            lastOrderAtMs
-                        });
-                    }
-                });
-
-                const candidates = Array.from(customersByPhone.values())
-                    .map(customer => ({
-                        ...customer,
-                        daysInactive: Math.floor((Date.now() - customer.lastOrderAtMs) / 86400000)
-                    }))
-                    .filter(customer => customer.daysInactive >= 30)
-                    .sort((a, b) => b.daysInactive - a.daysInactive);
-
-                let sentForStore = 0;
-                let skippedNoRelationship = 0;
-                let skippedBlocked = 0;
-
-                for (const customer of candidates) {
-                    if (sentForStore >= dailyLimit) break;
-                    if (blockedPhones.has(customer.phone)) {
-                        skippedBlocked++;
-                        continue;
-                    }
-                    if (!customer.marketingOptIn) {
-                        skippedNoRelationship++;
-                        continue;
-                    }
-
-                    const stage = getLifecycleStage(customer.daysInactive);
-                    const templateName = templates[stage];
-                    if (!templateName) continue;
-
-                    const contactHash = hashPhone(customer.phone);
-                    const previous = lifecycleByHash.get(contactHash) || {};
-                    const previousOrderAtMs = Number(previous.lastOrderAtMs) || 0;
-                    const orderCycleChanged = customer.lastOrderAtMs > previousOrderAtMs;
-                    const lastStageSent = orderCycleChanged ? 0 : Number(previous.lastStageSent) || 0;
-
-                    // Uma etapa por ciclo. Compra nova reinicia o ciclo automaticamente.
-                    if (stage <= lastStageSent) continue;
-
-                    const safePhone = `55${customer.phone}`;
-                    const GRAPH_API_URL = `https://graph.facebook.com/v19.0/${waConfig.phoneNumberId}/messages`;
-
-                    try {
-                        if (await isMarketingOptedOut(db, lifecycleStoreId, customer.phone)) continue;
-                        const reserved = await reserveMarketingAttempt(db, {
-                            storeId: lifecycleStoreId, phone: customer.phone, type: `lifecycle_${stage}`, dailyLimit
-                        });
-                        if (!reserved.allowed) continue;
-                        const response = await fetch(GRAPH_API_URL, {
-                            method: 'POST',
-                            headers: {
-                                'Authorization': `Bearer ${waConfig.apiToken}`,
-                                'Content-Type': 'application/json'
-                            },
-                            body: JSON.stringify({
-                                messaging_product: 'whatsapp',
-                                recipient_type: 'individual',
-                                to: safePhone,
-                                type: 'template',
-                                template: {
-                                    name: templateName,
-                                    language: { code: 'pt_BR' }
-                                }
-                            })
-                        });
-
-                        const metaData = await response.json();
-                        if (!response.ok) {
-                            console.error(`[Lifecycle ${lifecycleStoreId}] Falha Meta ${templateName}:`, metaData);
-                            continue;
-                        }
-
-                        const lifecycleRef = db.collection('whatsapp_lifecycle_contacts').doc(contactHash);
-                        await lifecycleRef.set({
-                            storeId: lifecycleStoreId,
-                            phoneHash: contactHash,
-                            customerName: customer.customerName,
-                            lastStageSent: stage,
-                            lastTemplateName: templateName,
-                            lastOrderAtMs: customer.lastOrderAtMs,
-                            lastDaysInactive: customer.daysInactive,
-                            lastMetaMessageId: metaData.messages?.[0]?.id || null,
-                            lastSentAt: admin.firestore.FieldValue.serverTimestamp(),
-                            updatedAt: admin.firestore.FieldValue.serverTimestamp()
-                        }, { merge: true });
-
-                        await db.collection('whatsapp_inbound').add({
-                            storeId: lifecycleStoreId,
-                            to: safePhone,
-                            text: `[Jornada Automática ${stage} dias] Template oficial enviado: ${templateName}`,
-                            templateName,
-                            campaignType: 'lifecycle_retention',
-                            lifecycleStage: stage,
-                            metaMessageId: metaData.messages?.[0]?.id || null,
-                            deliveryStatus: 'sent',
-                            sentAt: admin.firestore.FieldValue.serverTimestamp(),
-                            receivedAt: admin.firestore.FieldValue.serverTimestamp(),
-                            status: 'sent',
-                            direction: 'outbound'
-                        });
-
-                        lifecycleByHash.set(contactHash, {
-                            ...previous,
-                            lastStageSent: stage,
-                            lastOrderAtMs: customer.lastOrderAtMs
-                        });
-                        sentForStore++;
-                        lifecycleAlertsSent++;
-                    } catch (error) {
-                        console.error(`[Lifecycle ${lifecycleStoreId}] Erro ao enviar ${templateName}:`, error.message);
-                    }
-                }
-
-                lifecycleSummary.push({
-                    storeId: lifecycleStoreId,
-                    niche: profile.key,
-                    eligible: candidates.length,
-                    sent: sentForStore,
-                    dailyLimit,
-                    skippedNoRelationship,
-                    skippedBlocked
-                });
-            }
-            // --- FIM: MOTOR DE JORNADA 30/60/90 ---
 
             // --- INÍCIO: MOTOR DE PROSPECÇÃO ATIVA (CRM VELO) ---
             let crmAlertsSent = 0;
@@ -2432,7 +2240,7 @@ const aiResponse = await fetchGeminiWithRetry(`https://generativelanguage.google
                             byPhone.set(phone, {
                                 phone,
                                 customerName: data.customerName || data.customer?.name || 'Cliente',
-                                marketingOptIn: hasMarketingOptIn(data),
+                                marketingOptIn: hasEligibleMarketingConsent(data, storeId === 'csi'),
                                 lastOrderAtMs: createdAtMs
                             });
                         }
@@ -2886,7 +2694,7 @@ const aiResponse = await fetchGeminiWithRetry(`https://generativelanguage.google
                     if (!phone) return;
                     const atMs = orderTimeMs(data.createdAt || data.paidAt);
                     const prev = byPhone.get(phone);
-                    if (!prev || atMs > prev.atMs) byPhone.set(phone, { atMs, consent: hasMarketingOptIn(data) });
+                    if (!prev || atMs > prev.atMs) byPhone.set(phone, { atMs, consent: hasEligibleMarketingConsent(data, storeId === 'csi') });
                 });
                 const recipients = Array.from(byPhone.entries())
                     .filter(([phone, value]) => value.consent && !blocked.has(phone))

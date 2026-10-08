@@ -1,11 +1,18 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { hasMarketingOptIn, normalizeMarketingPhone, brazilDayKey, getLifecycleStage, reserveMarketingAttempt } from '../lib/whatsappMarketingGuard.js';
+import { hasMarketingOptIn, hasEligibleMarketingConsent, normalizeMarketingPhone, brazilDayKey, getLifecycleStage, reserveMarketingAttempt } from '../lib/whatsappMarketingGuard.js';
 
 test('inbound interaction alone is not marketing consent', () => {
   assert.equal(hasMarketingOptIn({ hasInboundChat: true }), false);
   assert.equal(hasMarketingOptIn({ whatsappMarketingOptIn: true }), true);
   assert.equal(hasMarketingOptIn({ marketingOptIn: true, marketingOptOut: true }), false);
+});
+
+test('beverage marketing requires both opt-in and adult confirmation', () => {
+  assert.equal(hasEligibleMarketingConsent({whatsappMarketingOptIn:true},true),false);
+  assert.equal(hasEligibleMarketingConsent({whatsappMarketingOptIn:true,alcoholMarketingAgeConfirmed:true},true),true);
+  assert.equal(hasEligibleMarketingConsent({whatsappMarketingOptIn:false,alcoholMarketingAgeConfirmed:true},true),false);
+  assert.equal(hasEligibleMarketingConsent({whatsappMarketingOptIn:true},false),true);
 });
 
 test('30/60/90 lifecycle boundaries', () => {
