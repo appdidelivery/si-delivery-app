@@ -7,7 +7,7 @@ import { GoogleAuth } from 'google-auth-library'; // <-- NOVA AUTENTICAÇÃO SER
 import crypto from 'crypto'; // <-- OBRIGATÓRIO PARA A CAPI DA META
 import { fetchGeminiWithRetry } from '../lib/gemini.js';
 import { scheduleJourneyRequest } from '../server/journeyQueue.js';
-import { hasMarketingOptIn, normalizeMarketingPhone as normalizeVerifiedMarketingPhone, getLifecycleStage, isMarketingOptedOut, reserveMarketingAttempt } from '../lib/whatsappMarketingGuard.js';
+import { hasMarketingOptIn, hasEligibleMarketingConsent, normalizeMarketingPhone as normalizeVerifiedMarketingPhone, getLifecycleStage, isMarketingOptedOut, reserveMarketingAttempt } from '../lib/whatsappMarketingGuard.js';
 import { handleChangeTeamPassword } from '../server/changeTeamPassword.js';
 import { handleLinvixRequest, syncLinvixStore } from '../lib/linvix.js';
 
@@ -1332,7 +1332,7 @@ const aiResponse = await fetchGeminiWithRetry(`https://generativelanguage.google
                         });
 
                         const canReceiveMarketing = (phone, source = {}) =>
-                            !blockedPhones.has(phone) && hasMarketingOptIn(source);
+                            !blockedPhones.has(phone) && hasEligibleMarketingConsent(source, true);
 
                         const sendJourneyTemplate = async ({ phone, templateCandidates, stage, sourceId, sourceType }) => {
                             if (await isMarketingOptedOut(db, journeyStoreId, phone)) {
@@ -1560,7 +1560,10 @@ const aiResponse = await fetchGeminiWithRetry(`https://generativelanguage.google
             }
             // --- FIM: MOTOR DE JORNADA PRÉ-30 DIAS ---
 
-            // A jornada 30/60/90 passa a rodar isolada em cron por ocasião,\n            // sem executar faturamento, pós-venda e CRM nos horários promocionais.\n            let lifecycleAlertsSent = 0;\n            const lifecycleSummary = [];\n
+            // A jornada 30/60/90 roda nos horários comerciais programados, isolada do faturamento.
+            let lifecycleAlertsSent = 0;
+            const lifecycleSummary = [];
+
 
             // --- INÍCIO: MOTOR DE PROSPECÇÃO ATIVA (CRM VELO) ---
             let crmAlertsSent = 0;
@@ -2221,7 +2224,7 @@ const aiResponse = await fetchGeminiWithRetry(`https://generativelanguage.google
                             byPhone.set(phone, {
                                 phone,
                                 customerName: data.customerName || data.customer?.name || 'Cliente',
-                                marketingOptIn: hasMarketingOptIn(data),
+                                marketingOptIn: hasEligibleMarketingConsent(data, storeId === 'csi'),
                                 lastOrderAtMs: createdAtMs
                             });
                         }
@@ -2675,7 +2678,7 @@ const aiResponse = await fetchGeminiWithRetry(`https://generativelanguage.google
                     if (!phone) return;
                     const atMs = orderTimeMs(data.createdAt || data.paidAt);
                     const prev = byPhone.get(phone);
-                    if (!prev || atMs > prev.atMs) byPhone.set(phone, { atMs, consent: hasMarketingOptIn(data) });
+                    if (!prev || atMs > prev.atMs) byPhone.set(phone, { atMs, consent: hasEligibleMarketingConsent(data, storeId === 'csi') });
                 });
                 const recipients = Array.from(byPhone.entries())
                     .filter(([phone, value]) => value.consent && !blocked.has(phone))
