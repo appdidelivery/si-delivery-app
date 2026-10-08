@@ -1,7 +1,7 @@
 import admin from 'firebase-admin';
 import crypto from 'node:crypto';
 import { brazilLocalParts, isStoreOpenForSlot, confirmedMatchEvent } from '../lib/lifecycleSchedule.js';
-import { safeCurrentFixture, matchAudienceAllowed } from '../lib/footballFixtures.js';
+import { safeCurrentFixture, matchAudienceAllowed, footballNotificationReady } from '../lib/footballFixtures.js';
 import {
   normalizeMarketingPhone, hasEligibleMarketingConsent,
   reserveMarketingAttempt, isMarketingOptedOut
@@ -43,8 +43,10 @@ export async function handleFootballAlert(req,res,db,windowName) {
   const settings=wa.footballAutomation||{};
   const template=String(settings.approvedTemplateName||'');
   // No marketing message until a dedicated game-alert template is approved and enabled.
-  if(settings.enabled!==true || !/^[a-z0-9_]{4,100}$/.test(template) ||
-    !wa.phoneNumberId || !wa.apiToken)
+  // A aprovação do template, por si só, não isenta o lojista das restrições
+  // da Política do WhatsApp Business, especialmente para lojas de álcool.
+  // Exige liberação jurídica/de políticas registrada explicitamente por loja.
+  if(!footballNotificationReady(settings) || !wa.phoneNumberId || !wa.apiToken)
     return res.status(200).json({success:true,skipped:'football_template_not_enabled'});
   if(!storeDoc.exists||!isStoreOpenForSlot(storeDoc.data(),p))
     return res.status(200).json({success:true,skipped:'store_closed'});
@@ -68,7 +70,8 @@ export async function handleFootballAlert(req,res,db,windowName) {
     if(!phone||!at) return;
     const prev=byPhone.get(phone);
     if(!prev||at>prev.lastOrderAtMs) byPhone.set(phone,{
-      phone,lastOrderAtMs:at,consent:hasEligibleMarketingConsent(order,true),
+      phone,lastOrderAtMs:at,
+      consent:hasEligibleMarketingConsent(order,true) && order.footballAlertsOptIn===true,
       adult:order.alcoholMarketingAgeConfirmed===true||
         order.customer?.alcoholMarketingAgeConfirmed===true,
       team:['gremio','internacional','both','none'].includes(order.footballTeam) ? order.footballTeam : null
