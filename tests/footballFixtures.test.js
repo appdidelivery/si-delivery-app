@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { extractTrackedFixtures, preferredFootballMatch, safeCurrentFixture, matchAudienceAllowed } from '../lib/footballFixtures.js';
+import { extractTrackedFixtures, preferredFootballMatch, safeCurrentFixture, matchAudienceAllowed, footballNotificationReady } from '../lib/footballFixtures.js';
 const moment=new Date('2026-10-08T15:00:00Z');
 function sample({home='6273',away='1936',date='2026-10-11T20:30:00Z',state='pre'}={}) {
   return {events:[{id:'401841267',date,competitions:[{timeValid:true,status:{type:{state}},competitors:[
@@ -41,4 +41,14 @@ test('only opted-in adults see their chosen club fixture, Gre-Nal includes local
   assert.equal(matchAudienceAllowed({consent:true,adult:false,team:'gremio'},grenal),false);
   assert.equal(matchAudienceAllowed({consent:false,adult:true,team:'gremio'},grenal),false);
   assert.equal(matchAudienceAllowed({consent:true,adult:true,team:null},inter),false);
+});
+
+test('alerts are disabled until separate compliance clearance and verified template',()=>{
+  const good={enabled:true,policyClearedForThisStore:true,contentType:'sports_information_only',approvedTemplateName:'alerta_futebol'};
+  assert.equal(footballNotificationReady({}),false);
+  assert.equal(footballNotificationReady({...good,enabled:false}),false);
+  assert.equal(footballNotificationReady({...good,policyClearedForThisStore:false}),false);
+  assert.equal(footballNotificationReady({...good,contentType:'alcohol_promotions'}),false);
+  assert.equal(footballNotificationReady({...good,approvedTemplateName:''}),false);
+  assert.equal(footballNotificationReady(good),true);
 });
