@@ -22,32 +22,32 @@ No Vercel Hobby a execução pode acontecer ao longo da hora programada, sem pre
 - `football_radar_status/csi`: data de consulta, quantidade de partidas detectadas e erros.
 - `whatsapp_football_contacts/csi_<phonehash>`: último aviso por contato para impedir repetição.
 
-## Ativação controlada das mensagens temáticas
-As consultas são automáticas. **Os alertas de jogo ficam DESATIVADOS até aprovação de um template dedicado de marketing no WhatsApp Manager** e configuração pelo responsável da loja:
+## Ativação de mensagens — bloqueio por política Meta
 
-```js
-settings/csi.integrations.whatsapp.footballAutomation = {
-  enabled: true,
-  approvedTemplateName: 'velo_alerta_futebol_csi',
-  dailyLimit: 20,
-  allowUnsegmented: false
-}
-```
+**Somente o radar de partidas pode ficar ativo automaticamente. Nenhum alerta para clientes deve ser habilitado antes de análise expressa de conformidade da conta/empresa.**
 
-Template sugerido para submeter à Meta (categoria **MARKETING**, idioma **pt_BR**, 2 variáveis no corpo):
+A Política de Mensagens do WhatsApp Business (consulta de 08/10/2026) inclui **álcool e tabaco** entre os produtos regulados cuja compra, venda e promoção são proibidas no serviço, independentemente de licença local:
+https://business.whatsapp.com/policy/preview?lang=pt_BR
 
-> Tem jogo chegando! ⚽ {{1}} começa {{2}}. Confira a Conveniência Santa Isabel e se programe com antecedência. Para não receber mais nossas ofertas, responda PARAR.
+Em consequência, **não sugerir ou ativar templates promocionais de álcool, bebidas ou CTA comercial vinculados à partida**. Mesmo um template aprovado pela Meta pode não conferir elegibilidade à operação. Qualquer mensagem informativa sobre o jogo precisa ser avaliada quanto à conta emissora, finalidade e políticas em vigor.
 
-Nunca usar nome/horário da partida sem confirmação. Nenhum alerta é enviado sem o template aprovado e habilitado. Mensagens promovendo bebidas alcoólicas exigem maioridade confirmada e observância às políticas da Meta e legislação brasileira.
+O módulo de mensagens de futebol permanece **desligado por padrão** e exige, simultaneamente:
+- `settings/csi.integrations.whatsapp.footballAutomation.enabled===true`
+- `policyClearedForThisStore===true`: revisão documentada das regras atuais e liberação expressa da conta;
+- `contentType==='sports_information_only'`: nada de promoção, preço, álcool, cupom, pedido ou chamada comercial;
+- `approvedTemplateName` realmente aprovado e com **exatamente 2 parâmetros de texto**, conferidos na conta Meta;
+- confirmação de consentimento **separado** `footballAlertsOptIn===true`, aceite geral de WhatsApp, idade 18+, time de interesse, sem opt-out PARAR;
+- limite compartilhado 20 tentativas/dia e 7 dias entre alertas do mesmo contato;
+- loja aberta, partida atualizada no radar e antes do início.
 
-Público elegível:
-- Opt-in expresso de marketing no pedido e confirmação de 18+ na compra.
-- Não optou por `PARAR`, não está bloqueado e loja está aberta.
-- Gre-Nal: contatos elegíveis que não selecionaram "sem futebol". Jogos de só um clube: apenas torcedores autodeclarados desse clube ou `both` (ou público sem seleção caso lojista habilite `allowUnsegmented`).
-- No máximo 20 tentativas de marketing por loja/dia (cota compartilhada com outras campanhas), sem avisar o mesmo número duas vezes no dia e sem repetir alerta de futebol dentro de 7 dias.
+Modelo estritamente informativo para **avaliação de políticas**, não aprovado:
 
-O valor de `approvedTemplateName` **não deve ser criado ficticiamente no Firestore**: primeiro conferir aprovação real da Meta e componentes `body` com dois textos (`{{1}}` jogo; `{{2}}` data e hora).
+> Lembrete esportivo solicitado: {{1}} será disputado em {{2}}. Se não quiser receber mais avisos, responda PARAR.
 
+**Não enviar, submeter ou ativar automaticamente** antes de verificar se a própria conta/empresa está autorizada a usar esses modelos em conformidade com as políticas.
+
+A preferência por Grêmio/Internacional e o aceite separado são registrados no checkout, sem disparos automáticos enquanto este bloqueio permanecer.
+ 
 ## Homologação e segurança
 ```sh
 node --check server/footballRadar.js
