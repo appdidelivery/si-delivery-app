@@ -7,7 +7,7 @@ import { GoogleAuth } from 'google-auth-library'; // <-- NOVA AUTENTICAÇÃO SER
 import crypto from 'crypto'; // <-- OBRIGATÓRIO PARA A CAPI DA META
 import { fetchGeminiWithRetry } from '../lib/gemini.js';
 import { scheduleJourneyRequest } from '../server/journeyQueue.js';
-import { hasMarketingOptIn, normalizeMarketingPhone as normalizeVerifiedMarketingPhone, reserveMarketingAttempt } from '../lib/whatsappMarketingGuard.js';
+import { hasMarketingOptIn, normalizeMarketingPhone as normalizeVerifiedMarketingPhone, isMarketingOptedOut, reserveMarketingAttempt } from '../lib/whatsappMarketingGuard.js';
 import { handleChangeTeamPassword } from '../server/changeTeamPassword.js';
 import { handleLinvixRequest, syncLinvixStore } from '../lib/linvix.js';
 
@@ -1349,6 +1349,9 @@ const aiResponse = await fetchGeminiWithRetry(`https://generativelanguage.google
                             !blockedPhones.has(phone) && hasMarketingOptIn(source);
 
                         const sendJourneyTemplate = async ({ phone, templateCandidates, stage, sourceId, sourceType }) => {
+                            if (await isMarketingOptedOut(db, journeyStoreId, phone)) {
+                                return { ok: false, reason: 'unsubscribed' };
+                            }
                             const reserved = await reserveMarketingAttempt(db, {
                                 storeId: journeyStoreId, phone, type: stage, dailyLimit: journeyDailyLimit
                             });
@@ -1587,7 +1590,7 @@ const aiResponse = await fetchGeminiWithRetry(`https://generativelanguage.google
                 const waConfig = settingsData.integrations?.whatsapp;
                 const lifecycleConfig = waConfig?.lifecycleAutomation || {};
 
-                const lifecycleEnabled = lifecycleConfig.enabled === true || lifecycleStoreId === 'csi';
+                const lifecycleEnabled = lifecycleStoreId === 'csi' ? lifecycleConfig.enabled !== false : lifecycleConfig.enabled === true;
                 if (!lifecycleEnabled || !waConfig?.phoneNumberId || !waConfig?.apiToken) continue;
 
                 const defaultTemplates = profile.key === 'beverage'
@@ -1712,6 +1715,7 @@ const aiResponse = await fetchGeminiWithRetry(`https://generativelanguage.google
                     const GRAPH_API_URL = `https://graph.facebook.com/v19.0/${waConfig.phoneNumberId}/messages`;
 
                     try {
+                        if (await isMarketingOptedOut(db, lifecycleStoreId, customer.phone)) continue;
                         const reserved = await reserveMarketingAttempt(db, {
                             storeId: lifecycleStoreId, phone: customer.phone, type: `lifecycle_${stage}`, dailyLimit
                         });
@@ -2388,13 +2392,17 @@ const aiResponse = await fetchGeminiWithRetry(`https://generativelanguage.google
                 const recentCutoffMs = Date.now() - COOLDOWN_DAYS * 86400000;
                 const hashPhone = (phone) => crypto.createHash('sha256').update(`${storeId}:${phone}`).digest('hex');
 
-                const [blockedSnap, campaignSnap] = await Promise.all([
+                const [blockedSnap, campaignSnap, optoutSnap] = await Promise.all([
                     db.collection('blocked_contacts').where('storeId', '==', storeId).limit(2000).get(),
-                    db.collection('whatsapp_campaigns').where('storeId', '==', storeId).limit(200).get()
+                    db.collection('whatsapp_campaigns').where('storeId', '==', storeId).limit(200).get(),
+                    db.collection('whatsapp_marketing_optouts').where('storeId', '==', storeId).limit(2000).get()
                 ]);
-
                 const blockedPhones = new Set();
                 blockedSnap.forEach(doc => {
+                    const phone = normalizeMarketingPhone(doc.data().phone);
+                    if (phone) blockedPhones.add(phone);
+                });
+                optoutSnap.forEach(doc => {
                     const phone = normalizeMarketingPhone(doc.data().phone);
                     if (phone) blockedPhones.add(phone);
                 });
@@ -2915,6 +2923,7 @@ const aiResponse = await fetchGeminiWithRetry(`https://generativelanguage.google
                         storeId, phone, type: 'manual_broadcast', dailyLimit: 20
                     });
                     if (!reserved.allowed) { skippedDailyLimit++; continue; }
+                    if (await isMarketingOptedOut(db, storeId, phone)) { skippedDailyLimit++; continue; }
                     const result = await sendMessageToMeta(phone, templateName, 'pt_BR', templateVariables, { allowFailover: false });
                     if (!result?.ok) { failed++; continue; }
                     sent++;
@@ -3509,6 +3518,38 @@ const aiResponse = await fetchGeminiWithRetry(`https://generativelanguage.google
                                         mediaType: finalMediaType,
                                         receivedAt: admin.firestore.FieldValue.serverTimestamp(), status: 'unread', direction: 'inbound'
                                     });
+
+                                    // Exclusão de marketing: preserva o atendimento e os pedidos normais.
+                                    // Não bloqueia o contato inteiro; apenas futuras campanhas promocionais.
+                                    const marketingCommand = String(messageText || '').trim().toLowerCase()
+                                        .normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, ' ');
+                                    const unsubscribeWords = new Set([
+                                        'parar', 'stop', 'sair da lista', 'remover da lista',
+                                        'nao quero receber ofertas', 'cancelar mensagens'
+                                    ]);
+                                    if (unsubscribeWords.has(marketingCommand)) {
+                                        await db.collection('whatsapp_marketing_optouts').doc(`${storeId}_${normalizedPhone}`).set({
+                                            storeId, phone: normalizedPhone, source: 'whatsapp_inbound',
+                                            optedOutAt: admin.firestore.FieldValue.serverTimestamp()
+                                        }, { merge: true });
+                                        if (apiToken) {
+                                            try {
+                                                await fetch(`https://graph.facebook.com/v19.0/${phoneNumberId}/messages`, {
+                                                    method: 'POST',
+                                                    headers: { Authorization: `Bearer ${apiToken}`, 'Content-Type': 'application/json' },
+                                                    body: JSON.stringify({
+                                                        messaging_product: 'whatsapp',
+                                                        to: message.from,
+                                                        type: 'text',
+                                                        text: { body: 'Certo! Você não receberá mais ofertas automáticas desta loja. Pode continuar pedindo e falando conosco normalmente.' }
+                                                    })
+                                                });
+                                            } catch (error) {
+                                                console.error('[WhatsApp Marketing] Falha na confirmação de descadastro:', error.message);
+                                            }
+                                        }
+                                        continue;
+                                    }
 
                                     // Se este contato veio de uma campanha recente, marca a campanha como respondida.
                                     // O hash usa a mesma regra da reativação e não expõe o telefone no ID do documento.
