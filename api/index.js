@@ -9,6 +9,7 @@ import { fetchGeminiWithRetry } from '../lib/gemini.js';
 import { scheduleJourneyRequest } from '../server/journeyQueue.js';
 import { handleOccasionLifecycle } from '../server/lifecycleDispatch.js';
 import { handleFootballRadar } from '../server/footballRadar.js';
+import { handleFootballAlert } from '../server/footballAlerts.js';
 import { hasMarketingOptIn, hasEligibleMarketingConsent, normalizeMarketingPhone as normalizeVerifiedMarketingPhone, getLifecycleStage, isMarketingOptedOut, reserveMarketingAttempt } from '../lib/whatsappMarketingGuard.js';
 import { handleChangeTeamPassword } from '../server/changeTeamPassword.js';
 import { handleLinvixRequest, syncLinvixStore } from '../lib/linvix.js';
@@ -458,6 +459,8 @@ export default async function handler(req, res) {
         '/api/ifood-webhook',
         '/api/cron-automations',
         '/api/football-radar',
+        '/api/football-alert-early',
+        '/api/football-alert-late',
         '/api/whatsapp-retention-wed',
         '/api/whatsapp-retention-fri',
         '/api/whatsapp-retention-sat',
@@ -519,6 +522,9 @@ export default async function handler(req, res) {
     }
     if (path === '/api/football-radar') {
         return handleFootballRadar(req, res, db);
+    }
+    if (path === '/api/football-alert-early' || path === '/api/football-alert-late') {
+        return handleFootballAlert(req, res, db, path.endsWith('-early') ? 'early' : 'late');
     }
 
     // BUILD VERSION (SEM CACHE) - usado pelo atualizador automático do painel
