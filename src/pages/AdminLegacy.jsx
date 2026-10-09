@@ -14,13 +14,14 @@ import {
 import { Html5QrcodeScanner } from 'html5-qrcode'; // <-- NOVA IMPORTAÇÃO DO LEITOR
  // Adicionado PlusSquare, MinusSquare, TrendingUp e Landmark
 import { motion, AnimatePresence } from 'framer-motion';
-import { signOut, sendPasswordResetEmail } from 'firebase/auth';
+import { signOut, sendPasswordResetEmail, onAuthStateChanged } from 'firebase/auth';
 // --- NOVAS IMPORTAÇÕES GROWTH HACKER ---
 import Confetti from 'react-confetti';
 import * as htmlToImage from 'html-to-image';
 import { useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getStoreIdFromHostname } from '../../src/utils/domainHelper';
+import { getCashierSessionFromLogs, cashLogTimestampToDate } from '../utils/cashRegisterState';
 import { GoogleMap, useJsApiLoader, Marker, Circle, Autocomplete } from '@react-google-maps/api';
 import { getDatabase, ref as rtdbRef, onValue } from 'firebase/database';
 import { getFunctions, httpsCallable } from 'firebase/functions';
@@ -944,10 +945,10 @@ const educationalBanners = [
     const handlePrintReport = (currentTotals = reportTotals, currentSeller = reportSeller, exactStartTime = null, exactEndTime = null) => {
         const w = window.open('', '_blank');
         
-        const rawAbertura = localStorage.getItem('caixa_abertura_timestamp');
-        
-        // Se a função recebeu uma data exata do Turno, usa ela. Se não, tenta puxar do painel, ou assume como geral.
-        const dataAbertura = exactStartTime ? exactStartTime.toLocaleString('pt-BR') : (rawAbertura ? new Date(rawAbertura).toLocaleString('pt-BR') : 'Não registrada');
+        // Nunca recuperar horário de outro atendente no localStorage compartilhado.
+        const aberturaDoOperador = getCashierSessionFromLogs(posLogs, auth.currentUser?.email, storeId).openingLog;
+        const dataAberturaOperador = cashLogTimestampToDate(aberturaDoOperador?.timestamp);
+        const dataAbertura = exactStartTime ? exactStartTime.toLocaleString('pt-BR') : (dataAberturaOperador ? dataAberturaOperador.toLocaleString('pt-BR') : 'Não registrada');
         const dataFechamento = exactEndTime ? exactEndTime.toLocaleString('pt-BR') : new Date().toLocaleString('pt-BR');
         
         const nomeOperador = auth.currentUser?.displayName || auth.currentUser?.email?.split('@')[0] || 'Geral';
@@ -1023,15 +1024,32 @@ const educationalBanners = [
     const [teamForm, setTeamForm] = useState({
         name: '', email: '', permissions: { orders: false, products: false, customers: false, store_settings: false, integrations: false, marketing: false, finance: false, team: false }
     });
-    const [posLogs, setPosLogs] = useState([]); // Guarda os logs de quem abriu/fechou o caixa
-    const [isCaixaAberto, setIsCaixaAberto] = useState(() => localStorage.getItem('caixa_status') === 'aberto');
+    const [posLogs, setPosLogs] = useState([]); // Histórico persistido no Firestore por loja e operador.
+    const [posLogsLoaded, setPosLogsLoaded] = useState(false);
+    const [posLogsError, setPosLogsError] = useState('');
+    const [cashierAuthUser, setCashierAuthUser] = useState(() => auth.currentUser);
     
     // --- ESTADOS DO MODAL DE FECHAMENTO DE CAIXA ---
     const [isCloseRegisterModalOpen, setIsCloseRegisterModalOpen] = useState(false);
     const [closeRegisterForm, setCloseRegisterForm] = useState({ valorCaixa: '', valorBolsa: '' });
     const [isClosingRegister, setIsClosingRegister] = useState(false);
+    const [isOpeningRegister, setIsOpeningRegister] = useState(false);
+
+    // O estado do caixa não pode ser herdado pelo próximo atendente no mesmo computador.
+    useEffect(() => onAuthStateChanged(auth, (user) => {
+        setCashierAuthUser(user);
+        setIsCloseRegisterModalOpen(false);
+    }), []);
+
+    const cashierSession = getCashierSessionFromLogs(posLogs, cashierAuthUser?.email, storeId);
+    const isCaixaAberto = Boolean(cashierAuthUser && posLogsLoaded && !posLogsError && cashierSession.isOpen);
 
     const handleToggleCaixa = async () => {
+        if (!cashierAuthUser?.email || auth.currentUser?.uid !== cashierAuthUser.uid || !posLogsLoaded || posLogsError) {
+            alert(posLogsError ? 'Erro ao consultar o histórico de caixa: ' + posLogsError : 'Aguarde a sincronização do caixa antes de continuar.');
+            return;
+        }
+        if (isOpeningRegister) return;
         // Se já está aberto e quer fechar, interceptamos com o Modal
         if (isCaixaAberto) {
             setIsCloseRegisterModalOpen(true);
@@ -1044,22 +1062,25 @@ const educationalBanners = [
         
         const fundoDeCaixaFormatado = Number(fundoDeCaixaInput.replace(',', '.')) || 0;
 
+        setIsOpeningRegister(true);
         try {
             await addDoc(collection(db, "pos_logs"), {
                 storeId: storeId,
-                userEmail: auth.currentUser?.email || 'Desconhecido',
-                userName: auth.currentUser?.displayName || auth.currentUser?.email?.split('@')[0] || 'Equipe',
+                userEmail: cashierAuthUser.email,
+                userName: cashierAuthUser.displayName || cashierAuthUser.email.split('@')[0] || 'Equipe',
                 action: 'ABRIU O CAIXA',
                 fundoDeCaixa: fundoDeCaixaFormatado, // <-- NOVO CAMPO ADICIONADO
                 timestamp: serverTimestamp()
             });
             
-            setIsCaixaAberto(true);
-            localStorage.setItem('caixa_status', 'aberto');
-            localStorage.setItem('caixa_abertura_timestamp', new Date().toISOString()); // <-- SALVA A HORA EXATA AQUI
-            alert(`✅ Caixa aberto com sucesso! Boas vendas!`);
+            // O listener do Firestore atualizará o estado e o horário deste usuário.
+            localStorage.removeItem('caixa_status');
+            localStorage.removeItem('caixa_abertura_timestamp');
+            alert(`✅ Caixa aberto e registrado para ${cashierAuthUser.email}!`);
         } catch (error) {
             alert("Erro ao abrir o caixa: " + error.message);
+        } finally {
+            setIsOpeningRegister(false);
         }
     };
 
@@ -1068,8 +1089,15 @@ const educationalBanners = [
         setIsClosingRegister(true);
 
         try {
-            const currentUserEmail = auth.currentUser?.email || 'Desconhecido';
-            const currentUserName = auth.currentUser?.displayName || auth.currentUser?.email?.split('@')[0] || 'Equipe';
+            if (!isCaixaAberto || !cashierSession.openingLog || auth.currentUser?.uid !== cashierAuthUser?.uid) {
+                throw new Error('Não foi encontrada uma sessão aberta para o atendente autenticado.');
+            }
+            const dataAbertura = cashLogTimestampToDate(cashierSession.openingLog.timestamp);
+            if (!dataAbertura) {
+                throw new Error('A abertura ainda não foi sincronizada. Atualize o painel e tente novamente.');
+            }
+            const currentUserEmail = cashierAuthUser.email;
+            const currentUserName = cashierAuthUser.displayName || cashierAuthUser.email.split('@')[0] || 'Equipe';
 
             // 1. Salva a auditoria financeira no Firestore
             await addDoc(collection(db, "pos_logs"), {
@@ -1077,22 +1105,14 @@ const educationalBanners = [
                 userEmail: currentUserEmail,
                 userName: currentUserName,
                 action: 'FECHOU O CAIXA',
+                openingLogId: cashierSession.openingLog.id,
                 valorCaixa: Number(closeRegisterForm.valorCaixa),
                 valorBolsa: Number(closeRegisterForm.valorBolsa),
                 timestamp: serverTimestamp()
             });
 
-            // 🚀 MÁGICA: CÁLCULO CEGO E EXATO DO TURNO DO OPERADOR
-            const rawAbertura = localStorage.getItem('caixa_abertura_timestamp');
-            
-            // Se por algum motivo perder a hora do botão, assume o turno comercial que virou às 06h da manhã
-            let defaultStart = new Date();
-            if (defaultStart.getHours() < 6) {
-                defaultStart.setDate(defaultStart.getDate() - 1);
-            }
-            defaultStart.setHours(6, 0, 0, 0);
-
-            const dataAbertura = rawAbertura ? new Date(rawAbertura) : defaultStart;
+            // Usa a abertura efetivamente registrada pelo operador no Firestore.
+            // Não inventa turno às 06h nem aproveita horário de outro usuário.
             const dataFechamento = new Date();
 
             // Filtra os pedidos estritamente do turno
@@ -1142,9 +1162,9 @@ const educationalBanners = [
                 }
             });
 
-            // 2. Atualiza estado local da máquina
-            localStorage.setItem('caixa_status', 'fechado');
-            setIsCaixaAberto(false);
+            // Estado atualizado automaticamente pela auditoria do Firestore.
+            localStorage.removeItem('caixa_status');
+            localStorage.removeItem('caixa_abertura_timestamp');
             setIsCloseRegisterModalOpen(false);
             
             // 3. Manda imprimir forçando os dados estritos do turno calculados acima
@@ -1158,7 +1178,7 @@ const educationalBanners = [
 
         } catch (error) {
             console.error("Erro no fechamento:", error);
-            alert("Erro ao fechar o caixa. Verifique sua conexão.");
+            alert("Erro ao fechar o caixa: " + (error?.message || 'Verifique sua conexão.'));
             setIsClosingRegister(false);
         }
     };
@@ -2604,7 +2624,21 @@ const [vipMissions, setVipMissions] = useState([]);
         });
 
         // Logs são documentos pequenos: mantém uma janela ampla para auditoria sem remover o limite de segurança.
-        const unsubPosLogs = onSnapshot(query(collection(db, "pos_logs"), where("storeId", "==", storeId), orderBy("timestamp", "desc"), limit(1000)), (s) => setPosLogs(s.docs.map(d => ({ id: d.id, ...d.data() }))));
+        setPosLogsLoaded(false);
+        setPosLogsError('');
+        const unsubPosLogs = onSnapshot(
+            query(collection(db, "pos_logs"), where("storeId", "==", storeId), orderBy("timestamp", "desc"), limit(1000)),
+            (snapshot) => {
+                setPosLogs(snapshot.docs.map(d => ({ id: d.id, ...d.data() })));
+                setPosLogsError('');
+                setPosLogsLoaded(true);
+            },
+            (error) => {
+                console.error('Falha ao carregar logs de caixa:', error);
+                setPosLogsError(error?.message || 'Falha de leitura no Firestore');
+                setPosLogsLoaded(true);
+            }
+        );
 // --- RESTAURANDO A LEITURA DA EQUIPE QUE SUMIU ---
         const unsubTeam = onSnapshot(query(collection(db, "team"), where("storeId", "==", storeId)), (s) => setTeamMembers(s.docs.map(d => ({ id: d.id, ...d.data() }))));
        // NOVO: Escuta as mensagens do WhatsApp para alertas de transbordo e som padrão
@@ -8592,7 +8626,14 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                 
                 {/* ✅ NOVO PDV (FRENTE DE CAIXA RÁPIDA) */}
                 {activeTab === 'manual' && (
-    !isCaixaAberto ? (
+    (!cashierAuthUser || !posLogsLoaded || posLogsError) ? (
+        <div className="flex flex-col items-center justify-center min-h-80 bg-white rounded-3xl border border-amber-200 p-8 text-center">
+            <Loader2 size={32} className="animate-spin text-amber-500 mb-3" />
+            <h2 className="font-black text-slate-800 text-lg">Sincronização do caixa</h2>
+            <p className="text-sm text-slate-600 mt-2">{posLogsError ? 'Não foi possível ler o histórico: ' + posLogsError : 'Consultando a sessão do atendente no Firebase...'}</p>
+            <p className="text-xs text-slate-400 mt-2">Não abra ou feche o caixa enquanto a consulta não estiver concluída.</p>
+        </div>
+    ) : !isCaixaAberto ? (
         <div className="flex flex-col items-center justify-center h-[calc(100vh-100px)] bg-white rounded-[3rem] border border-slate-100 shadow-sm animate-in zoom-in">
             <div className="bg-slate-50 p-6 rounded-full mb-6 border border-slate-200">
                 <Store size={64} className="text-slate-300" />
@@ -10727,7 +10768,11 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                             <p className="text-slate-400 font-bold mb-6 text-sm">Monitore a que horas seus funcionários abriram e fecharam o sistema.</p>
                             
                             <div className="bg-white rounded-4xl border border-slate-100 shadow-sm overflow-hidden max-h-96 overflow-y-auto custom-scrollbar p-2">
-                                {posLogs.length === 0 ? (
+                                {posLogsError ? (
+                                    <p className="text-center text-red-600 font-bold p-8">Erro ao consultar logs de caixa: {posLogsError}</p>
+                                ) : !posLogsLoaded ? (
+                                    <p className="text-center text-slate-400 font-bold p-8">Carregando histórico de caixa...</p>
+                                ) : posLogs.length === 0 ? (
                                     <p className="text-center text-slate-400 font-bold p-8">Nenhum registro de caixa encontrado.</p>
                                 ) : (
                                     <table className="w-full text-left border-collapse">
@@ -10747,7 +10792,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                                     </td>
                                                     <td className="p-4 flex items-center gap-2">
                                                         <div className="w-6 h-6 bg-slate-900 text-white rounded-full flex items-center justify-center text-[10px] uppercase">
-                                                            {log.userName.charAt(0)}
+                                                            {(log.userName || log.userEmail || '?').charAt(0)}
                                                         </div>
                                                         {log.userName}
                                                     </td>
