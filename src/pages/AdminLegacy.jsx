@@ -2298,6 +2298,15 @@ const [vipMissions, setVipMissions] = useState([]);
     }, [manualCart, manualCouponCode, coupons, activeTab]);
 
     const handleLogout = async () => {
+        if (isCaixaAberto) {
+            const exitWithoutClosing = window.confirm(
+                'Seu caixa ainda está ABERTO. Sair agora NÃO registra fechamento, e o turno continuará aberto no seu usuário.\\n\\nPara fechar corretamente, cancele, entre na Frente de Caixa e clique em "Fechar Meu Caixa".\\n\\nDeseja sair mesmo assim?'
+            );
+            if (!exitWithoutClosing) {
+                setActiveTab('manual');
+                return;
+            }
+        }
         try { await signOut(auth); navigate('/login'); } catch (error) { console.error("Erro logout:", error); }
     };
 
@@ -5222,7 +5231,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                 
                                 {hasPermission('finance') && (
                                     <button onClick={() => setIsReportModalOpen(true)} className="bg-slate-900 text-white px-8 py-4 rounded-2xl font-black uppercase tracking-widest shadow-xl hover:bg-slate-800 flex items-center gap-2 transition-all active:scale-95">
-                                        <Printer size={20}/> Fechar Caixa / Relatório
+                                        <Printer size={20}/> Consultar Relatório de Caixa
                                     </button>
                                 )}
                             </div>
