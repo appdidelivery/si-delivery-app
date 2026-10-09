@@ -46,7 +46,7 @@ test('sem autenticação, sem loja ou sem registros, o caixa fica fechado', () =
 
 test('aceita timestamps Firestore e os transforma em datas sem horário inventado', () => {
   const ts = { seconds: 1791566400, nanoseconds: 0 };
-  assert.equal(cashLogTimestampToDate(ts).toISOString(), '2026-10-09T14:40:00.000Z');
+  assert.equal(cashLogTimestampToDate(ts).toISOString(), '2026-10-09T17:20:00.000Z');
   assert.equal(cashLogTimestampToDate(null), null);
   assert.equal(cashLogTimestampToDate('invalido'), null);
 });
