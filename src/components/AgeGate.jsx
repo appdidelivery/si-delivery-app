@@ -2,15 +2,16 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ShieldAlert, Wine } from 'lucide-react';
 
-export default function AgeGate({ enabled }) {
+export default function AgeGate({ enabled, storeId = null }) {
     const [isVisible, setIsVisible] = useState(false);
+    const storageKey = storeId ? `velo_age_verified_${storeId}` : 'velo_age_verified';
 
     useEffect(() => {
         // Se a loja não ativou a opção, ou se não carregou ainda, não faz nada
         if (!enabled) return;
 
         // Verifica no navegador (localStorage) se o cliente já confirmou antes
-        const isVerified = localStorage.getItem('velo_age_verified');
+        const isVerified = localStorage.getItem(storageKey);
         
         // Se não verificou ainda, mostra o modal
         if (isVerified !== 'true') {
@@ -18,12 +19,12 @@ export default function AgeGate({ enabled }) {
             // Trava o scroll da página para o cliente não conseguir descer a tela
             document.body.style.overflow = 'hidden';
         }
-    }, [enabled]);
+    }, [enabled, storageKey]);
 
     const handleConfirmAge = (isOfAge) => {
         if (isOfAge) {
             // Salva no celular do cliente que ele já é +18 para não perguntar de novo
-            localStorage.setItem('velo_age_verified', 'true');
+            localStorage.setItem(storageKey, 'true');
             setIsVisible(false);
             // Libera o scroll da página
             document.body.style.overflow = 'auto';
