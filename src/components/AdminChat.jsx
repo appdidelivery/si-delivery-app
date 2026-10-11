@@ -1515,14 +1515,14 @@ export default function AdminChat() {
                                     <div className="rounded-xl border border-blue-200 bg-blue-50 p-4 space-y-3 text-sm text-blue-950">
                                         <p className="font-black">Base geral: independente do tempo sem comprar</p>
                                         <p className="text-xs">Inclui compradores e leads que procuraram a loja pelo WhatsApp, mesmo sem pedido. Conversas recentes podem ser atendidas dentro da janela de 24h; campanha promocional exige autorização registrada. Calcular não envia mensagens.</p>
-                                        <label className="block font-bold text-xs">Tamanho do lote (teto de 20 por loja/dia)</label>
+                                        <label className="block font-bold text-xs">Tamanho de cada lote (até 20 destinatários por envio)</label>
                                         <select value={baseMaxRecipients}
                                             onChange={e => { setBaseMaxRecipients(Number(e.target.value)); setBasePreview(null); }}
                                             className="w-full rounded-xl border border-blue-200 p-3 bg-white font-semibold">
                                             <option value={1}>1 cliente — teste inicial</option>
                                             <option value={5}>5 clientes</option>
                                             <option value={10}>10 clientes</option>
-                                            <option value={20}>20 clientes</option>
+                                            <option value={20}>20 clientes por lote</option>
                                         </select>
                                         <button onClick={handleBasePreview} disabled={isLoadingBasePreview}
                                             className="w-full rounded-xl bg-blue-700 text-white font-black py-3 disabled:opacity-50">
@@ -1541,11 +1541,14 @@ export default function AdminChat() {
                                                 <div className="flex justify-between"><span>Sem autorização de marketing registrada</span><b>{basePreview.missingMarketingConsent ?? basePreview.missingConsentOrAdultConfirmation}</b></div>
                                                 <div className="flex justify-between"><span>Sem registro de maioridade aplicável</span><b>{basePreview.missingAdultRecord ?? '—'}</b></div>
                                                 <div className="flex justify-between"><span>Bloqueados / descadastrados</span><b>{basePreview.blockedOrOptOut}</b></div>
-                                                <div className="flex justify-between font-black"><span>Máximo neste lote</span><b>{basePreview.sendableNow}</b></div>
+                                                <div className="flex justify-between font-black"><span>Próximo lote disponível</span><b>{basePreview.sendableNow}</b></div>
+                                                <div className="flex justify-between"><span>Tentativas de campanha hoje</span><b>{basePreview.alreadyAttemptedToday ?? '—'}</b></div>
+                                                <div className="flex justify-between"><span>Restante hoje</span><b>{basePreview.remainingToday ?? '—'}</b></div>
+                                                <p className="text-xs">Até {basePreview.batchSizeLimit || 20} por lote; cota diária manual de até {basePreview.dailyCampaignLimit || 200} tentativas, incluindo uso compartilhado.</p>
                                                 <p className="text-blue-800 mt-2">Pedidos consultados: {basePreview.scannedOrders ?? '—'}; mensagens consultadas: {basePreview.scannedMessages ?? '—'}; autorizações consultadas: {basePreview.scannedConsents ?? '—'}.</p>
                                                 {basePreview.truncated && <p className="text-amber-700 font-semibold">Leitura parcial: o histórico atingiu o limite de segurança. Números podem aumentar.</p>}
                                                 <p className="text-xs text-blue-900">Conversa iniciada pelo cliente não é, por si só, autorização para campanha. Para responder às consultas recentes, use o chat de atendimento.</p>
-                                                <p className="text-xs">A cota compartilhada e envios feitos hoje ainda podem reduzir o resultado.</p>
+                                                <p className="text-xs">Cada novo lote pula contatos já tentados hoje. Nenhum envio é feito se não houver autorização de marketing identificada.</p>
                                             </div>
                                         )}
                                     </div>
@@ -1723,7 +1726,7 @@ export default function AdminChat() {
 
                                         const confirmText = isReactivation
                                             ? `ATENÇÃO: enviar o template ${broadcastTemplate} para até ${reactivationPreview.sendableNow} cliente(s) com ${reactivationDays}+ dias sem comprar?\n\nO envio será feito somente pela API Oficial da Meta.`
-                                            : `ATENÇÃO: enviar o modelo ${broadcastTemplate} para até ${basePreview.sendableNow} cliente(s) com consentimento e demais verificações?\n\nA cota diária pode reduzir o número. Confirmar?`;
+                                            : `ATENÇÃO: enviar o modelo ${broadcastTemplate} para até ${basePreview.sendableNow} cliente(s) elegível(is) neste lote?\n\n20 por lote e até ${basePreview.dailyCampaignLimit || 200} tentativas por dia no modo manual. Confirmar?`;
                                         if (!window.confirm(confirmText)) return;
                                         
                                         setIsBroadcasting(true);
