@@ -10,9 +10,10 @@ import { scheduleJourneyRequest } from '../server/journeyQueue.js';
 import { handleOccasionLifecycle } from '../server/lifecycleDispatch.js';
 import { handleFootballRadar } from '../server/footballRadar.js';
 import { handleFootballAlert } from '../server/footballAlerts.js';
+import {MANUAL_MARKETING_BATCH_SIZE,MANUAL_MARKETING_DAILY_LIMIT,selectRemainingMarketingRecipients} from '../lib/marketingBatchSelection.js';
 import {CSI_MARKETING_PROMPT,isExplicitCsiOptIn,shouldOfferCsiOptIn,storedCsiConsentId} from '../lib/whatsappConsentCapture.js';
 import { buildUnifiedWhatsAppAudience, latestOrderPerPhone, addInboundLead } from '../lib/whatsappLeadAudience.js';
-import { hasMarketingOptIn, hasEligibleMarketingConsent, normalizeMarketingPhone as normalizeVerifiedMarketingPhone, getLifecycleStage, isMarketingOptedOut, reserveMarketingAttempt } from '../lib/whatsappMarketingGuard.js';
+import { hasMarketingOptIn, hasEligibleMarketingConsent, normalizeMarketingPhone as normalizeVerifiedMarketingPhone, getLifecycleStage, brazilDayKey, isMarketingOptedOut, reserveMarketingAttempt } from '../lib/whatsappMarketingGuard.js';
 import { handleChangeTeamPassword } from '../server/changeTeamPassword.js';
 import { handleLinvixRequest, syncLinvixStore } from '../lib/linvix.js';
 
@@ -2763,6 +2764,29 @@ const aiResponse = await fetchGeminiWithRetry(`https://generativelanguage.google
                     truncatedConsents:consentScan.truncated,
                     truncated:orderScan.truncated||inboundScan.truncated||consentScan.truncated
                 };
+            };
+
+            // Read-only daily usage and attempt hashes, so successive 20-contact
+            // batches advance to NEW recipients instead of getting stuck on the first 20.
+            const getManualMarketingSelection = async (eligiblePhones, requestedCount = 20) => {
+                const day = brazilDayKey();
+                const prefix = `${storeId}_${day}_`;
+                const [usageSnap, attemptedSnap] = await Promise.all([
+                    db.collection('whatsapp_marketing_daily_usage').doc(`${storeId}_${day}`).get(),
+                    db.collection('whatsapp_marketing_attempts')
+                        .where(admin.firestore.FieldPath.documentId(), '>=', prefix)
+                        .where(admin.firestore.FieldPath.documentId(), '<=', `${prefix}\uf8ff`)
+                        .limit(200)
+                        .get()
+                ]);
+                return selectRemainingMarketingRecipients({
+                    storeId,
+                    eligiblePhones,
+                    attemptedToday: Number(usageSnap.data()?.attempted || 0),
+                    attemptedDocumentIds: attemptedSnap.docs.map(doc => doc.id),
+                    maxRecipients: requestedCount,
+                    dailyLimit: MANUAL_MARKETING_DAILY_LIMIT
+                });
             };
 
             if (action === 'broadcast_preview') {
