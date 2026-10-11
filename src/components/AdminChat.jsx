@@ -221,6 +221,10 @@ export default function AdminChat() {
     const [reactivationDays, setReactivationDays] = useState(60);
     const [reactivationMaxRecipients, setReactivationMaxRecipients] = useState(20);
     const [reactivationPreview, setReactivationPreview] = useState(null);
+    const [basePreview, setBasePreview] = useState(null);
+    const [baseMaxRecipients, setBaseMaxRecipients] = useState(1);
+    const [isLoadingBasePreview, setIsLoadingBasePreview] = useState(false);
+    const [broadcastOccasion, setBroadcastOccasion] = useState('Um bom jogo de futebol');
     const [isLoadingAudience, setIsLoadingAudience] = useState(false);
     const [lifecycleMetrics, setLifecycleMetrics] = useState(null);
     const [isLoadingLifecycleMetrics, setIsLoadingLifecycleMetrics] = useState(false);
