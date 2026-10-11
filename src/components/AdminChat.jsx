@@ -1510,6 +1510,36 @@ export default function AdminChat() {
                                     </select>
                                 </div>
 
+                                {broadcastAudienceMode === 'all' && (
+                                    <div className="rounded-xl border border-blue-200 bg-blue-50 p-4 space-y-3 text-sm text-blue-950">
+                                        <p className="font-black">Base geral: independente do tempo sem comprar</p>
+                                        <p className="text-xs">Apenas compradores com consentimento registrado e verificações aplicáveis. Nenhuma mensagem será enviada ao calcular.</p>
+                                        <label className="block font-bold text-xs">Tamanho do lote (teto de 20 por loja/dia)</label>
+                                        <select value={baseMaxRecipients}
+                                            onChange={e => { setBaseMaxRecipients(Number(e.target.value)); setBasePreview(null); }}
+                                            className="w-full rounded-xl border border-blue-200 p-3 bg-white font-semibold">
+                                            <option value={1}>1 cliente — teste inicial</option>
+                                            <option value={5}>5 clientes</option>
+                                            <option value={10}>10 clientes</option>
+                                            <option value={20}>20 clientes</option>
+                                        </select>
+                                        <button onClick={handleBasePreview} disabled={isLoadingBasePreview}
+                                            className="w-full rounded-xl bg-blue-700 text-white font-black py-3 disabled:opacity-50">
+                                            {isLoadingBasePreview ? 'Calculando base...' : 'Calcular público antes de enviar'}
+                                        </button>
+                                        {basePreview && (
+                                            <div className="rounded-xl border border-blue-200 bg-white p-3 space-y-1 text-xs">
+                                                <div className="flex justify-between"><span>Clientes únicos analisados</span><b>{basePreview.uniqueCustomers}</b></div>
+                                                <div className="flex justify-between"><span>Com consentimento e elegibilidade</span><b>{basePreview.eligibleCount}</b></div>
+                                                <div className="flex justify-between"><span>Sem consentimento ou confirmação exigida</span><b>{basePreview.missingConsentOrAdultConfirmation}</b></div>
+                                                <div className="flex justify-between"><span>Bloqueados / descadastrados</span><b>{basePreview.blockedOrOptOut}</b></div>
+                                                <div className="flex justify-between font-black"><span>Máximo neste lote</span><b>{basePreview.sendableNow}</b></div>
+                                                {basePreview.truncated && <p className="text-amber-700">A base excede o limite de 5.000 pedidos analisados.</p>}
+                                                <p className="text-xs">A cota compartilhada e envios feitos hoje ainda podem reduzir o resultado.</p>
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
                                 {broadcastAudienceMode === 'reactivation' && (
                                     <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 flex flex-col gap-3">
                                         <div>
