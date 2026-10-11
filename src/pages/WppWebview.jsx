@@ -5,6 +5,7 @@ import { doc, getDoc, collection, query, where, getDocs, serverTimestamp, update
 import { motion, AnimatePresence } from 'framer-motion';
 import { ShoppingCart, X, Plus, Minus, Search, Camera } from 'lucide-react';
 import { Carousel } from 'react-responsive-carousel';
+import AgeGate from '../components/AgeGate.jsx';
 import "react-responsive-carousel/lib/styles/carousel.min.css";
 
 // Fórmula de Haversine para Frete por KM
@@ -46,7 +47,7 @@ export default function WppWebview() {
 
   // Dados do Cliente e Logística
   const [customer, setCustomer] = useState({
-      name: '', phone: customerPhoneQuery || '', cep: '', street: '', number: '', neighborhood: '', city: '', state: '', payment: '', changeFor: '', whatsappMarketingOptIn: false, alcoholMarketingAgeConfirmed: false, footballTeam: null, footballAlertsOptIn: false
+      name: '', phone: customerPhoneQuery || '', cep: '', street: '', number: '', neighborhood: '', city: '', state: '', payment: '', changeFor: '', whatsappMarketingOptIn: false, footballTeam: null, footballAlertsOptIn: false
   });
   const [deliveryMethod, setDeliveryMethod] = useState('delivery');
   
@@ -233,7 +234,9 @@ export default function WppWebview() {
             await setDoc(doc(db, "abandoned_carts", abandonedCartId), {
                 storeId: slug, customerPhone: customer.phone || customerPhoneQuery || "", items: cart,
                 whatsappMarketingOptIn: customer.whatsappMarketingOptIn === true,
-                alcoholMarketingAgeConfirmed: customer.alcoholMarketingAgeConfirmed === true,
+              alcoholMarketingAgeConfirmed: slug === 'csi' && localStorage.getItem('velo_age_verified_csi') === 'true',
+              ageConfirmationSource: slug === 'csi' ? 'storefront_age_gate' : null,
+              ageConfirmationRecordedAt: slug === 'csi' ? new Date().toISOString() : null,
                 subtotal: cart.reduce((a, i) => a + (i.price * i.quantity), 0),
                 lastUpdated: serverTimestamp(), status: 'abandoned'
             }, { merge: true });
@@ -290,6 +293,11 @@ export default function WppWebview() {
       if (deliveryMethod === 'delivery' && (!customer.street || !customer.number)) return alert("Preencha o endereço de entrega (CEP).");
       if (!customer.payment) return alert("Selecione uma forma de pagamento.");
       if (cart.length === 0) return alert("Carrinho vazio!");
+      // A maioridade é confirmada uma única vez na entrada da loja.
+      // Vincula a confirmação existente ao pedido/telefone sem um segundo checkbox.
+      if (slug === 'csi' && localStorage.getItem('velo_age_verified_csi') !== 'true') {
+          return alert('Confirme sua maioridade na entrada da loja antes de finalizar.');
+      }
 
       submitLock.current = true; setIsSubmitting(true);
       const addr = deliveryMethod === 'pickup' ? 'Retirada no Balcão' : `${customer.street}, ${customer.number} - ${customer.neighborhood}`;
@@ -450,6 +458,7 @@ export default function WppWebview() {
 
   return (
     <div className="min-h-screen bg-[#0F172A] font-sans">
+      {slug === 'csi' && <AgeGate enabled storeId="csi" />}
       {/* HEADER MULTI-TENANT */}
       <header className="sticky top-0 z-40 bg-[#0F172A]/95 backdrop-blur-lg border-b border-slate-800 p-4 pb-2 shadow-sm">
         <div className="flex items-center gap-3 mb-4">
@@ -642,19 +651,6 @@ export default function WppWebview() {
                           Quero receber novidades, ofertas e lembretes de pedido da {store?.name || 'loja'} pelo WhatsApp. Posso cancelar quando quiser respondendo PARAR.
                       </span>
                   </label>
-                  {slug === 'csi' && customer.whatsappMarketingOptIn === true && (
-                    <label className="flex items-start gap-3 rounded-2xl border border-amber-600/40 bg-amber-900/20 p-4 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={customer.alcoholMarketingAgeConfirmed === true}
-                        onChange={e => setCustomer({...customer, alcoholMarketingAgeConfirmed: e.target.checked})}
-                        className="mt-0.5 h-4 w-4"
-                      />
-                      <span className="text-[11px] leading-relaxed text-amber-100">
-                        Confirmo que tenho 18 anos ou mais e autorizo o recebimento de ofertas de bebidas desta loja. Sem esta confirmação, não receberei campanhas promocionais.
-                      </span>
-                    </label>
-                  )}
                   {slug === 'csi' && customer.whatsappMarketingOptIn === true && (
                     <label className="block rounded-2xl border border-slate-700 bg-slate-800/60 p-4">
                       <span className="block mb-2 text-xs font-bold text-white">
