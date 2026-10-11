@@ -10,6 +10,7 @@ import { scheduleJourneyRequest } from '../server/journeyQueue.js';
 import { handleOccasionLifecycle } from '../server/lifecycleDispatch.js';
 import { handleFootballRadar } from '../server/footballRadar.js';
 import { handleFootballAlert } from '../server/footballAlerts.js';
+import {CSI_MARKETING_PROMPT,isExplicitCsiOptIn,shouldOfferCsiOptIn,storedCsiConsentId} from '../lib/whatsappConsentCapture.js';
 import { buildUnifiedWhatsAppAudience, latestOrderPerPhone, addInboundLead } from '../lib/whatsappLeadAudience.js';
 import { hasMarketingOptIn, hasEligibleMarketingConsent, normalizeMarketingPhone as normalizeVerifiedMarketingPhone, getLifecycleStage, isMarketingOptedOut, reserveMarketingAttempt } from '../lib/whatsappMarketingGuard.js';
 import { handleChangeTeamPassword } from '../server/changeTeamPassword.js';
@@ -3434,7 +3435,93 @@ const aiResponse = await fetchGeminiWithRetry(`https://generativelanguage.google
                                                 console.error('[WhatsApp Marketing] Falha na confirmação de descadastro:', error.message);
                                             }
                                         }
+                                        if(storeId==='csi'){
+                                            await db.collection('whatsapp_marketing_consents').doc(`csi_${normalizedPhone}`).set({
+                                                storeId:'csi',phone:normalizedPhone,optedIn:false,
+                                                revokedAt:admin.firestore.FieldValue.serverTimestamp(),
+                                                revokedByMessageId:String(message.id||'')
+                                            },{merge:true});
+                                        }
                                         continue;
+                                    }
+
+                                    // CSI: permissão de marketing é opcional, registrada somente após
+                                    // resposta afirmativa explícita do titular durante conversa iniciada.
+                                    // Não modifica o checkout, nem permite importar a base antiga como opt-in.
+                                    if(storeId==='csi' && normalizedPhone && isExplicitCsiOptIn(messageText)){
+                                        const consentId=storedCsiConsentId('csi',normalizedPhone);
+                                        if(consentId && message.id){
+                                            const consentRef=db.collection('whatsapp_marketing_consents').doc(consentId);
+                                            const optoutRef=db.collection('whatsapp_marketing_optouts').doc(consentId);
+                                            const batch=db.batch();
+                                            batch.set(consentRef,{
+                                                storeId:'csi',phone:normalizedPhone,
+                                                optedIn:true,adultConfirmed:true,
+                                                source:'whatsapp_inbound_explicit_keyword',
+                                                consentVersion:'2026-10-v1',
+                                                purpose:'novidades_ofertas_bebidas_whatsapp',
+                                                sourceMessageId:String(message.id),
+                                                consentText:String(messageText).slice(0,220),
+                                                consentedAt:admin.firestore.FieldValue.serverTimestamp()
+                                            },{merge:true});
+                                            // Apenas nova manifestação expressa revoga um opt-out anterior.
+                                            batch.delete(optoutRef);
+                                            await batch.commit();
+                                            if(apiToken && phoneNumberId){
+                                                try{
+                                                    const ack=await fetch(`https://graph.facebook.com/v19.0/${phoneNumberId}/messages`,{
+                                                        method:'POST',
+                                                        headers:{Authorization:`Bearer ${apiToken}`,'Content-Type':'application/json'},
+                                                        body:JSON.stringify({messaging_product:'whatsapp',to:message.from,type:'text',
+                                                            text:{body:'Tudo certo! Você autorizou receber novidades e ofertas da Conveniência Santa Isabel. Para cancelar quando quiser, responda PARAR.'}})
+                                                    });
+                                                    if(!ack.ok)console.warn('[CSI Consent] Meta confirmation rejected',{status:ack.status});
+                                                }catch(error){console.warn('[CSI Consent] confirmation error',error.message);}
+                                            }
+                                        }
+                                        // Palavra-chave de adesão não deve abrir o menu de pedidos.
+                                        continue;
+                                    }
+
+                                    // Responder com opção de adesão UMA VEZ por período, somente na janela
+                                    // recém-aberta pelo próprio cliente, sem disparo externo para leads antigos.
+                                    if(storeId==='csi' && normalizedPhone && messageText && apiToken && phoneNumberId){
+                                        const consentRef=db.collection('whatsapp_marketing_consents').doc(`csi_${normalizedPhone}`);
+                                        const optoutRef=db.collection('whatsapp_marketing_optouts').doc(`csi_${normalizedPhone}`);
+                                        const promptRef=db.collection('whatsapp_marketing_consent_prompts').doc(`csi_${normalizedPhone}`);
+                                        const nowMs=Date.now();
+                                        try{
+                                            const [consentSnap,optoutSnap]=await Promise.all([consentRef.get(),optoutRef.get()]);
+                                            if(shouldOfferCsiOptIn({
+                                                storeId:'csi',hasApiCredentials:true,optedOut:optoutSnap.exists,
+                                                alreadyOptedIn:consentSnap.data()?.optedIn===true,
+                                                lastPromptAtMs:0,nowMs,hasText:true,blocked:false
+                                            })){
+                                                const claimed=await db.runTransaction(async tx=>{
+                                                    const snap=await tx.get(promptRef);
+                                                    const previousMs=snap.data()?.lastPromptAt?.toMillis?.() || 0;
+                                                    if(!shouldOfferCsiOptIn({
+                                                        storeId:'csi',hasApiCredentials:true,optedOut:false,
+                                                        alreadyOptedIn:false,lastPromptAtMs:previousMs,nowMs,
+                                                        hasText:true,blocked:false
+                                                    }))return false;
+                                                    tx.set(promptRef,{storeId:'csi',phone:normalizedPhone,
+                                                        lastPromptAt:admin.firestore.FieldValue.serverTimestamp(),
+                                                        lastInboundMessageId:String(message.id||'')
+                                                    },{merge:true});
+                                                    return true;
+                                                });
+                                                if(claimed){
+                                                    const promptResponse=await fetch(`https://graph.facebook.com/v19.0/${phoneNumberId}/messages`,{
+                                                        method:'POST',
+                                                        headers:{Authorization:`Bearer ${apiToken}`,'Content-Type':'application/json'},
+                                                        body:JSON.stringify({messaging_product:'whatsapp',to:message.from,type:'text',
+                                                            text:{body:CSI_MARKETING_PROMPT}})
+                                                    });
+                                                    if(!promptResponse.ok)console.warn('[CSI Consent] prompt rejected',{status:promptResponse.status});
+                                                }
+                                            }
+                                        }catch(error){console.warn('[CSI Consent] prompt not sent',error.message);}
                                     }
 
                                     // Se este contato veio de uma campanha recente, marca a campanha como respondida.
