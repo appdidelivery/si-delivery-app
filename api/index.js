@@ -3585,7 +3585,11 @@ const aiResponse = await fetchGeminiWithRetry(`https://generativelanguage.google
                                                      }
                                                 }
                                             }
-                                        }catch(error){console.warn('[CSI Consent] prompt not sent',error.message);}
+                                        }catch(error){
+                                             console.warn('[CSI Consent] prompt not sent',error.message);
+                                             // A failed request must not suppress future attempts.
+                                             try { await promptRef.delete(); } catch (cleanupError) { console.warn('[CSI Consent] prompt cleanup failed',cleanupError.message); }
+                                         }
                                     }
 
                                     // Se este contato veio de uma campanha recente, marca a campanha como respondida.
