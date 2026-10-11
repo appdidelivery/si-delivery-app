@@ -2689,36 +2689,92 @@ const aiResponse = await fetchGeminiWithRetry(`https://generativelanguage.google
                 });
             }
 
-            if (action === 'broadcast') {
-                const templateVariables = req.body.variables || [];
-                if (!templateName) return res.status(400).json({ error: 'Nome do template obrigatório' });
-                // Apenas compradores com consentimento expresso, sem inferir aceite de conversas recebidas.
-                const [ordersSnap, blockedSnap] = await Promise.all([
+            // Visualização real do público geral. O mesmo cálculo é usado no envio.
+            // Não utiliza dias sem comprar, mas preserva consentimento, confirmação
+            // aplicável de maioridade, opt-outs e bloqueios — sem alterar checkout.
+            const buildGeneralMarketingAudience = async () => {
+                const [ordersSnap, blockedSnap, optoutSnap] = await Promise.all([
                     db.collection('orders').where('storeId', '==', storeId).limit(5000).get(),
-                    db.collection('blocked_contacts').where('storeId', '==', storeId).limit(2000).get()
+                    db.collection('blocked_contacts').where('storeId', '==', storeId).limit(2000).get(),
+                    db.collection('whatsapp_marketing_optouts').where('storeId', '==', storeId).limit(2000).get()
                 ]);
-                const blocked = new Set(blockedSnap.docs.map(d => normalizeMarketingPhone(d.data().phone)).filter(Boolean));
+                const blocked = new Set([
+                    ...blockedSnap.docs.map(doc => normalizeMarketingPhone(doc.data().phone)),
+                    ...optoutSnap.docs.map(doc => normalizeMarketingPhone(doc.data().phone))
+                ].filter(Boolean));
                 const byPhone = new Map();
                 ordersSnap.forEach(doc => {
                     const data = doc.data();
+                    const status = String(data.status || '').toLowerCase();
+                    if (['canceled', 'cancelado', 'cancelled', 'refunded', 'estornado'].includes(status)) return;
                     const phone = normalizeMarketingPhone(data.customerPhone || data.customer?.phone);
-                    if (!phone) return;
                     const atMs = orderTimeMs(data.createdAt || data.paidAt);
+                    if (!phone || !atMs) return;
                     const prev = byPhone.get(phone);
-                    if (!prev || atMs > prev.atMs) byPhone.set(phone, { atMs, consent: hasEligibleMarketingConsent(data, storeId === 'csi') });
+                    if (!prev || atMs > prev.atMs) {
+                        byPhone.set(phone, {
+                            phone, atMs,
+                            consent: hasEligibleMarketingConsent(data, storeId === 'csi')
+                        });
+                    }
                 });
-                const recipients = Array.from(byPhone.entries())
-                    .filter(([phone, value]) => value.consent && !blocked.has(phone))
-                    .map(([phone]) => phone).slice(0, 20);
-                let sent = 0;
-                let failed = 0;
-                let skippedDailyLimit = 0;
+                const eligible = [];
+                let missingConsentOrAdultConfirmation = 0;
+                let excludedBlockedOrOptOut = 0;
+                for (const [phone, customer] of byPhone) {
+                    if (blocked.has(phone)) excludedBlockedOrOptOut++;
+                    else if (!customer.consent) missingConsentOrAdultConfirmation++;
+                    else eligible.push(phone);
+                }
+                return {
+                    eligible,
+                    uniqueCustomers: byPhone.size,
+                    missingConsentOrAdultConfirmation,
+                    excludedBlockedOrOptOut,
+                    scannedOrders: ordersSnap.size,
+                    truncated: ordersSnap.size >= 5000
+                };
+            };
+
+            if (action === 'broadcast_preview') {
+                const audience = await buildGeneralMarketingAudience();
+                const maxRecipients = Math.max(1, Math.min(20, Number(req.body.maxRecipients) || 1));
+                return res.status(200).json({
+                    success: true, storeId, eligibleCount: audience.eligible.length,
+                    sendableNow: Math.min(audience.eligible.length, maxRecipients),
+                    maxRecipients, uniqueCustomers: audience.uniqueCustomers,
+                    missingConsentOrAdultConfirmation: audience.missingConsentOrAdultConfirmation,
+                    blockedOrOptOut: audience.excludedBlockedOrOptOut,
+                    scannedOrders: audience.scannedOrders, truncated: audience.truncated,
+                    note: 'Estimativa pré-cota compartilhada do dia; só compradores com opt-in válido e maioridade registrada quando exigida.'
+                });
+            }
+
+            if (action === 'broadcast') {
+                const templateVariables = req.body.variables || [];
+                if (!templateName) return res.status(400).json({ error: 'Nome do template obrigatório' });
+                if (templateName === 'velo_momentos_bebidas' &&
+                    (storeId !== 'csi' ||
+                     !Array.isArray(templateVariables) || templateVariables.length !== 1 ||
+                     !['Um bom jogo de futebol','O início do fim de semana','Um encontro com os amigos','Um churrasco de domingo'].includes(templateVariables[0]))) {
+                    return res.status(400).json({ error: 'Template de ocasiões: loja ou variável não reconhecida.' });
+                }
+                // O painel deve obrigatoriamente calcular a prévia antes do envio.
+                // A campanha continua limitada a 20 tentativas por loja/dia.
+                const maxRecipients = Math.max(1, Math.min(20, Number(req.body.maxRecipients) || 1));
+                const audience = await buildGeneralMarketingAudience();
+                const recipients = audience.eligible.slice(0, maxRecipients);
+                if (recipients.length === 0) return res.status(200).json({
+                    success: true, sent: 0, failed: 0,
+                    message: 'Não há clientes elegíveis com consentimento e demais verificações registradas.'
+                });
+                let sent = 0, failed = 0, skippedDailyLimit = 0;
                 for (const phone of recipients) {
+                    if (await isMarketingOptedOut(db, storeId, phone)) { skippedDailyLimit++; continue; }
                     const reserved = await reserveMarketingAttempt(db, {
                         storeId, phone, type: 'manual_broadcast', dailyLimit: 20
                     });
                     if (!reserved.allowed) { skippedDailyLimit++; continue; }
-                    if (await isMarketingOptedOut(db, storeId, phone)) { skippedDailyLimit++; continue; }
                     const result = await sendMessageToMeta(phone, templateName, 'pt_BR', templateVariables, { allowFailover: false });
                     if (!result?.ok) { failed++; continue; }
                     sent++;
@@ -2734,7 +2790,7 @@ const aiResponse = await fetchGeminiWithRetry(`https://generativelanguage.google
                 }
                 return res.status(200).json({
                     success: true, sent, failed, skippedDailyLimit,
-                    message: `Campanha: ${sent} aceitos pela Meta, ${failed} falhas, ${skippedDailyLimit} bloqueados pelo limite diário. Somente opt-in foi considerado.`
+                    message: `Campanha: ${sent} aceitos pela Meta, ${failed} falhas, ${skippedDailyLimit} bloqueados pelo limite diário. Consentimento e idade verificados pelos campos existentes.`
                 });
             }
 
