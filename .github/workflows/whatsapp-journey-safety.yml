@@ -10,6 +10,8 @@ on:
       - 'lib/footballFixtures.js'
       - 'lib/csiOccasionTemplate.js'
       - 'lib/whatsappLeadAudience.js'
+      - 'lib/whatsappConsentCapture.js'
+      - 'tests/whatsappConsentCapture.test.js'
       - 'tests/whatsappLeadAudience.test.js'
       - 'tests/csiOccasionTemplate.test.js'
       - 'tests/footballFixtures.test.js'
@@ -42,6 +44,7 @@ jobs:
           node --check lib/footballFixtures.js
           node --check lib/csiOccasionTemplate.js
           node --check lib/whatsappLeadAudience.js
+          node --check lib/whatsappConsentCapture.js
           node -e "JSON.parse(require('fs').readFileSync('vercel.json','utf8'))"
       - name: Marketing opt-in and quota tests
-        run: node --test tests/whatsappMarketingGuard.test.js tests/lifecycleSchedule.test.js tests/footballFixtures.test.js tests/csiOccasionTemplate.test.js tests/whatsappLeadAudience.test.js
+        run: node --test tests/whatsappMarketingGuard.test.js tests/lifecycleSchedule.test.js tests/footballFixtures.test.js tests/csiOccasionTemplate.test.js tests/whatsappLeadAudience.test.js tests/whatsappConsentCapture.test.js
