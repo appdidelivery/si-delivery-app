@@ -224,6 +224,11 @@ export default function AdminChat() {
     const [basePreview, setBasePreview] = useState(null);
     const [baseMaxRecipients, setBaseMaxRecipients] = useState(1);
     const [isLoadingBasePreview, setIsLoadingBasePreview] = useState(false);
+    const [audienceContacts, setAudienceContacts] = useState([]);
+    const [audienceContactsPage, setAudienceContactsPage] = useState(1);
+    const [audienceContactsTotalPages, setAudienceContactsTotalPages] = useState(0);
+    const [isLoadingAudienceContacts, setIsLoadingAudienceContacts] = useState(false);
+    const [audienceContactsError, setAudienceContactsError] = useState('');
     const [broadcastOccasion, setBroadcastOccasion] = useState('Um bom jogo de futebol');
     const [isLoadingAudience, setIsLoadingAudience] = useState(false);
     const [lifecycleMetrics, setLifecycleMetrics] = useState(null);
@@ -275,6 +280,28 @@ export default function AdminChat() {
     };
 
 
+    const loadAudienceContacts = async (page = 1) => {
+        if (!storeId) return;
+        setIsLoadingAudienceContacts(true);
+        setAudienceContactsError('');
+        try {
+            const res = await authenticatedFetch('/api/whatsapp-audience', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ storeId, page })
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || 'Não foi possível consultar os leads');
+            setAudienceContacts(data.contacts || []);
+            setAudienceContactsPage(data.page || page);
+            setAudienceContactsTotalPages(data.totalPages || 0);
+        } catch (error) {
+            setAudienceContactsError(error.message);
+        } finally {
+            setIsLoadingAudienceContacts(false);
+        }
+    };
+
     const handleBasePreview = async () => {
         if (!storeId) return;
         setIsLoadingBasePreview(true);
@@ -290,6 +317,7 @@ export default function AdminChat() {
             const data = await res.json();
             if (!res.ok) throw new Error(data.error || 'Erro ao calcular a base.');
             setBasePreview(data);
+            await loadAudienceContacts(1);
         } catch (error) {
             alert('Erro ao calcular a base: ' + error.message);
         } finally {
@@ -1502,6 +1530,8 @@ export default function AdminChat() {
                                             setBroadcastAudienceMode(e.target.value);
                                             setReactivationPreview(null);
                                             setBasePreview(null);
+                                            setAudienceContacts([]);
+                                            setAudienceContactsPage(1);
                                             if (e.target.value === 'reactivation' && !broadcastTemplate) setBroadcastTemplate('velo_saudade_cliente');
                                         }}
                                         className="w-full p-4 bg-[#f0f2f5] rounded-xl outline-none focus:ring-2 ring-blue-600 text-gray-800 font-medium border border-gray-200 shadow-sm"
@@ -1549,6 +1579,24 @@ export default function AdminChat() {
                                                 {basePreview.truncated && <p className="text-amber-700 font-semibold">Leitura parcial: o histórico atingiu o limite de segurança. Números podem aumentar.</p>}
                                                 <p className="text-xs text-blue-900">Conversa iniciada pelo cliente não é, por si só, autorização para campanha. Para responder às consultas recentes, use o chat de atendimento.</p>
                                                 <p className="text-xs">Cada novo lote pula contatos já tentados hoje. Nenhum envio é feito se não houver autorização de marketing identificada.</p>
+                                                <div className="border-t border-blue-100 pt-3 mt-3 space-y-2">
+                                                    <p className="font-black">Leads WhatsApp visíveis no CRM — página {audienceContactsPage} de {audienceContactsTotalPages || 1}</p>
+                                                    <p className="text-[11px]">Todos os contatos são listados, inclusive quem ainda não autorizou marketing.</p>
+                                                    {audienceContacts.map(contact => (
+                                                        <div key={contact.phone} className="flex items-center justify-between gap-2 py-1 border-b border-slate-100">
+                                                            <div className="min-w-0"><div className="font-semibold truncate">{getDisplayName(contact.phone)}</div><div>{contact.phone} · {contact.origin === 'whatsapp' ? 'Lead WhatsApp' : contact.origin === 'pedido_e_whatsapp' ? 'Pedido + WhatsApp' : 'Cliente com pedido'}</div></div>
+                                                            <span className={`shrink-0 font-bold ${contact.status === 'marketing_authorized' ? 'text-green-700' : contact.status === 'blocked_or_opted_out' ? 'text-red-700' : 'text-amber-700'}`}>
+                                                                {contact.status === 'marketing_authorized' ? 'Autorizado' : contact.status === 'blocked_or_opted_out' ? 'Bloqueado' : contact.status === 'adult_confirmation_missing' ? 'Maioridade pendente' : 'Autorização pendente'}
+                                                            </span>
+                                                        </div>
+                                                    ))}
+                                                    {isLoadingAudienceContacts && <p>Consultando a base...</p>}
+                                                    {audienceContactsError && <p className="text-red-700">{audienceContactsError}</p>}
+                                                    <div className="flex justify-between gap-2">
+                                                        <button onClick={() => loadAudienceContacts(audienceContactsPage - 1)} disabled={isLoadingAudienceContacts || audienceContactsPage <= 1} className="rounded-lg border px-3 py-2 disabled:opacity-40">Anterior</button>
+                                                        <button onClick={() => loadAudienceContacts(audienceContactsPage + 1)} disabled={isLoadingAudienceContacts || audienceContactsPage >= audienceContactsTotalPages} className="rounded-lg border px-3 py-2 disabled:opacity-40">Próxima</button>
+                                                    </div>
+                                                </div>
                                             </div>
                                         )}
                                     </div>
