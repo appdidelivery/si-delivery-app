@@ -2789,6 +2789,61 @@ const aiResponse = await fetchGeminiWithRetry(`https://generativelanguage.google
                 });
             };
 
+            // Solicitação pontual de consentimento: apenas conversas iniciadas pelo cliente nas últimas 24h.
+            if (action === 'csi_consent_invite') {
+                if (storeId !== 'csi') return res.status(403).json({error:'Disponível apenas para a Conveniência Santa Isabel'});
+                const limit = Math.max(1, Math.min(20, Number(req.body.maxRecipients) || 20));
+                const cutoff = Date.now() - 24 * 60 * 60 * 1000;
+                const snap = await db.collection('whatsapp_inbound').where('storeId','==','csi').limit(2000).get();
+                const recent = new Map();
+                for (const doc of snap.docs) {
+                    const d=doc.data();
+                    if(d.direction !== 'inbound') continue;
+                    const ms=d.receivedAt?.toMillis?.() || 0;
+                    if(ms <= cutoff) continue;
+                    const phone=normalizeMarketingPhone(d.from);
+                    if(!phone) continue;
+                    const previous=recent.get(phone);
+                    if(!previous || previous.ms < ms) recent.set(phone,{phone,ms});
+                }
+                let sent=0,failed=0,skipped=0;
+                const errors=[];
+                for(const {phone} of [...recent.values()].sort((a,b)=>b.ms-a.ms)){
+                    if(sent+failed >= limit) break;
+                    const id=storedCsiConsentId('csi',phone);
+                    if(!id) continue;
+                    const [consent,optout,blocked]=await Promise.all([
+                        db.collection('whatsapp_marketing_consents').doc(id).get(),
+                        db.collection('whatsapp_marketing_optouts').doc(id).get(),
+                        db.collection('blocked_contacts').doc(id).get()
+                    ]);
+                    if(optout.exists || blocked.exists || consent.data()?.optedIn===true){skipped++;continue;}
+                    const promptRef=db.collection('whatsapp_marketing_consent_prompts').doc(id);
+                    const claimed=await db.runTransaction(async tx=>{
+                        const previous=await tx.get(promptRef);
+                        const last=previous.data()?.lastPromptAt?.toMillis?.() || 0;
+                        if(last && Date.now()-last < 45*86400000)return false;
+                        tx.set(promptRef,{storeId:'csi',phone,lastPromptAt:admin.firestore.FieldValue.serverTimestamp(),source:'admin_24h_invite'},{merge:true});
+                        return true;
+                    });
+                    if(!claimed){skipped++;continue;}
+                    try{
+                        const response=await fetch(GRAPH_API_URL,{
+                            method:'POST',
+                            headers:{Authorization:`Bearer ${apiToken}`,'Content-Type':'application/json'},
+                            body:JSON.stringify({messaging_product:'whatsapp',to:'55'+phone,type:'interactive',
+                                interactive:{type:'button',body:{text:CSI_MARKETING_PROMPT},action:{buttons:[
+                                    {type:'reply',reply:{id:'csi_marketing_yes_18',title:'Sou 18+ e aceito'}},
+                                    {type:'reply',reply:{id:'csi_marketing_no',title:'Agora não'}}
+                                ]}}})
+                        });
+                        if(response.ok)sent++;
+                        else {failed++;errors.push({phone:phone.slice(-4),status:response.status});await promptRef.delete();}
+                    }catch(e){failed++;errors.push({phone:phone.slice(-4),error:e.message});await promptRef.delete();}
+                }
+                return res.status(200).json({success:true,sent,failed,skipped,recentConversations:recent.size,errors});
+            }
+
             if (action === 'broadcast_preview') {
                 const audience = await buildGeneralMarketingAudience();
                 const maxRecipients = Math.max(1, Math.min(MANUAL_MARKETING_BATCH_SIZE, Number(req.body.maxRecipients) || 1));
