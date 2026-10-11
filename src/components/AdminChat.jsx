@@ -1719,6 +1719,9 @@ export default function AdminChat() {
                                         setIsBroadcasting(true);
                                         try {
                                             let variablesToSend = [];
+                                            if (broadcastTemplate === 'velo_momentos_bebidas') {
+                                                variablesToSend = [broadcastOccasion];
+                                            }
                                             
                                             if (broadcastTemplate === 'velo_lancamento_dinamico') {
                                                 if (!broadcastSelectedProduct) {
@@ -1743,7 +1746,7 @@ export default function AdminChat() {
                                                     ...(isReactivation ? {
                                                         inactivityDays: Number(reactivationDays),
                                                         maxRecipients: Number(reactivationMaxRecipients)
-                                                    } : {})
+                                                    } : { maxRecipients: Number(baseMaxRecipients) })
                                                 })
                                             });
                                             
@@ -1754,6 +1757,7 @@ export default function AdminChat() {
                                                 setBroadcastTemplate('');
                                                 setBroadcastSelectedProduct('');
                                                 setReactivationPreview(null);
+                                                setBasePreview(null);
                                             } else {
                                                 alert('Erro ao disparar: ' + (data.error || 'Falha na API da Meta'));
                                             }
@@ -1764,7 +1768,7 @@ export default function AdminChat() {
                                         }
                                     }}
                                     className={`w-full text-white py-4 rounded-xl font-bold uppercase tracking-widest text-xs shadow-md transition-all flex items-center justify-center gap-2 mt-4 ${
-                                        broadcastTemplate && (broadcastAudienceMode !== 'reactivation' || reactivationPreview)
+                                        broadcastTemplate && (broadcastAudienceMode === 'reactivation' ? reactivationPreview : basePreview?.sendableNow > 0)
                                             ? 'bg-blue-600 hover:bg-blue-700 active:scale-95'
                                             : 'bg-gray-300 cursor-not-allowed'
                                     }`}
