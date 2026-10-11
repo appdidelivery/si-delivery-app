@@ -708,6 +708,7 @@ export default function Home() {
 
   const [customer, setCustomer] = useState({
     name: '', cep: '', street: '', number: '', neighborhood: '', phone: '', payment: '', changeFor: '', deliveryMethod: 'delivery',
+    whatsappMarketingOptIn: false,
     city: '', state: '', cpf: '', birthDate: '', cardNumber: '', cardExpiration: '', cardCvv: '',
     recipientName: '', recipientPhone: '', giftMessage: '', isAnonymous: false, scheduledDate: '', scheduledTime: ''
   });
@@ -2411,6 +2412,10 @@ const upsellTotal = sanitizedCart.filter(i => i.isUpsell === true).reduce((acc, 
         customerName: customer.name || "", 
         customerAddress: isWaiterMode ? `Mesa ${tableNumber}` : (isPickup ? "Retirada no Balcão" : (fullAddress || "")), 
         customerPhone: customer.phone || "",
+        whatsappMarketingOptIn: storeId === 'csi' && !isWaiterMode && customer.whatsappMarketingOptIn === true,
+        marketingOptInAt: storeId === 'csi' && !isWaiterMode && customer.whatsappMarketingOptIn === true ? new Date().toISOString() : null,
+        alcoholMarketingAgeConfirmed: storeId === 'csi' && storeSettings?.ageGateEnabled === true && localStorage.getItem('velo_age_verified') === 'true',
+        ageConfirmationSource: storeId === 'csi' && storeSettings?.ageGateEnabled === true ? 'home_storefront_age_gate' : null,
         customerCpf: "", // <--- CPF LIMPO SALVO AQUI
         paymentMethod: customer.payment || "", 
         paymentStatus: isOfflinePayment ? 'pending_on_delivery' : 'pending',
@@ -3311,6 +3316,10 @@ upsellAmount: upsellTotal, // Mantido por retrocompatibilidade com painéis anti
                                       customerName: customer.name || "", 
                                       customerAddress: fullAddress || "", 
                                       customerPhone: customer.phone || "",
+                                      whatsappMarketingOptIn: storeId === 'csi' && customer.whatsappMarketingOptIn === true,
+                                      marketingOptInAt: storeId === 'csi' && customer.whatsappMarketingOptIn === true ? new Date().toISOString() : null,
+                                      alcoholMarketingAgeConfirmed: storeId === 'csi' && storeSettings?.ageGateEnabled === true && localStorage.getItem('velo_age_verified') === 'true',
+                                      ageConfirmationSource: storeId === 'csi' && storeSettings?.ageGateEnabled === true ? 'home_storefront_age_gate' : null,
                                       customerCpf: "",// 🚨 CPF AGORA É SALVO NO BANCO
                                       paymentMethod: "mp_transparent", 
                                       paymentStatus: 'processing',
@@ -4717,6 +4726,19 @@ alert("Pagamento recusado pelo Mercado Pago. Tente outro cartão ou entre em con
                       </div>
                   )}
 
+                  {storeId === 'csi' && !isWaiterMode && (
+                    <label className="flex items-start gap-3 p-4 mt-4 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-900 cursor-pointer">
+                      <input type="checkbox"
+                        checked={customer.whatsappMarketingOptIn === true}
+                        onChange={e => handleCustomerChange('whatsappMarketingOptIn', e.target.checked)}
+                        className="mt-1 w-5 h-5 accent-emerald-600"
+                      />
+                      <span className="text-xs font-medium leading-relaxed">
+                        Quero receber ofertas e novidades da Conveniência Santa Isabel pelo WhatsApp.
+                        Posso parar a qualquer momento respondendo PARAR.
+                      </span>
+                    </label>
+                  )}
                   {!isWaiterMode && (
                       <>
                           <p className="font-black text-xs text-slate-400 uppercase mt-4 ml-4 tracking-widest">Pagamento:</p>
