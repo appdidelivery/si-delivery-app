@@ -1537,11 +1537,12 @@ export default function AdminChat() {
                                                 <div className="flex justify-between"><span>Conversas recentes sem aceite de campanhas</span><b>{basePreview.activeServiceWithoutMarketingConsent ?? '—'}</b></div>
                                                 <hr className="my-2 border-blue-100" />
                                                 <div className="flex justify-between font-semibold"><span>Elegíveis para modelo de marketing</span><b>{basePreview.eligibleCount}</b></div>
+                                                <div className="flex justify-between"><span>Autorizações confirmadas pelo WhatsApp</span><b>{basePreview.explicitWhatsAppConsents ?? '—'}</b></div>
                                                 <div className="flex justify-between"><span>Sem autorização de marketing registrada</span><b>{basePreview.missingMarketingConsent ?? basePreview.missingConsentOrAdultConfirmation}</b></div>
                                                 <div className="flex justify-between"><span>Sem registro de maioridade aplicável</span><b>{basePreview.missingAdultRecord ?? '—'}</b></div>
                                                 <div className="flex justify-between"><span>Bloqueados / descadastrados</span><b>{basePreview.blockedOrOptOut}</b></div>
                                                 <div className="flex justify-between font-black"><span>Máximo neste lote</span><b>{basePreview.sendableNow}</b></div>
-                                                <p className="text-blue-800 mt-2">Pedidos consultados: {basePreview.scannedOrders ?? '—'}; mensagens consultadas: {basePreview.scannedMessages ?? '—'}.</p>
+                                                <p className="text-blue-800 mt-2">Pedidos consultados: {basePreview.scannedOrders ?? '—'}; mensagens consultadas: {basePreview.scannedMessages ?? '—'}; autorizações consultadas: {basePreview.scannedConsents ?? '—'}.</p>
                                                 {basePreview.truncated && <p className="text-amber-700 font-semibold">Leitura parcial: o histórico atingiu o limite de segurança. Números podem aumentar.</p>}
                                                 <p className="text-xs text-blue-900">Conversa iniciada pelo cliente não é, por si só, autorização para campanha. Para responder às consultas recentes, use o chat de atendimento.</p>
                                                 <p className="text-xs">A cota compartilhada e envios feitos hoje ainda podem reduzir o resultado.</p>
