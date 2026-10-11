@@ -14,6 +14,10 @@ on:
       - 'lib/lifecycleSchedule.js'
       - 'vercel.json'
       - 'lib/whatsappMarketingGuard.js'
+      - 'lib/marketingAudienceAudit.js'
+      - 'src/pages/Home.jsx'
+      - 'src/components/AgeGate.jsx'
+      - 'tests/marketingAudienceAudit.test.js'
       - 'src/pages/WppWebview.jsx'
       - 'src/components/AdminChat.jsx'
       - 'tests/whatsappMarketingGuard.test.js'
@@ -33,6 +37,7 @@ jobs:
           node --check api/index.js
           node --check server/journeyQueue.js
           node --check lib/whatsappMarketingGuard.js
+          node --check lib/marketingAudienceAudit.js
           node --check lib/lifecycleSchedule.js
           node --check server/lifecycleDispatch.js
           node --check server/footballRadar.js
@@ -41,4 +46,4 @@ jobs:
           node --check lib/csiOccasionTemplate.js
           node -e "JSON.parse(require('fs').readFileSync('vercel.json','utf8'))"
       - name: Marketing opt-in and quota tests
-        run: node --test tests/whatsappMarketingGuard.test.js tests/lifecycleSchedule.test.js tests/footballFixtures.test.js tests/csiOccasionTemplate.test.js
+        run: node --test tests/whatsappMarketingGuard.test.js tests/lifecycleSchedule.test.js tests/footballFixtures.test.js tests/csiOccasionTemplate.test.js tests/marketingAudienceAudit.test.js
