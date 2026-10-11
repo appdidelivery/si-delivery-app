@@ -1501,12 +1501,13 @@ export default function AdminChat() {
                                         onChange={(e) => {
                                             setBroadcastAudienceMode(e.target.value);
                                             setReactivationPreview(null);
+                                            setBasePreview(null);
                                             if (e.target.value === 'reactivation' && !broadcastTemplate) setBroadcastTemplate('velo_saudade_cliente');
                                         }}
                                         className="w-full p-4 bg-[#f0f2f5] rounded-xl outline-none focus:ring-2 ring-blue-600 text-gray-800 font-medium border border-gray-200 shadow-sm"
                                     >
                                         <option value="reactivation">🎯 Reativação — clientes sem comprar</option>
-                                        <option value="all">📣 Base geral — clientes e leads</option>
+                                        <option value="all">📣 Base geral — clientes com consentimento</option>
                                     </select>
                                 </div>
 
@@ -1628,7 +1629,7 @@ export default function AdminChat() {
                                     <p className="text-sm text-gray-700 font-bold mb-2">Selecione a Campanha (Template):</p>
                                     <select 
                                         value={broadcastTemplate}
-                                        onChange={(e) => setBroadcastTemplate(e.target.value)}
+                                        onChange={(e) => { setBroadcastTemplate(e.target.value); setBasePreview(null); }}
                                         className="w-full p-4 bg-[#f0f2f5] rounded-xl outline-none focus:ring-2 ring-blue-600 text-gray-800 font-medium appearance-none cursor-pointer border border-gray-200 shadow-sm"
                                     >
                                         <option value="">Selecione um modelo aprovado...</option>
