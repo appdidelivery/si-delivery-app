@@ -1530,7 +1530,7 @@ export default function AdminChat() {
                                         </button>
                                         {basePreview && (
                                             <div className="rounded-xl border border-blue-200 bg-white p-3 space-y-1 text-xs">
-                                                <div className="flex justify-between"><span>Contatos únicos — compras e WhatsApp</span><b>{basePreview.uniqueCustomers}</b></div>
+                                                <div className="flex justify-between"><span>Contatos únicos visíveis no CRM — compras e WhatsApp</span><b>{basePreview.uniqueCustomers}</b></div>
                                                 <div className="flex justify-between"><span>Com histórico de pedidos</span><b>{basePreview.buyers ?? '—'}</b></div>
                                                 <div className="flex justify-between"><span>Leads só do WhatsApp (sem pedido)</span><b>{basePreview.onlyInboundLeads ?? '—'}</b></div>
                                                 <div className="flex justify-between"><span>Conversas abertas nas últimas 24h</span><b>{basePreview.activeService24h ?? '—'}</b></div>
@@ -1543,8 +1543,8 @@ export default function AdminChat() {
                                                 <div className="flex justify-between"><span>Bloqueados / descadastrados</span><b>{basePreview.blockedOrOptOut}</b></div>
                                                 <div className="flex justify-between font-black"><span>Próximo lote disponível</span><b>{basePreview.sendableNow}</b></div>
                                                 <div className="flex justify-between"><span>Tentativas de campanha hoje</span><b>{basePreview.alreadyAttemptedToday ?? '—'}</b></div>
-                                                <div className="flex justify-between"><span>Restante hoje</span><b>{basePreview.remainingToday ?? '—'}</b></div>
-                                                <p className="text-xs">Até {basePreview.batchSizeLimit || 20} por lote; cota diária manual de até {basePreview.dailyCampaignLimit || 200} tentativas, incluindo uso compartilhado.</p>
+                                                <div className="flex justify-between"><span>Restante hoje</span><b>{basePreview.remainingToday == null ? 'Sem teto interno' : basePreview.remainingToday}</b></div>
+                                                <p className="text-xs">Até {basePreview.batchSizeLimit || 20} por lote, sem teto diário interno para campanhas autorizadas. Limites de qualidade e envio da Meta continuam válidos.</p>
                                                 <p className="text-blue-800 mt-2">Pedidos consultados: {basePreview.scannedOrders ?? '—'}; mensagens consultadas: {basePreview.scannedMessages ?? '—'}; autorizações consultadas: {basePreview.scannedConsents ?? '—'}.</p>
                                                 {basePreview.truncated && <p className="text-amber-700 font-semibold">Leitura parcial: o histórico atingiu o limite de segurança. Números podem aumentar.</p>}
                                                 <p className="text-xs text-blue-900">Conversa iniciada pelo cliente não é, por si só, autorização para campanha. Para responder às consultas recentes, use o chat de atendimento.</p>
@@ -1579,7 +1579,7 @@ export default function AdminChat() {
                                                 className="w-full p-3 bg-white border border-amber-200 rounded-xl font-bold text-amber-900 outline-none"
                                             >
                                                 <option value={20}>20 clientes — teste seguro</option>
-                                                {/* Piloto: teto compartilhado de 20 tentativas de marketing por loja/dia. */}
+                                                {/* Reativação usa lotes pequenos; a capacidade diária interna não limita campanhas autorizadas. */}
                                             </select>
                                         </div>
 
@@ -1726,7 +1726,7 @@ export default function AdminChat() {
 
                                         const confirmText = isReactivation
                                             ? `ATENÇÃO: enviar o template ${broadcastTemplate} para até ${reactivationPreview.sendableNow} cliente(s) com ${reactivationDays}+ dias sem comprar?\n\nO envio será feito somente pela API Oficial da Meta.`
-                                            : `ATENÇÃO: enviar o modelo ${broadcastTemplate} para até ${basePreview.sendableNow} cliente(s) elegível(is) neste lote?\n\n20 por lote e até ${basePreview.dailyCampaignLimit || 200} tentativas por dia no modo manual. Confirmar?`;
+                                            : `ATENÇÃO: enviar o modelo ${broadcastTemplate} para até ${basePreview.sendableNow} cliente(s) elegível(is) neste lote?\n\nAté 20 por lote, sem teto diário interno. Envio apenas aos destinatários autorizados. Confirmar?`;
                                         if (!window.confirm(confirmText)) return;
                                         
                                         setIsBroadcasting(true);
