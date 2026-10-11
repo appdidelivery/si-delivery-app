@@ -51,3 +51,21 @@ test('atomic quota blocks duplicate recipient and limits attempts', async () => 
   assert.equal((await reserveMarketingAttempt(mockDb,{storeId:'csi',phone:'51999999999',dailyLimit:1})).reason, 'already_attempted_today');
   assert.equal((await reserveMarketingAttempt(mockDb,{storeId:'csi',phone:'51888888888',dailyLimit:1})).reason, 'daily_limit_reached');
 });
+
+test('uncapped manual attempts still reject a repeated number on the same day', async () => {
+  const records = new Map();
+  const fakeDb = {
+    collection(name) { return { doc(id) { return { key: name + '/' + id }; } }; },
+    runTransaction: async (fn) => fn({
+      get: async (ref) => ({ exists: records.has(ref.key), data: () => records.get(ref.key) }),
+      set: (ref, data, opts = {}) => records.set(ref.key, opts.merge ? { ...records.get(ref.key), ...data } : data)
+    })
+  };
+  const key = 'whatsapp_marketing_daily_usage/csi_' + brazilDayKey();
+  records.set(key, {attempted: 250});
+  const a = await reserveMarketingAttempt(fakeDb, {storeId:'csi',phone:'51999999999',dailyLimit:null});
+  const b = await reserveMarketingAttempt(fakeDb, {storeId:'csi',phone:'51999999999',dailyLimit:null});
+  assert.equal(a.allowed,true);
+  assert.equal(b.reason,'already_attempted_today');
+  assert.equal(records.get(key).attempted,251);
+});
