@@ -1667,6 +1667,20 @@ export default function AdminChat() {
                                     </select>
                                 </div>
 
+                                {broadcastTemplate === 'velo_momentos_bebidas' && storeId === 'csi' && (
+                                    <div className="rounded-xl bg-sky-50 border border-sky-200 p-3 space-y-2">
+                                        <label className="block font-bold text-xs text-sky-900">Ocasião do modelo aprovado</label>
+                                        <select value={broadcastOccasion}
+                                            onChange={e => setBroadcastOccasion(e.target.value)}
+                                            className="w-full p-3 rounded-xl bg-white border border-sky-200 text-sm font-medium">
+                                            <option value="Um bom jogo de futebol">Um bom jogo de futebol</option>
+                                            <option value="O início do fim de semana">O início do fim de semana</option>
+                                            <option value="Um encontro com os amigos">Um encontro com os amigos</option>
+                                            <option value="Um churrasco de domingo">Um churrasco de domingo</option>
+                                        </select>
+                                        <p className="text-xs text-sky-900">O valor selecionado preenche a única variável do corpo. O botão Ver cardápio é fixo no modelo.</p>
+                                    </div>
+                                )}
                                 {/* SELETOR DINÂMICO DE PRODUTO PARA LANÇAMENTO */}
                                 {broadcastTemplate === 'velo_lancamento_dinamico' && (
                                     <div className="mt-2 animate-in fade-in slide-in-from-top-2">
