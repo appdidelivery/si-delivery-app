@@ -2813,17 +2813,34 @@ const aiResponse = await fetchGeminiWithRetry(`https://generativelanguage.google
                 if (storeId !== 'csi') return res.status(403).json({error:'Disponível apenas para a Conveniência Santa Isabel'});
                 const limit = Math.max(1, Math.min(20, Number(req.body.maxRecipients) || 20));
                 const cutoff = Date.now() - 24 * 60 * 60 * 1000;
-                const snap = await db.collection('whatsapp_inbound').where('storeId','==','csi').limit(2000).get();
+                // Scan pages rather than an arbitrary first 2,000 records (Firestore
+                // does not return the newest records without an explicit order).
                 const recent = new Map();
-                for (const doc of snap.docs) {
-                    const d=doc.data();
-                    if(d.direction !== 'inbound') continue;
-                    const ms=d.receivedAt?.toMillis?.() || 0;
-                    if(ms <= cutoff) continue;
-                    const phone=normalizeMarketingPhone(d.from);
-                    if(!phone) continue;
-                    const previous=recent.get(phone);
-                    if(!previous || previous.ms < ms) recent.set(phone,{phone,ms});
+                let scanned = 0, cursor = null, truncated = false;
+                const scanLimit = 25000;
+                while (scanned < scanLimit) {
+                    let query = db.collection('whatsapp_inbound')
+                        .where('storeId', '==', 'csi')
+                        .orderBy(admin.firestore.FieldPath.documentId())
+                        .limit(Math.min(500, scanLimit - scanned));
+                    if (cursor) query = query.startAfter(cursor);
+                    const page = await query.get();
+                    if (page.empty) break;
+                    for (const doc of page.docs) {
+                        const d = doc.data();
+                        if (d.direction && d.direction !== 'inbound') continue;
+                        const time = d.receivedAt || d.createdAt || d.timestamp || d.sentAt;
+                        const ms = time?.toMillis?.() || (time?.seconds ? time.seconds * 1000 : Date.parse(time || '') || 0);
+                        if (ms <= cutoff) continue;
+                        const phone = normalizeMarketingPhone(d.from || d.phone || d.customerPhone);
+                        if (!phone) continue;
+                        const previous = recent.get(phone);
+                        if (!previous || previous.ms < ms) recent.set(phone, {phone, ms});
+                    }
+                    scanned += page.size;
+                    cursor = page.docs[page.docs.length - 1];
+                    if (page.size < 500) break;
+                    if (scanned >= scanLimit) truncated = true;
                 }
                 let sent=0,failed=0,skipped=0;
                 const errors=[];
@@ -2860,7 +2877,7 @@ const aiResponse = await fetchGeminiWithRetry(`https://generativelanguage.google
                         else {failed++;errors.push({phone:phone.slice(-4),status:response.status});await promptRef.delete();}
                     }catch(e){failed++;errors.push({phone:phone.slice(-4),error:e.message});await promptRef.delete();}
                 }
-                return res.status(200).json({success:true,sent,failed,skipped,recentConversations:recent.size,errors});
+                return res.status(200).json({success:true,sent,failed,skipped,recentConversations:recent.size,scannedMessages:scanned,truncated,errors});
             }
 
             if (action === 'broadcast_preview') {
