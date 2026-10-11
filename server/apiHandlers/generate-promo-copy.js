@@ -1,6 +1,6 @@
 import admin from 'firebase-admin';
 import crypto from 'crypto';
-import { fetchGeminiWithRetry } from '../lib/gemini.js';
+import { fetchGeminiWithRetry } from '../../lib/gemini.js';
 
 // =========================================================================
 // INICIALIZAÇÃO FIREBASE ADMIN
