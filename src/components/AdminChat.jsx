@@ -1562,12 +1562,12 @@ export default function AdminChat() {
                                         <p className="font-black">Base geral: independente do tempo sem comprar</p>
                                         {storeId === 'csi' && <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 space-y-2">
                                             <p className="font-bold">Autorização de ofertas por WhatsApp</p>
-                                            <p className="text-xs">Convida até 20 contatos por vez, somente nas conversas iniciadas pelo cliente nas últimas 24h. Não envia promoções sem autorização.</p>
+                                            <p className="text-xs">Inclui todos os contatos únicos que enviaram mensagem nas últimas 24h, em lotes sucessivos de até 20. Clique novamente para continuar; quem já recebeu convite não será repetido. Não envia promoções sem autorização.</p>
                                             <button type="button" onClick={handleConsentInvites} disabled={isSendingConsentInvites}
                                                 className="w-full rounded-xl bg-amber-600 text-white font-black py-3 disabled:opacity-50">
-                                                {isSendingConsentInvites ? 'Enviando convites...' : 'Solicitar autorização aos elegíveis (até 20)'}
+                                                {isSendingConsentInvites ? 'Enviando convites...' : 'Enviar convites aos próximos 20 elegíveis'}
                                             </button>
-                                            {consentInviteResult && <p className="text-xs" role="status">{consentInviteResult.error || `Convites enviados: ${consentInviteResult.sent}. Falhas: ${consentInviteResult.failed}. Ignorados: ${consentInviteResult.skipped}. Conversas recentes: ${consentInviteResult.recentConversations}.`}</p>}
+                                            {consentInviteResult && <p className="text-xs" role="status">{consentInviteResult.error || `Convites enviados neste lote: ${consentInviteResult.sent}. Falhas: ${consentInviteResult.failed}. Ignorados: ${consentInviteResult.skipped}. Contatos únicos com mensagem nas últimas 24h: ${consentInviteResult.recentConversations}. ${consentInviteResult.truncated ? 'Atenção: a varredura atingiu o limite técnico; pode haver mais contatos.' : 'Clique novamente para continuar pelos próximos elegíveis, sem repetir convites.'}`}</p>}
                                         </div>}
                                         <p className="text-xs">Inclui compradores e leads que procuraram a loja pelo WhatsApp, mesmo sem pedido. Conversas recentes podem ser atendidas dentro da janela de 24h; campanha promocional exige autorização registrada. Calcular não envia mensagens.</p>
                                         <label className="block font-bold text-xs">Tamanho de cada lote (até 20 destinatários por envio)</label>
