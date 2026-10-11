@@ -36,3 +36,15 @@ test('only latest order decides consent; blocked and opt-out stay excluded',()=>
   assert.equal(r.breakdown.missingMarketingConsent,1);
   assert.equal(r.breakdown.eligibleMarketing,0);
 });
+
+test('Explicit affirmative WhatsApp consent permits a WhatsApp-only lead with adult declaration',()=>{
+  const order=new Map(),inbound=new Map(),verified=new Map();
+  addInboundLead(inbound,{direction:'inbound',from:'5551999999999'},now-30000);
+  verified.set('51999999999',{optedIn:true,adultConfirmed:true,source:'whatsapp_inbound_explicit_keyword',consentVersion:'2026-10-v1',sourceMessageId:'wamid.csi'});
+  const result=buildUnifiedWhatsAppAudience(order,inbound,new Set(),'csi',now,verified);
+  assert.equal(result.eligible.length,1);
+  assert.equal(result.breakdown.onlyInboundLeads,1);
+  assert.equal(result.breakdown.explicitWhatsAppConsents,1);
+  const blocked=buildUnifiedWhatsAppAudience(order,inbound,new Set(['51999999999']),'csi',now,verified);
+  assert.equal(blocked.eligible.length,0);
+});
