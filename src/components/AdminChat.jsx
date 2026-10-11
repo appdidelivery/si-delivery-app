@@ -1701,16 +1701,19 @@ export default function AdminChat() {
                                 )}
 
                                 <button 
-                                    disabled={isBroadcasting || !broadcastTemplate || (broadcastAudienceMode === 'reactivation' && !reactivationPreview)}
+                                    disabled={isBroadcasting || !broadcastTemplate || (broadcastAudienceMode === 'reactivation' && !reactivationPreview) || (broadcastAudienceMode === 'all' && (!basePreview || basePreview.sendableNow === 0))}
                                     onClick={async () => {
                                         const isReactivation = broadcastAudienceMode === 'reactivation';
                                         if (isReactivation && !reactivationPreview) {
                                             return alert("Calcule o público de reativação antes do envio.");
                                         }
+                                        if (!isReactivation && (!basePreview || basePreview.sendableNow === 0)) {
+                                            return alert('Calcule a base geral e confirme que existem destinatários elegíveis.');
+                                        }
 
                                         const confirmText = isReactivation
                                             ? `ATENÇÃO: enviar o template ${broadcastTemplate} para até ${reactivationPreview.sendableNow} cliente(s) com ${reactivationDays}+ dias sem comprar?\n\nO envio será feito somente pela API Oficial da Meta.`
-                                            : "ATENÇÃO: Você está prestes a enviar uma mensagem para toda a sua base de clientes/leads. Deseja confirmar o disparo?";
+                                            : `ATENÇÃO: enviar o modelo ${broadcastTemplate} para até ${basePreview.sendableNow} cliente(s) com consentimento e demais verificações?\n\nA cota diária pode reduzir o número. Confirmar?`;
                                         if (!window.confirm(confirmText)) return;
                                         
                                         setIsBroadcasting(true);
