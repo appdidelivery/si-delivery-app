@@ -10,6 +10,7 @@ import { scheduleJourneyRequest } from '../server/journeyQueue.js';
 import { handleOccasionLifecycle } from '../server/lifecycleDispatch.js';
 import { handleFootballRadar } from '../server/footballRadar.js';
 import { handleFootballAlert } from '../server/footballAlerts.js';
+import { explainReactivationExclusions } from '../lib/marketingAudienceAudit.js';
 import { hasMarketingOptIn, hasEligibleMarketingConsent, normalizeMarketingPhone as normalizeVerifiedMarketingPhone, getLifecycleStage, isMarketingOptedOut, reserveMarketingAttempt } from '../lib/whatsappMarketingGuard.js';
 import { handleChangeTeamPassword } from '../server/changeTeamPassword.js';
 import { handleLinvixRequest, syncLinvixStore } from '../lib/linvix.js';
@@ -2252,6 +2253,8 @@ const aiResponse = await fetchGeminiWithRetry(`https://generativelanguage.google
                                 phone,
                                 customerName: data.customerName || data.customer?.name || 'Cliente',
                                 marketingOptIn: hasEligibleMarketingConsent(data, storeId === 'csi'),
+                                basicOptIn: hasMarketingOptIn(data),
+                                ageConfirmed: storeId !== 'csi' || data.alcoholMarketingAgeConfirmed === true || data.customer?.alcoholMarketingAgeConfirmed === true,
                                 lastOrderAtMs: createdAtMs
                             });
                         }
@@ -2280,6 +2283,9 @@ const aiResponse = await fetchGeminiWithRetry(`https://generativelanguage.google
                 // Compatibilidade com o primeiro lote enviado antes da deduplicação:
                 // pula a quantidade já confirmada nas campanhas legadas recentes.
                 const eligible = sortedCandidates.slice(Math.min(legacySentCount, sortedCandidates.length));
+                const audienceBreakdown = explainReactivationExclusions(byPhone.values(), {
+                    cutoffMs, blockedPhones, recentlyContactedHashes: recentRecipientHashes, hashPhone, legacySentCount
+                });
 
                 return {
                     safeDays,
@@ -2289,6 +2295,7 @@ const aiResponse = await fetchGeminiWithRetry(`https://generativelanguage.google
                     uniqueCustomers: byPhone.size,
                     blockedCount: blockedPhones.size,
                     alreadyContactedCount: recentRecipientHashes.size + legacySentCount,
+                    audienceBreakdown,
                     cooldownDays: COOLDOWN_DAYS,
                     hashPhone,
                     truncated
@@ -2557,6 +2564,7 @@ const aiResponse = await fetchGeminiWithRetry(`https://generativelanguage.google
                     uniqueCustomers: audience.uniqueCustomers,
                     blockedCount: audience.blockedCount,
                     alreadyContactedCount: audience.alreadyContactedCount,
+                    audienceBreakdown: audience.audienceBreakdown,
                     cooldownDays: audience.cooldownDays,
                     truncated: audience.truncated,
                     scanLimit: audience.scanLimit,
