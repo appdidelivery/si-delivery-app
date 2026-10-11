@@ -1544,6 +1544,28 @@ export default function AdminChat() {
                                                     <span>Já contatados em campanha recente</span>
                                                     <strong>{reactivationPreview.alreadyContactedCount || 0}</strong>
                                                 </div>
+                                                {reactivationPreview.audienceBreakdown && (
+                                                    <div className="mt-4 pt-3 border-t border-amber-200 space-y-1 text-xs">
+                                                        <p className="font-black text-amber-950">Diagnóstico dos filtros — cada cliente é contado uma vez</p>
+                                                        {[
+                                                            ['Compraram recentemente', reactivationPreview.audienceBreakdown.purchasedTooRecently],
+                                                            ['Sem aceite de marketing registrado', reactivationPreview.audienceBreakdown.missingMarketingConsent],
+                                                            ['Sem confirmação de maioridade vinculada ao telefone', reactivationPreview.audienceBreakdown.missingAgeConfirmation],
+                                                            ['Bloqueados ou opt-out', reactivationPreview.audienceBreakdown.blockedOrOptedOut],
+                                                            ['Enviados recentemente com identificação individual', reactivationPreview.audienceBreakdown.previouslyContacted],
+                                                            ['Aprovados antes do histórico legado', reactivationPreview.audienceBreakdown.passedIndividualChecks],
+                                                            ['Reserva conservadora por campanhas antigas', reactivationPreview.audienceBreakdown.conservativeLegacyExclusions]
+                                                        ].map(([label, count]) => (
+                                                            <div key={label} className="flex justify-between gap-3">
+                                                                <span>{label}</span><strong>{count || 0}</strong>
+                                                            </div>
+                                                        ))}
+                                                        <p className="text-[11px] leading-relaxed text-amber-900 mt-2">
+                                                            Compras antigas não comprovam consentimento de WhatsApp nem maioridade vinculada ao contato.
+                                                            Campanhas legadas sem destinatários identificados são exibidas separadamente para auditoria.
+                                                        </p>
+                                                    </div>
+                                                )}
                                                 {reactivationPreview.truncated && (
                                                     <p className="mt-2 text-[11px] text-amber-700 font-bold">⚠️ O histórico ultrapassa o limite de segurança de {Number(reactivationPreview.scanLimit || 25000).toLocaleString('pt-BR')} pedidos analisados. A campanha usa apenas esse recorte.</p>
                                                 )}
