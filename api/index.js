@@ -10,6 +10,7 @@ import { scheduleJourneyRequest } from '../server/journeyQueue.js';
 import { handleOccasionLifecycle } from '../server/lifecycleDispatch.js';
 import { handleFootballRadar } from '../server/footballRadar.js';
 import { handleFootballAlert } from '../server/footballAlerts.js';
+import { buildUnifiedWhatsAppAudience, latestOrderPerPhone, addInboundLead } from '../lib/whatsappLeadAudience.js';
 import { hasMarketingOptIn, hasEligibleMarketingConsent, normalizeMarketingPhone as normalizeVerifiedMarketingPhone, getLifecycleStage, isMarketingOptedOut, reserveMarketingAttempt } from '../lib/whatsappMarketingGuard.js';
 import { handleChangeTeamPassword } from '../server/changeTeamPassword.js';
 import { handleLinvixRequest, syncLinvixStore } from '../lib/linvix.js';
@@ -2692,47 +2693,68 @@ const aiResponse = await fetchGeminiWithRetry(`https://generativelanguage.google
             // Visualização real do público geral. O mesmo cálculo é usado no envio.
             // Não utiliza dias sem comprar, mas preserva consentimento, confirmação
             // aplicável de maioridade, opt-outs e bloqueios — sem alterar checkout.
+            // Both buyers and customers who opened an actual inbound WhatsApp chat
+            // are included in CRM counts; chat is NOT marketing consent.
             const buildGeneralMarketingAudience = async () => {
-                const [ordersSnap, blockedSnap, optoutSnap] = await Promise.all([
-                    db.collection('orders').where('storeId', '==', storeId).limit(5000).get(),
-                    db.collection('blocked_contacts').where('storeId', '==', storeId).limit(2000).get(),
-                    db.collection('whatsapp_marketing_optouts').where('storeId', '==', storeId).limit(2000).get()
+                const [blockedSnap,optoutSnap] = await Promise.all([
+                    db.collection('blocked_contacts').where('storeId','==',storeId).limit(2000).get(),
+                    db.collection('whatsapp_marketing_optouts').where('storeId','==',storeId).limit(2000).get()
                 ]);
-                const blocked = new Set([
-                    ...blockedSnap.docs.map(doc => normalizeMarketingPhone(doc.data().phone)),
-                    ...optoutSnap.docs.map(doc => normalizeMarketingPhone(doc.data().phone))
+                const blocked=new Set([
+                    ...blockedSnap.docs.map(d=>normalizeMarketingPhone(d.data().phone)),
+                    ...optoutSnap.docs.map(d=>normalizeMarketingPhone(d.data().phone))
                 ].filter(Boolean));
-                const byPhone = new Map();
-                ordersSnap.forEach(doc => {
-                    const data = doc.data();
-                    const status = String(data.status || '').toLowerCase();
-                    if (['canceled', 'cancelado', 'cancelled', 'refunded', 'estornado'].includes(status)) return;
-                    const phone = normalizeMarketingPhone(data.customerPhone || data.customer?.phone);
-                    const atMs = orderTimeMs(data.createdAt || data.paidAt);
-                    if (!phone || !atMs) return;
-                    const prev = byPhone.get(phone);
-                    if (!prev || atMs > prev.atMs) {
-                        byPhone.set(phone, {
-                            phone, atMs,
-                            consent: hasEligibleMarketingConsent(data, storeId === 'csi')
-                        });
+                const ordersByPhone=new Map(),inboundByPhone=new Map();
+                const PAGE_SIZE=1000,MAX_SCAN=25000;
+
+                // Pagination avoids the misleading first-5,000-orders count;
+                // maximum and truncation are always reported, no guesswork.
+                const scan=async (collectionName,consumer)=>{
+                    let scanned=0,lastDoc=null,more=false;
+                    while(scanned<MAX_SCAN){
+                        let q=db.collection(collectionName)
+                            .where('storeId','==',storeId)
+                            .orderBy(admin.firestore.FieldPath.documentId())
+                            .limit(Math.min(PAGE_SIZE,MAX_SCAN-scanned));
+                        if(lastDoc)q=q.startAfter(lastDoc);
+                        const page=await q.get();
+                        if(page.empty){more=false;break;}
+                        page.forEach(doc=>consumer(doc.data()));
+                        scanned+=page.size;
+                        lastDoc=page.docs[page.docs.length-1];
+                        if(page.size<PAGE_SIZE){more=false;break;}
+                        more=true;
                     }
-                });
-                const eligible = [];
-                let missingConsentOrAdultConfirmation = 0;
-                let excludedBlockedOrOptOut = 0;
-                for (const [phone, customer] of byPhone) {
-                    if (blocked.has(phone)) excludedBlockedOrOptOut++;
-                    else if (!customer.consent) missingConsentOrAdultConfirmation++;
-                    else eligible.push(phone);
-                }
+                    return {scanned,truncated:more&&scanned>=MAX_SCAN};
+                };
+
+                const [orderScan,inboundScan]=await Promise.all([
+                    scan('orders',data=>latestOrderPerPhone(
+                        ordersByPhone,data,orderTimeMs(data.createdAt||data.paidAt)
+                    )),
+                    scan('whatsapp_inbound',msg=>addInboundLead(
+                        inboundByPhone,msg,orderTimeMs(msg.receivedAt)
+                    ))
+                ]);
+                const audience=buildUnifiedWhatsAppAudience(
+                    ordersByPhone,inboundByPhone,blocked,storeId,Date.now()
+                );
                 return {
-                    eligible,
-                    uniqueCustomers: byPhone.size,
-                    missingConsentOrAdultConfirmation,
-                    excludedBlockedOrOptOut,
-                    scannedOrders: ordersSnap.size,
-                    truncated: ordersSnap.size >= 5000
+                    eligible:audience.eligible,
+                    uniqueCustomers:audience.breakdown.uniqueContacts,
+                    buyers:audience.breakdown.withPurchase,
+                    onlyInboundLeads:audience.breakdown.onlyInboundLeads,
+                    inboundConversations:audience.breakdown.inboundConversations,
+                    activeService24h:audience.breakdown.activeService24h,
+                    activeServiceWithoutMarketingConsent:audience.breakdown.activeServiceWithoutMarketingConsent,
+                    missingMarketingConsent:audience.breakdown.missingMarketingConsent,
+                    missingAdultRecord:audience.breakdown.missingAdultRecord,
+                    missingConsentOrAdultConfirmation:audience.breakdown.missingMarketingConsent+
+                        audience.breakdown.missingAdultRecord,
+                    excludedBlockedOrOptOut:audience.breakdown.excludedBlockedOrOptOut,
+                    scannedOrders:orderScan.scanned,scannedMessages:inboundScan.scanned,
+                    truncatedOrders:orderScan.truncated,truncatedMessages:inboundScan.truncated,
+                    truncated:orderScan.truncated||inboundScan.truncated
                 };
             };
 
@@ -2743,10 +2765,21 @@ const aiResponse = await fetchGeminiWithRetry(`https://generativelanguage.google
                     success: true, storeId, eligibleCount: audience.eligible.length,
                     sendableNow: Math.min(audience.eligible.length, maxRecipients),
                     maxRecipients, uniqueCustomers: audience.uniqueCustomers,
+                    buyers: audience.buyers,
+                    onlyInboundLeads: audience.onlyInboundLeads,
+                    inboundConversations: audience.inboundConversations,
+                    activeService24h: audience.activeService24h,
+                    activeServiceWithoutMarketingConsent: audience.activeServiceWithoutMarketingConsent,
+                    missingMarketingConsent: audience.missingMarketingConsent,
+                    missingAdultRecord: audience.missingAdultRecord,
                     missingConsentOrAdultConfirmation: audience.missingConsentOrAdultConfirmation,
                     blockedOrOptOut: audience.excludedBlockedOrOptOut,
-                    scannedOrders: audience.scannedOrders, truncated: audience.truncated,
-                    note: 'Estimativa pré-cota compartilhada do dia; só compradores com opt-in válido e maioridade registrada quando exigida.'
+                    scannedOrders: audience.scannedOrders,
+                    scannedMessages: audience.scannedMessages,
+                    truncated: audience.truncated,
+                    truncatedOrders: audience.truncatedOrders,
+                    truncatedMessages: audience.truncatedMessages,
+                    note: 'Todos os leads recebidos entram na contagem. Uma conversa iniciada não é, sozinha, consentimento de marketing; respostas de atendimento podem ocorrer em até 24 horas da última mensagem.'
                 });
             }
 

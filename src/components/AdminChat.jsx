@@ -1514,7 +1514,7 @@ export default function AdminChat() {
                                 {broadcastAudienceMode === 'all' && (
                                     <div className="rounded-xl border border-blue-200 bg-blue-50 p-4 space-y-3 text-sm text-blue-950">
                                         <p className="font-black">Base geral: independente do tempo sem comprar</p>
-                                        <p className="text-xs">Apenas compradores com consentimento registrado e verificações aplicáveis. Nenhuma mensagem será enviada ao calcular.</p>
+                                        <p className="text-xs">Inclui compradores e leads que procuraram a loja pelo WhatsApp, mesmo sem pedido. Conversas recentes podem ser atendidas dentro da janela de 24h; campanha promocional exige autorização registrada. Calcular não envia mensagens.</p>
                                         <label className="block font-bold text-xs">Tamanho do lote (teto de 20 por loja/dia)</label>
                                         <select value={baseMaxRecipients}
                                             onChange={e => { setBaseMaxRecipients(Number(e.target.value)); setBasePreview(null); }}
@@ -1530,12 +1530,20 @@ export default function AdminChat() {
                                         </button>
                                         {basePreview && (
                                             <div className="rounded-xl border border-blue-200 bg-white p-3 space-y-1 text-xs">
-                                                <div className="flex justify-between"><span>Clientes únicos analisados</span><b>{basePreview.uniqueCustomers}</b></div>
-                                                <div className="flex justify-between"><span>Com consentimento e elegibilidade</span><b>{basePreview.eligibleCount}</b></div>
-                                                <div className="flex justify-between"><span>Sem consentimento ou confirmação exigida</span><b>{basePreview.missingConsentOrAdultConfirmation}</b></div>
+                                                <div className="flex justify-between"><span>Contatos únicos — compras e WhatsApp</span><b>{basePreview.uniqueCustomers}</b></div>
+                                                <div className="flex justify-between"><span>Com histórico de pedidos</span><b>{basePreview.buyers ?? '—'}</b></div>
+                                                <div className="flex justify-between"><span>Leads só do WhatsApp (sem pedido)</span><b>{basePreview.onlyInboundLeads ?? '—'}</b></div>
+                                                <div className="flex justify-between"><span>Conversas abertas nas últimas 24h</span><b>{basePreview.activeService24h ?? '—'}</b></div>
+                                                <div className="flex justify-between"><span>Conversas recentes sem aceite de campanhas</span><b>{basePreview.activeServiceWithoutMarketingConsent ?? '—'}</b></div>
+                                                <hr className="my-2 border-blue-100" />
+                                                <div className="flex justify-between font-semibold"><span>Elegíveis para modelo de marketing</span><b>{basePreview.eligibleCount}</b></div>
+                                                <div className="flex justify-between"><span>Sem autorização de marketing registrada</span><b>{basePreview.missingMarketingConsent ?? basePreview.missingConsentOrAdultConfirmation}</b></div>
+                                                <div className="flex justify-between"><span>Sem registro de maioridade aplicável</span><b>{basePreview.missingAdultRecord ?? '—'}</b></div>
                                                 <div className="flex justify-between"><span>Bloqueados / descadastrados</span><b>{basePreview.blockedOrOptOut}</b></div>
                                                 <div className="flex justify-between font-black"><span>Máximo neste lote</span><b>{basePreview.sendableNow}</b></div>
-                                                {basePreview.truncated && <p className="text-amber-700">A base excede o limite de 5.000 pedidos analisados.</p>}
+                                                <p className="text-blue-800 mt-2">Pedidos consultados: {basePreview.scannedOrders ?? '—'}; mensagens consultadas: {basePreview.scannedMessages ?? '—'}.</p>
+                                                {basePreview.truncated && <p className="text-amber-700 font-semibold">Leitura parcial: o histórico atingiu o limite de segurança. Números podem aumentar.</p>}
+                                                <p className="text-xs text-blue-900">Conversa iniciada pelo cliente não é, por si só, autorização para campanha. Para responder às consultas recentes, use o chat de atendimento.</p>
                                                 <p className="text-xs">A cota compartilhada e envios feitos hoje ainda podem reduzir o resultado.</p>
                                             </div>
                                         )}
@@ -1644,6 +1652,7 @@ export default function AdminChat() {
                                                     <option value="velo_retencao_30_bebidas">30 dias · Retenção leve</option>
                                                     <option value="velo_retencao_60_bebidas">60 dias · Oportunidade</option>
                                                     <option value="velo_retencao_90_bebidas">90 dias · Recuperação</option>
+                                                    {storeId === 'csi' && <option value="velo_momentos_bebidas">🥤 Momentos e bebidas geladas · Futebol e fim de semana</option>}
                                                 </optgroup>
                                                 <optgroup label="Atendimento">
                                                     <option value="velo_contato_logistica">🛵 Contato sobre Entrega</option>
