@@ -2705,7 +2705,7 @@ const aiResponse = await fetchGeminiWithRetry(`https://generativelanguage.google
                     ...blockedSnap.docs.map(d=>normalizeMarketingPhone(d.data().phone)),
                     ...optoutSnap.docs.map(d=>normalizeMarketingPhone(d.data().phone))
                 ].filter(Boolean));
-                const ordersByPhone=new Map(),inboundByPhone=new Map();
+                const ordersByPhone=new Map(),inboundByPhone=new Map(),recordedConsents=new Map();
                 const PAGE_SIZE=1000,MAX_SCAN=25000;
 
                 // Pagination avoids the misleading first-5,000-orders count;
@@ -2729,16 +2729,20 @@ const aiResponse = await fetchGeminiWithRetry(`https://generativelanguage.google
                     return {scanned,truncated:more&&scanned>=MAX_SCAN};
                 };
 
-                const [orderScan,inboundScan]=await Promise.all([
+                const [orderScan,inboundScan,consentScan]=await Promise.all([
                     scan('orders',data=>latestOrderPerPhone(
                         ordersByPhone,data,orderTimeMs(data.createdAt||data.paidAt)
                     )),
                     scan('whatsapp_inbound',msg=>addInboundLead(
                         inboundByPhone,msg,orderTimeMs(msg.receivedAt)
-                    ))
+                    )),
+                    scan('whatsapp_marketing_consents',record=>{
+                        const phone=normalizeMarketingPhone(record.phone);
+                        if(phone)recordedConsents.set(phone,record);
+                    })
                 ]);
                 const audience=buildUnifiedWhatsAppAudience(
-                    ordersByPhone,inboundByPhone,blocked,storeId,Date.now()
+                    ordersByPhone,inboundByPhone,blocked,storeId,Date.now(),recordedConsents
                 );
                 return {
                     eligible:audience.eligible,
@@ -2748,14 +2752,16 @@ const aiResponse = await fetchGeminiWithRetry(`https://generativelanguage.google
                     inboundConversations:audience.breakdown.inboundConversations,
                     activeService24h:audience.breakdown.activeService24h,
                     activeServiceWithoutMarketingConsent:audience.breakdown.activeServiceWithoutMarketingConsent,
+                    explicitWhatsAppConsents:audience.breakdown.explicitWhatsAppConsents,
                     missingMarketingConsent:audience.breakdown.missingMarketingConsent,
                     missingAdultRecord:audience.breakdown.missingAdultRecord,
                     missingConsentOrAdultConfirmation:audience.breakdown.missingMarketingConsent+
                         audience.breakdown.missingAdultRecord,
                     excludedBlockedOrOptOut:audience.breakdown.excludedBlockedOrOptOut,
-                    scannedOrders:orderScan.scanned,scannedMessages:inboundScan.scanned,
+                    scannedOrders:orderScan.scanned,scannedMessages:inboundScan.scanned,scannedConsents:consentScan.scanned,
                     truncatedOrders:orderScan.truncated,truncatedMessages:inboundScan.truncated,
-                    truncated:orderScan.truncated||inboundScan.truncated
+                    truncatedConsents:consentScan.truncated,
+                    truncated:orderScan.truncated||inboundScan.truncated||consentScan.truncated
                 };
             };
 
@@ -2772,11 +2778,13 @@ const aiResponse = await fetchGeminiWithRetry(`https://generativelanguage.google
                     activeService24h: audience.activeService24h,
                     activeServiceWithoutMarketingConsent: audience.activeServiceWithoutMarketingConsent,
                     missingMarketingConsent: audience.missingMarketingConsent,
+                    explicitWhatsAppConsents: audience.explicitWhatsAppConsents,
                     missingAdultRecord: audience.missingAdultRecord,
                     missingConsentOrAdultConfirmation: audience.missingConsentOrAdultConfirmation,
                     blockedOrOptOut: audience.excludedBlockedOrOptOut,
                     scannedOrders: audience.scannedOrders,
                     scannedMessages: audience.scannedMessages,
+                    scannedConsents: audience.scannedConsents,
                     truncated: audience.truncated,
                     truncatedOrders: audience.truncatedOrders,
                     truncatedMessages: audience.truncatedMessages,
