@@ -2873,8 +2873,33 @@ const aiResponse = await fetchGeminiWithRetry(`https://generativelanguage.google
                                     {type:'reply',reply:{id:'csi_marketing_no',title:'Agora não'}}
                                 ]}}})
                         });
-                        if(response.ok)sent++;
-                        else {failed++;errors.push({phone:phone.slice(-4),status:response.status});await promptRef.delete();}
+                        if (response.ok) {
+                            const metaResult = await response.json().catch(() => ({}));
+                            sent++;
+                            // The Meta API acknowledges acceptance, not delivery. Record
+                            // an outbound message so the admin chat shows the invitation.
+                            try {
+                                await db.collection('whatsapp_inbound').add({
+                                    storeId: 'csi',
+                                    direction: 'outbound',
+                                    from: phoneNumberId,
+                                    to: '55' + phone,
+                                    phone,
+                                    text: CSI_MARKETING_PROMPT,
+                                    message: CSI_MARKETING_PROMPT,
+                                    type: 'interactive',
+                                    messageType: 'interactive',
+                                    status: 'sent',
+                                    metaMessageId: metaResult.messages?.[0]?.id || null,
+                                    source: 'admin_24h_consent_invite',
+                                    receivedAt: admin.firestore.FieldValue.serverTimestamp(),
+                                    createdAt: admin.firestore.FieldValue.serverTimestamp()
+                                });
+                            } catch (logError) {
+                                console.error('[CSI consent invite] Meta accepted but chat log failed', logError?.message);
+                                errors.push({phone: phone.slice(-4), error: 'Meta aceitou, mas o registro no chat falhou'});
+                            }
+                        } else {failed++;errors.push({phone:phone.slice(-4),status:response.status});await promptRef.delete();}
                     }catch(e){failed++;errors.push({phone:phone.slice(-4),error:e.message});await promptRef.delete();}
                 }
                 return res.status(200).json({success:true,sent,failed,skipped,recentConversations:recent.size,scannedMessages:scanned,truncated,errors});
