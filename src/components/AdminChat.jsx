@@ -221,6 +221,10 @@ export default function AdminChat() {
     const [reactivationDays, setReactivationDays] = useState(60);
     const [reactivationMaxRecipients, setReactivationMaxRecipients] = useState(20);
     const [reactivationPreview, setReactivationPreview] = useState(null);
+    const [basePreview, setBasePreview] = useState(null);
+    const [baseMaxRecipients, setBaseMaxRecipients] = useState(1);
+    const [isLoadingBasePreview, setIsLoadingBasePreview] = useState(false);
+    const [broadcastOccasion, setBroadcastOccasion] = useState('Um bom jogo de futebol');
     const [isLoadingAudience, setIsLoadingAudience] = useState(false);
     const [lifecycleMetrics, setLifecycleMetrics] = useState(null);
     const [isLoadingLifecycleMetrics, setIsLoadingLifecycleMetrics] = useState(false);
@@ -270,6 +274,28 @@ export default function AdminChat() {
         }
     };
 
+
+    const handleBasePreview = async () => {
+        if (!storeId) return;
+        setIsLoadingBasePreview(true);
+        setBasePreview(null);
+        try {
+            const res = await authenticatedFetch('/api/whatsapp-send', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    action: 'broadcast_preview', storeId, maxRecipients: Number(baseMaxRecipients)
+                })
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || 'Erro ao calcular a base.');
+            setBasePreview(data);
+        } catch (error) {
+            alert('Erro ao calcular a base: ' + error.message);
+        } finally {
+            setIsLoadingBasePreview(false);
+        }
+    };
 
     const handleLoadLifecycleMetrics = async () => {
         if (!storeId) return;
@@ -1288,6 +1314,7 @@ export default function AdminChat() {
                                                 <option value="velo_retencao_30_bebidas">30 dias · Retenção leve</option>
                                                 <option value="velo_retencao_60_bebidas">60 dias · Oportunidade</option>
                                                 <option value="velo_retencao_90_bebidas">90 dias · Recuperação</option>
+                                                    {storeId === 'csi' && <option value="velo_momentos_bebidas">🥤 Momentos e bebidas geladas</option>}
                                             </>
                                         ) : (
                                             <>
@@ -1474,15 +1501,46 @@ export default function AdminChat() {
                                         onChange={(e) => {
                                             setBroadcastAudienceMode(e.target.value);
                                             setReactivationPreview(null);
+                                            setBasePreview(null);
                                             if (e.target.value === 'reactivation' && !broadcastTemplate) setBroadcastTemplate('velo_saudade_cliente');
                                         }}
                                         className="w-full p-4 bg-[#f0f2f5] rounded-xl outline-none focus:ring-2 ring-blue-600 text-gray-800 font-medium border border-gray-200 shadow-sm"
                                     >
                                         <option value="reactivation">🎯 Reativação — clientes sem comprar</option>
-                                        <option value="all">📣 Base geral — clientes e leads</option>
+                                        <option value="all">📣 Base geral — clientes com consentimento</option>
                                     </select>
                                 </div>
 
+                                {broadcastAudienceMode === 'all' && (
+                                    <div className="rounded-xl border border-blue-200 bg-blue-50 p-4 space-y-3 text-sm text-blue-950">
+                                        <p className="font-black">Base geral: independente do tempo sem comprar</p>
+                                        <p className="text-xs">Apenas compradores com consentimento registrado e verificações aplicáveis. Nenhuma mensagem será enviada ao calcular.</p>
+                                        <label className="block font-bold text-xs">Tamanho do lote (teto de 20 por loja/dia)</label>
+                                        <select value={baseMaxRecipients}
+                                            onChange={e => { setBaseMaxRecipients(Number(e.target.value)); setBasePreview(null); }}
+                                            className="w-full rounded-xl border border-blue-200 p-3 bg-white font-semibold">
+                                            <option value={1}>1 cliente — teste inicial</option>
+                                            <option value={5}>5 clientes</option>
+                                            <option value={10}>10 clientes</option>
+                                            <option value={20}>20 clientes</option>
+                                        </select>
+                                        <button onClick={handleBasePreview} disabled={isLoadingBasePreview}
+                                            className="w-full rounded-xl bg-blue-700 text-white font-black py-3 disabled:opacity-50">
+                                            {isLoadingBasePreview ? 'Calculando base...' : 'Calcular público antes de enviar'}
+                                        </button>
+                                        {basePreview && (
+                                            <div className="rounded-xl border border-blue-200 bg-white p-3 space-y-1 text-xs">
+                                                <div className="flex justify-between"><span>Clientes únicos analisados</span><b>{basePreview.uniqueCustomers}</b></div>
+                                                <div className="flex justify-between"><span>Com consentimento e elegibilidade</span><b>{basePreview.eligibleCount}</b></div>
+                                                <div className="flex justify-between"><span>Sem consentimento ou confirmação exigida</span><b>{basePreview.missingConsentOrAdultConfirmation}</b></div>
+                                                <div className="flex justify-between"><span>Bloqueados / descadastrados</span><b>{basePreview.blockedOrOptOut}</b></div>
+                                                <div className="flex justify-between font-black"><span>Máximo neste lote</span><b>{basePreview.sendableNow}</b></div>
+                                                {basePreview.truncated && <p className="text-amber-700">A base excede o limite de 5.000 pedidos analisados.</p>}
+                                                <p className="text-xs">A cota compartilhada e envios feitos hoje ainda podem reduzir o resultado.</p>
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
                                 {broadcastAudienceMode === 'reactivation' && (
                                     <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 flex flex-col gap-3">
                                         <div>
@@ -1571,7 +1629,7 @@ export default function AdminChat() {
                                     <p className="text-sm text-gray-700 font-bold mb-2">Selecione a Campanha (Template):</p>
                                     <select 
                                         value={broadcastTemplate}
-                                        onChange={(e) => setBroadcastTemplate(e.target.value)}
+                                        onChange={(e) => { setBroadcastTemplate(e.target.value); setBasePreview(null); }}
                                         className="w-full p-4 bg-[#f0f2f5] rounded-xl outline-none focus:ring-2 ring-blue-600 text-gray-800 font-medium appearance-none cursor-pointer border border-gray-200 shadow-sm"
                                     >
                                         <option value="">Selecione um modelo aprovado...</option>
@@ -1609,6 +1667,20 @@ export default function AdminChat() {
                                     </select>
                                 </div>
 
+                                {broadcastTemplate === 'velo_momentos_bebidas' && storeId === 'csi' && (
+                                    <div className="rounded-xl bg-sky-50 border border-sky-200 p-3 space-y-2">
+                                        <label className="block font-bold text-xs text-sky-900">Ocasião do modelo aprovado</label>
+                                        <select value={broadcastOccasion}
+                                            onChange={e => setBroadcastOccasion(e.target.value)}
+                                            className="w-full p-3 rounded-xl bg-white border border-sky-200 text-sm font-medium">
+                                            <option value="Um bom jogo de futebol">Um bom jogo de futebol</option>
+                                            <option value="O início do fim de semana">O início do fim de semana</option>
+                                            <option value="Um encontro com os amigos">Um encontro com os amigos</option>
+                                            <option value="Um churrasco de domingo">Um churrasco de domingo</option>
+                                        </select>
+                                        <p className="text-xs text-sky-900">O valor selecionado preenche a única variável do corpo. O botão Ver cardápio é fixo no modelo.</p>
+                                    </div>
+                                )}
                                 {/* SELETOR DINÂMICO DE PRODUTO PARA LANÇAMENTO */}
                                 {broadcastTemplate === 'velo_lancamento_dinamico' && (
                                     <div className="mt-2 animate-in fade-in slide-in-from-top-2">
@@ -1629,21 +1701,27 @@ export default function AdminChat() {
                                 )}
 
                                 <button 
-                                    disabled={isBroadcasting || !broadcastTemplate || (broadcastAudienceMode === 'reactivation' && !reactivationPreview)}
+                                    disabled={isBroadcasting || !broadcastTemplate || (broadcastAudienceMode === 'reactivation' && !reactivationPreview) || (broadcastAudienceMode === 'all' && (!basePreview || basePreview.sendableNow === 0))}
                                     onClick={async () => {
                                         const isReactivation = broadcastAudienceMode === 'reactivation';
                                         if (isReactivation && !reactivationPreview) {
                                             return alert("Calcule o público de reativação antes do envio.");
                                         }
+                                        if (!isReactivation && (!basePreview || basePreview.sendableNow === 0)) {
+                                            return alert('Calcule a base geral e confirme que existem destinatários elegíveis.');
+                                        }
 
                                         const confirmText = isReactivation
                                             ? `ATENÇÃO: enviar o template ${broadcastTemplate} para até ${reactivationPreview.sendableNow} cliente(s) com ${reactivationDays}+ dias sem comprar?\n\nO envio será feito somente pela API Oficial da Meta.`
-                                            : "ATENÇÃO: Você está prestes a enviar uma mensagem para toda a sua base de clientes/leads. Deseja confirmar o disparo?";
+                                            : `ATENÇÃO: enviar o modelo ${broadcastTemplate} para até ${basePreview.sendableNow} cliente(s) com consentimento e demais verificações?\n\nA cota diária pode reduzir o número. Confirmar?`;
                                         if (!window.confirm(confirmText)) return;
                                         
                                         setIsBroadcasting(true);
                                         try {
                                             let variablesToSend = [];
+                                            if (broadcastTemplate === 'velo_momentos_bebidas') {
+                                                variablesToSend = [broadcastOccasion];
+                                            }
                                             
                                             if (broadcastTemplate === 'velo_lancamento_dinamico') {
                                                 if (!broadcastSelectedProduct) {
@@ -1668,7 +1746,7 @@ export default function AdminChat() {
                                                     ...(isReactivation ? {
                                                         inactivityDays: Number(reactivationDays),
                                                         maxRecipients: Number(reactivationMaxRecipients)
-                                                    } : {})
+                                                    } : { maxRecipients: Number(baseMaxRecipients) })
                                                 })
                                             });
                                             
@@ -1679,6 +1757,7 @@ export default function AdminChat() {
                                                 setBroadcastTemplate('');
                                                 setBroadcastSelectedProduct('');
                                                 setReactivationPreview(null);
+                                                setBasePreview(null);
                                             } else {
                                                 alert('Erro ao disparar: ' + (data.error || 'Falha na API da Meta'));
                                             }
@@ -1689,7 +1768,7 @@ export default function AdminChat() {
                                         }
                                     }}
                                     className={`w-full text-white py-4 rounded-xl font-bold uppercase tracking-widest text-xs shadow-md transition-all flex items-center justify-center gap-2 mt-4 ${
-                                        broadcastTemplate && (broadcastAudienceMode !== 'reactivation' || reactivationPreview)
+                                        broadcastTemplate && (broadcastAudienceMode === 'reactivation' ? reactivationPreview : basePreview?.sendableNow > 0)
                                             ? 'bg-blue-600 hover:bg-blue-700 active:scale-95'
                                             : 'bg-gray-300 cursor-not-allowed'
                                     }`}
