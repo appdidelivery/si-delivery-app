@@ -2765,10 +2765,21 @@ const aiResponse = await fetchGeminiWithRetry(`https://generativelanguage.google
                     success: true, storeId, eligibleCount: audience.eligible.length,
                     sendableNow: Math.min(audience.eligible.length, maxRecipients),
                     maxRecipients, uniqueCustomers: audience.uniqueCustomers,
+                    buyers: audience.buyers,
+                    onlyInboundLeads: audience.onlyInboundLeads,
+                    inboundConversations: audience.inboundConversations,
+                    activeService24h: audience.activeService24h,
+                    activeServiceWithoutMarketingConsent: audience.activeServiceWithoutMarketingConsent,
+                    missingMarketingConsent: audience.missingMarketingConsent,
+                    missingAdultRecord: audience.missingAdultRecord,
                     missingConsentOrAdultConfirmation: audience.missingConsentOrAdultConfirmation,
                     blockedOrOptOut: audience.excludedBlockedOrOptOut,
-                    scannedOrders: audience.scannedOrders, truncated: audience.truncated,
-                    note: 'Estimativa pré-cota compartilhada do dia; só compradores com opt-in válido e maioridade registrada quando exigida.'
+                    scannedOrders: audience.scannedOrders,
+                    scannedMessages: audience.scannedMessages,
+                    truncated: audience.truncated,
+                    truncatedOrders: audience.truncatedOrders,
+                    truncatedMessages: audience.truncatedMessages,
+                    note: 'Todos os leads recebidos entram na contagem. Uma conversa iniciada não é, sozinha, consentimento de marketing; respostas de atendimento podem ocorrer em até 24 horas da última mensagem.'
                 });
             }
 
