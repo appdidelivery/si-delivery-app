@@ -1644,6 +1644,7 @@ export default function AdminChat() {
                                                     <option value="velo_retencao_30_bebidas">30 dias · Retenção leve</option>
                                                     <option value="velo_retencao_60_bebidas">60 dias · Oportunidade</option>
                                                     <option value="velo_retencao_90_bebidas">90 dias · Recuperação</option>
+                                                    {storeId === 'csi' && <option value="velo_momentos_bebidas">🥤 Momentos e bebidas geladas · Futebol e fim de semana</option>}
                                                 </optgroup>
                                                 <optgroup label="Atendimento">
                                                     <option value="velo_contato_logistica">🛵 Contato sobre Entrega</option>
