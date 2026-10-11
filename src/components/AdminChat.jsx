@@ -305,17 +305,37 @@ export default function AdminChat() {
     };
 
     const handleConsentInvites = async () => {
-        if(!storeId || !window.confirm('Enviar convite de autorização apenas às conversas iniciadas pelos clientes nas últimas 24 horas?'))return;
+        if (!storeId || !window.confirm('Enviar convites de autorização a todos os contatos elegíveis com mensagem nas últimas 24 horas?')) return;
         setIsSendingConsentInvites(true);
         setConsentInviteResult(null);
+        const totals = {sent: 0, failed: 0, skipped: 0, recentConversations: 0, scannedMessages: 0, batches: 0, errors: []};
         try {
-            const response=await authenticatedFetch('/api/whatsapp-send',{method:'POST',headers:{'Content-Type':'application/json'},
-                body:JSON.stringify({action:'csi_consent_invite',storeId,maxRecipients:20})});
-            const data=await response.json();
-            if(!response.ok)throw new Error(data.error||'Falha ao enviar convites');
-            setConsentInviteResult(data);
-        }catch(error){setConsentInviteResult({error:error.message});}
-        finally{setIsSendingConsentInvites(false);}
+            // Continue automatically while the server finds new eligible recipients.
+            // Each request is bounded to avoid serverless timeouts.
+            for (let batch = 0; batch < 100; batch++) {
+                const response = await authenticatedFetch('/api/whatsapp-send', {
+                    method: 'POST', headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({action: 'csi_consent_invite', storeId, maxRecipients: 20})
+                });
+                const data = await response.json();
+                if (!response.ok) throw new Error(data.error || 'Falha ao enviar convites');
+                totals.sent += Number(data.sent || 0);
+                totals.failed += Number(data.failed || 0);
+                totals.skipped += Number(data.skipped || 0);
+                totals.recentConversations = Number(data.recentConversations || 0);
+                totals.scannedMessages = Number(data.scannedMessages || 0);
+                totals.truncated = !!data.truncated;
+                totals.batches++;
+                if (Array.isArray(data.errors)) totals.errors.push(...data.errors);
+                setConsentInviteResult({...totals, inProgress: true});
+                if (!data.sent && !data.failed) break;
+            }
+            setConsentInviteResult({...totals, inProgress: false});
+        } catch (error) {
+            setConsentInviteResult({...totals, error: error.message, inProgress: false});
+        } finally {
+            setIsSendingConsentInvites(false);
+        }
     };
 
     const handleBasePreview = async () => {
@@ -1562,12 +1582,12 @@ export default function AdminChat() {
                                         <p className="font-black">Base geral: independente do tempo sem comprar</p>
                                         {storeId === 'csi' && <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 space-y-2">
                                             <p className="font-bold">Autorização de ofertas por WhatsApp</p>
-                                            <p className="text-xs">Inclui todos os contatos únicos que enviaram mensagem nas últimas 24h, em lotes sucessivos de até 20. Clique novamente para continuar; quem já recebeu convite não será repetido. Não envia promoções sem autorização.</p>
+                                            <p className="text-xs">Envia convites automaticamente a todos os contatos elegíveis que escreveram nas últimas 24h, sem exigir novos cliques. Exclui quem já recebeu convite, recusou ou bloqueou. Não envia promoções sem autorização.</p>
                                             <button type="button" onClick={handleConsentInvites} disabled={isSendingConsentInvites}
                                                 className="w-full rounded-xl bg-amber-600 text-white font-black py-3 disabled:opacity-50">
-                                                {isSendingConsentInvites ? 'Enviando convites...' : 'Enviar convites aos próximos 20 elegíveis'}
+                                                {isSendingConsentInvites ? 'Enviando convites...' : 'Enviar convite a todos os elegíveis'}
                                             </button>
-                                            {consentInviteResult && <p className="text-xs" role="status">{consentInviteResult.error || `Convites enviados neste lote: ${consentInviteResult.sent}. Falhas: ${consentInviteResult.failed}. Ignorados: ${consentInviteResult.skipped}. Contatos únicos com mensagem nas últimas 24h: ${consentInviteResult.recentConversations}. ${consentInviteResult.truncated ? 'Atenção: a varredura atingiu o limite técnico; pode haver mais contatos.' : 'Clique novamente para continuar pelos próximos elegíveis, sem repetir convites.'}`}</p>}
+                                            {consentInviteResult && <p className="text-xs" role="status">{consentInviteResult.error || `Convites aceitos pela Meta: ${consentInviteResult.sent}. Falhas: ${consentInviteResult.failed}. Ignorados: ${consentInviteResult.skipped}. Contatos únicos com mensagem nas últimas 24h: ${consentInviteResult.recentConversations}. ${consentInviteResult.truncated ? 'Atenção: a varredura atingiu o limite técnico; pode haver mais contatos.' : '${consentInviteResult.inProgress ? 'Envio em andamento...' : 'Processamento encerrado.'}'}`}</p>}
                                         </div>}
                                         <p className="text-xs">Inclui compradores e leads que procuraram a loja pelo WhatsApp, mesmo sem pedido. Conversas recentes podem ser atendidas dentro da janela de 24h; campanha promocional exige autorização registrada. Calcular não envia mensagens.</p>
                                         <label className="block font-bold text-xs">Tamanho de cada lote (até 20 destinatários por envio)</label>
