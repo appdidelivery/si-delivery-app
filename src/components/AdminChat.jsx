@@ -224,6 +224,8 @@ export default function AdminChat() {
     const [basePreview, setBasePreview] = useState(null);
     const [baseMaxRecipients, setBaseMaxRecipients] = useState(1);
     const [isLoadingBasePreview, setIsLoadingBasePreview] = useState(false);
+    const [isSendingConsentInvites, setIsSendingConsentInvites] = useState(false);
+    const [consentInviteResult, setConsentInviteResult] = useState(null);
     const [audienceContacts, setAudienceContacts] = useState([]);
     const [audienceContactsPage, setAudienceContactsPage] = useState(1);
     const [audienceContactsTotalPages, setAudienceContactsTotalPages] = useState(0);
@@ -300,6 +302,20 @@ export default function AdminChat() {
         } finally {
             setIsLoadingAudienceContacts(false);
         }
+    };
+
+    const handleConsentInvites = async () => {
+        if(!storeId || !window.confirm('Enviar convite de autorização apenas às conversas iniciadas pelos clientes nas últimas 24 horas?'))return;
+        setIsSendingConsentInvites(true);
+        setConsentInviteResult(null);
+        try {
+            const response=await authenticatedFetch('/api/whatsapp-send',{method:'POST',headers:{'Content-Type':'application/json'},
+                body:JSON.stringify({action:'csi_consent_invite',storeId,maxRecipients:20})});
+            const data=await response.json();
+            if(!response.ok)throw new Error(data.error||'Falha ao enviar convites');
+            setConsentInviteResult(data);
+        }catch(error){setConsentInviteResult({error:error.message});}
+        finally{setIsSendingConsentInvites(false);}
     };
 
     const handleBasePreview = async () => {
@@ -1544,6 +1560,15 @@ export default function AdminChat() {
                                 {broadcastAudienceMode === 'all' && (
                                     <div className="rounded-xl border border-blue-200 bg-blue-50 p-4 space-y-3 text-sm text-blue-950">
                                         <p className="font-black">Base geral: independente do tempo sem comprar</p>
+                                        {storeId === 'csi' && <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 space-y-2">
+                                            <p className="font-bold">Autorização de ofertas por WhatsApp</p>
+                                            <p className="text-xs">Convida até 20 contatos por vez, somente nas conversas iniciadas pelo cliente nas últimas 24h. Não envia promoções sem autorização.</p>
+                                            <button type="button" onClick={handleConsentInvites} disabled={isSendingConsentInvites}
+                                                className="w-full rounded-xl bg-amber-600 text-white font-black py-3 disabled:opacity-50">
+                                                {isSendingConsentInvites ? 'Enviando convites...' : 'Solicitar autorização aos elegíveis (até 20)'}
+                                            </button>
+                                            {consentInviteResult && <p className="text-xs" role="status">{consentInviteResult.error || `Convites enviados: ${consentInviteResult.sent}. Falhas: ${consentInviteResult.failed}. Ignorados: ${consentInviteResult.skipped}. Conversas recentes: ${consentInviteResult.recentConversations}.`}</p>}
+                                        </div>}
                                         <p className="text-xs">Inclui compradores e leads que procuraram a loja pelo WhatsApp, mesmo sem pedido. Conversas recentes podem ser atendidas dentro da janela de 24h; campanha promocional exige autorização registrada. Calcular não envia mensagens.</p>
                                         <label className="block font-bold text-xs">Tamanho de cada lote (até 20 destinatários por envio)</label>
                                         <select value={baseMaxRecipients}
