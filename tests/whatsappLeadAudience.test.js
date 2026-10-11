@@ -48,3 +48,15 @@ test('Explicit affirmative WhatsApp consent permits a WhatsApp-only lead with ad
   const blocked=buildUnifiedWhatsAppAudience(order,inbound,new Set(['51999999999']),'csi',now,verified);
   assert.equal(blocked.eligible.length,0);
 });
+
+test('all inbound leads remain visible in CRM with eligibility distinct from visibility',()=>{
+  const orders=new Map(),incoming=new Map(),verified=new Map();
+  addInboundLead(incoming,{direction:'inbound',from:'5551988888888'},now-1000);
+  addInboundLead(incoming,{direction:'inbound',from:'5551977777777'},now-1000);
+  verified.set('51977777777',{optedIn:true,adultConfirmed:true,source:'whatsapp_inbound_explicit_keyword',consentVersion:'2026-10-v1',sourceMessageId:'wamid.ok'});
+  const result=buildUnifiedWhatsAppAudience(orders,incoming,new Set(),'csi',now,verified);
+  assert.equal(result.contacts.length,2);
+  assert.equal(result.eligible.length,1);
+  assert.equal(result.contacts.find(x=>x.phone==='51988888888').status,'consent_missing');
+  assert.equal(result.contacts.find(x=>x.phone==='51977777777').status,'marketing_authorized');
+});
