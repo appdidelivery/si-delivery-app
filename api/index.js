@@ -2614,7 +2614,7 @@ const aiResponse = await fetchGeminiWithRetry(`https://generativelanguage.google
                     const results = [];
                     for (const customer of chunk) {
                         const reserved = await reserveMarketingAttempt(db, {
-                            storeId, phone: customer.phone, type: 'manual_reactivation', dailyLimit: 20
+                            storeId, phone: customer.phone, type: 'manual_reactivation', dailyLimit: MANUAL_MARKETING_DAILY_LIMIT
                         });
                         if (!reserved.allowed) {
                             results.push({ ok: false, quotaReason: reserved.reason });
@@ -2850,7 +2850,7 @@ const aiResponse = await fetchGeminiWithRetry(`https://generativelanguage.google
                     remainingToday: selection.remainingToday,
                     alreadyAttemptedToday: selection.alreadyAttemptedToday
                 });
-                let sent = 0, failed = 0, skippedDailyLimit = 0;
+                let sent = 0, failed = 0, skippedDailyLimit = 0, firstMetaError = null;
                 for (const phone of recipients) {
                     if (await isMarketingOptedOut(db, storeId, phone)) { skippedDailyLimit++; continue; }
                     const reserved = await reserveMarketingAttempt(db, {
@@ -2858,7 +2858,14 @@ const aiResponse = await fetchGeminiWithRetry(`https://generativelanguage.google
                     });
                     if (!reserved.allowed) { skippedDailyLimit++; continue; }
                     const result = await sendMessageToMeta(phone, templateName, 'pt_BR', templateVariables, { allowFailover: false });
-                    if (!result?.ok) { failed++; continue; }
+                    if (!result?.ok) {
+                        failed++;
+                        if (!firstMetaError) firstMetaError = {
+                            code: result?.data?.error?.code || null,
+                            message: String(result?.data?.error?.message || 'API da Meta não aceitou o envio.').slice(0, 300)
+                        };
+                        continue;
+                    }
                     sent++;
                     await db.collection('whatsapp_inbound').add({
                         storeId, to: phone, templateName,
@@ -2870,9 +2877,13 @@ const aiResponse = await fetchGeminiWithRetry(`https://generativelanguage.google
                         direction: 'outbound', status: 'sent'
                     });
                 }
+                const message = `Lote concluído: ${sent} aceitos pela Meta, ${failed} falhas, ${skippedDailyLimit} ignorados por cota, descadastro ou envio anterior. Limite de 20 por lote e até ${MANUAL_MARKETING_DAILY_LIMIT} tentativas por dia.`;
+                if(sent===0 && failed>0)return res.status(502).json({
+                    success:false,sent,failed,skippedDailyLimit,metaError:firstMetaError,
+                    error: `Nenhuma mensagem foi aceita pela API da Meta. ${firstMetaError?.message || ''}`
+                });
                 return res.status(200).json({
-                    success: true, sent, failed, skippedDailyLimit,
-                    message: `Lote concluído: ${sent} aceitos pela Meta, ${failed} falhas, ${skippedDailyLimit} ignorados por cota, descadastro ou envio anterior. O limite de 20 é por lote; teto diário manual de ${MANUAL_MARKETING_DAILY_LIMIT} tentativas compartilhadas.`
+                    success:sent>0,sent,failed,skippedDailyLimit,metaError:firstMetaError,message
                 });
             }
 
