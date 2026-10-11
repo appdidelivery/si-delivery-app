@@ -3302,6 +3302,8 @@ const aiResponse = await fetchGeminiWithRetry(`https://generativelanguage.google
                                 if (message.interactive.type === 'button_reply') {
                                     messageText = message.interactive.button_reply.title;
                                     interactivePayload = message.interactive.button_reply.id;
+                                    if (interactivePayload === 'csi_marketing_yes_18') messageText = 'QUERO OFERTAS 18';
+                                    if (interactivePayload === 'csi_marketing_no') messageText = 'NAO QUERO RECEBER OFERTAS';
                                 } else if (message.interactive.type === 'list_reply') {
                                     messageText = message.interactive.list_reply.title;
                                     interactivePayload = message.interactive.list_reply.id;
@@ -3577,7 +3579,10 @@ const aiResponse = await fetchGeminiWithRetry(`https://generativelanguage.google
                                                         body:JSON.stringify({messaging_product:'whatsapp',to:message.from,type:'text',
                                                             text:{body:CSI_MARKETING_PROMPT}})
                                                     });
-                                                    if(!promptResponse.ok)console.warn('[CSI Consent] prompt rejected',{status:promptResponse.status});
+                                                    if(!promptResponse.ok){
+                                                         console.warn('[CSI Consent] prompt rejected',{status:promptResponse.status});
+                                                         await promptRef.delete(); // Allow retry when Meta did not accept the request.
+                                                     }
                                                 }
                                             }
                                         }catch(error){console.warn('[CSI Consent] prompt not sent',error.message);}
