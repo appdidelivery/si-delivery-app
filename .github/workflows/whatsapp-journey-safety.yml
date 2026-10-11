@@ -11,13 +11,15 @@ on:
       - 'lib/csiOccasionTemplate.js'
       - 'lib/whatsappLeadAudience.js'
       - 'lib/whatsappConsentCapture.js'
-      - 'tests/whatsappConsentCapture.test.js'
+      - 'tests/whatsappConsentCapture.test.js tests/marketingBatchSelection.test.js'
       - 'tests/whatsappLeadAudience.test.js'
       - 'tests/csiOccasionTemplate.test.js'
       - 'tests/footballFixtures.test.js'
       - 'lib/lifecycleSchedule.js'
       - 'vercel.json'
       - 'lib/whatsappMarketingGuard.js'
+      - 'lib/marketingBatchSelection.js'
+      - 'tests/marketingBatchSelection.test.js'
       - 'src/pages/WppWebview.jsx'
       - 'src/components/AdminChat.jsx'
       - 'tests/whatsappMarketingGuard.test.js'
@@ -37,6 +39,7 @@ jobs:
           node --check api/index.js
           node --check server/journeyQueue.js
           node --check lib/whatsappMarketingGuard.js
+          node --check lib/marketingBatchSelection.js
           node --check lib/lifecycleSchedule.js
           node --check server/lifecycleDispatch.js
           node --check server/footballRadar.js
