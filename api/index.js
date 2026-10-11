@@ -1,3 +1,9 @@
+import robotsHandler from '../server/apiHandlers/robots.js';
+import sitemapHandler from '../server/apiHandlers/sitemap.js';
+import llmsHandler from '../server/apiHandlers/llms.js';
+import manifestHandler from '../server/apiHandlers/manifest.js';
+import googleIndexHandler from '../server/apiHandlers/google-index.js';
+import generatePromoCopyHandler from '../server/apiHandlers/generate-promo-copy.js';
 import { sendMetaPurchaseEvent } from '../lib/metaConversions.js';
 import Stripe from 'stripe';
 import admin from 'firebase-admin';
@@ -374,6 +380,19 @@ async function resolveSubscriptionAmount({ storeId, invoiceId, plan, cycle }) {
 // INÍCIO DO ROTEADOR CENTRAL (O MAESTRO DA SUA API)
 // ============================================================================
 export default async function handler(req, res) {
+    // Consolidated endpoints: preserve public URLs while reducing Vercel Hobby function count.
+    const consolidatedPath = req.url.split('?')[0];
+    const consolidatedHandlers = {
+        '/api/robots': robotsHandler,
+        '/api/sitemap': sitemapHandler,
+        '/api/llms': llmsHandler,
+        '/api/manifest': manifestHandler,
+        '/api/google-index': googleIndexHandler,
+        '/api/generate-promo-copy': generatePromoCopyHandler
+    };
+    if (Object.prototype.hasOwnProperty.call(consolidatedHandlers, consolidatedPath)) {
+        return consolidatedHandlers[consolidatedPath](req, res);
+    }
     // 1. Identifica a loja de forma Híbrida (Subdomínio e Custom Domain)
     const host = req.headers['x-forwarded-host'] || req.headers.host || '';
     const cleanHost = host.toLowerCase().trim().replace(/^www\./, '');
