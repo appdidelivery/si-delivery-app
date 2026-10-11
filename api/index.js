@@ -10,9 +10,10 @@ import { scheduleJourneyRequest } from '../server/journeyQueue.js';
 import { handleOccasionLifecycle } from '../server/lifecycleDispatch.js';
 import { handleFootballRadar } from '../server/footballRadar.js';
 import { handleFootballAlert } from '../server/footballAlerts.js';
+import {MANUAL_MARKETING_BATCH_SIZE,MANUAL_MARKETING_DAILY_LIMIT,selectRemainingMarketingRecipients} from '../lib/marketingBatchSelection.js';
 import {CSI_MARKETING_PROMPT,isExplicitCsiOptIn,shouldOfferCsiOptIn,storedCsiConsentId} from '../lib/whatsappConsentCapture.js';
 import { buildUnifiedWhatsAppAudience, latestOrderPerPhone, addInboundLead } from '../lib/whatsappLeadAudience.js';
-import { hasMarketingOptIn, hasEligibleMarketingConsent, normalizeMarketingPhone as normalizeVerifiedMarketingPhone, getLifecycleStage, isMarketingOptedOut, reserveMarketingAttempt } from '../lib/whatsappMarketingGuard.js';
+import { hasMarketingOptIn, hasEligibleMarketingConsent, normalizeMarketingPhone as normalizeVerifiedMarketingPhone, getLifecycleStage, brazilDayKey, isMarketingOptedOut, reserveMarketingAttempt } from '../lib/whatsappMarketingGuard.js';
 import { handleChangeTeamPassword } from '../server/changeTeamPassword.js';
 import { handleLinvixRequest, syncLinvixStore } from '../lib/linvix.js';
 
@@ -2613,7 +2614,7 @@ const aiResponse = await fetchGeminiWithRetry(`https://generativelanguage.google
                     const results = [];
                     for (const customer of chunk) {
                         const reserved = await reserveMarketingAttempt(db, {
-                            storeId, phone: customer.phone, type: 'manual_reactivation', dailyLimit: 20
+                            storeId, phone: customer.phone, type: 'manual_reactivation', dailyLimit: MANUAL_MARKETING_DAILY_LIMIT
                         });
                         if (!reserved.allowed) {
                             results.push({ ok: false, quotaReason: reserved.reason });
@@ -2765,12 +2766,41 @@ const aiResponse = await fetchGeminiWithRetry(`https://generativelanguage.google
                 };
             };
 
+            // Read-only daily usage and attempt hashes, so successive 20-contact
+            // batches advance to NEW recipients instead of getting stuck on the first 20.
+            const getManualMarketingSelection = async (eligiblePhones, requestedCount = 20) => {
+                const day = brazilDayKey();
+                const prefix = `${storeId}_${day}_`;
+                const [usageSnap, attemptedSnap] = await Promise.all([
+                    db.collection('whatsapp_marketing_daily_usage').doc(`${storeId}_${day}`).get(),
+                    db.collection('whatsapp_marketing_attempts')
+                        .where(admin.firestore.FieldPath.documentId(), '>=', prefix)
+                        .where(admin.firestore.FieldPath.documentId(), '<=', `${prefix}\uf8ff`)
+                        .limit(200)
+                        .get()
+                ]);
+                return selectRemainingMarketingRecipients({
+                    storeId,
+                    eligiblePhones,
+                    attemptedToday: Number(usageSnap.data()?.attempted || 0),
+                    attemptedDocumentIds: attemptedSnap.docs.map(doc => doc.id),
+                    maxRecipients: requestedCount,
+                    dailyLimit: MANUAL_MARKETING_DAILY_LIMIT
+                });
+            };
+
             if (action === 'broadcast_preview') {
                 const audience = await buildGeneralMarketingAudience();
-                const maxRecipients = Math.max(1, Math.min(20, Number(req.body.maxRecipients) || 1));
+                const maxRecipients = Math.max(1, Math.min(MANUAL_MARKETING_BATCH_SIZE, Number(req.body.maxRecipients) || 1));
+                const selection = await getManualMarketingSelection(audience.eligible, maxRecipients);
                 return res.status(200).json({
                     success: true, storeId, eligibleCount: audience.eligible.length,
-                    sendableNow: Math.min(audience.eligible.length, maxRecipients),
+                    sendableNow: selection.recipients.length,
+                    remainingToday: selection.remainingToday,
+                    alreadyAttemptedToday: selection.alreadyAttemptedToday,
+                    nextBatchAvailable: selection.nextBatchAvailable,
+                    batchSizeLimit: MANUAL_MARKETING_BATCH_SIZE,
+                    dailyCampaignLimit: MANUAL_MARKETING_DAILY_LIMIT,
                     maxRecipients, uniqueCustomers: audience.uniqueCustomers,
                     buyers: audience.buyers,
                     onlyInboundLeads: audience.onlyInboundLeads,
@@ -2801,24 +2831,41 @@ const aiResponse = await fetchGeminiWithRetry(`https://generativelanguage.google
                      !['Um bom jogo de futebol','O início do fim de semana','Um encontro com os amigos','Um churrasco de domingo'].includes(templateVariables[0]))) {
                     return res.status(400).json({ error: 'Template de ocasiões: loja ou variável não reconhecida.' });
                 }
-                // O painel deve obrigatoriamente calcular a prévia antes do envio.
-                // A campanha continua limitada a 20 tentativas por loja/dia.
-                const maxRecipients = Math.max(1, Math.min(20, Number(req.body.maxRecipients) || 1));
+                // No auto-send. Lotes <=20; daily manual capacity <=200.
+                // Only explicit opt-in adults in this audience and not already attempted today.
+                const maxRecipients = Math.max(1, Math.min(MANUAL_MARKETING_BATCH_SIZE, Number(req.body.maxRecipients) || 1));
                 const audience = await buildGeneralMarketingAudience();
-                const recipients = audience.eligible.slice(0, maxRecipients);
-                if (recipients.length === 0) return res.status(200).json({
-                    success: true, sent: 0, failed: 0,
-                    message: 'Não há clientes elegíveis com consentimento e demais verificações registradas.'
+                if (audience.eligible.length === 0) return res.status(409).json({
+                    error: 'A base tem 0 contatos autorizados para campanhas. O limite de lotes não é a causa; é preciso autorização registrada para enviar.',
+                    code: 'NO_OPTED_IN_RECIPIENTS', eligibleCount: 0
                 });
-                let sent = 0, failed = 0, skippedDailyLimit = 0;
+                const selection = await getManualMarketingSelection(audience.eligible, maxRecipients);
+                const recipients = selection.recipients;
+                if (recipients.length === 0) return res.status(409).json({
+                    error: selection.remainingToday === 0
+                        ? 'Cota diária de campanhas manuais atingida. Tente após virar o dia no Brasil.'
+                        : 'Todos os destinatários elegíveis já tiveram uma tentativa de campanha hoje.',
+                    code: selection.remainingToday === 0 ? 'DAILY_QUOTA_REACHED' : 'ALL_RECIPIENTS_ALREADY_ATTEMPTED_TODAY',
+                    eligibleCount: audience.eligible.length,
+                    remainingToday: selection.remainingToday,
+                    alreadyAttemptedToday: selection.alreadyAttemptedToday
+                });
+                let sent = 0, failed = 0, skippedDailyLimit = 0, firstMetaError = null;
                 for (const phone of recipients) {
                     if (await isMarketingOptedOut(db, storeId, phone)) { skippedDailyLimit++; continue; }
                     const reserved = await reserveMarketingAttempt(db, {
-                        storeId, phone, type: 'manual_broadcast', dailyLimit: 20
+                        storeId, phone, type: 'manual_broadcast', dailyLimit: MANUAL_MARKETING_DAILY_LIMIT
                     });
                     if (!reserved.allowed) { skippedDailyLimit++; continue; }
                     const result = await sendMessageToMeta(phone, templateName, 'pt_BR', templateVariables, { allowFailover: false });
-                    if (!result?.ok) { failed++; continue; }
+                    if (!result?.ok) {
+                        failed++;
+                        if (!firstMetaError) firstMetaError = {
+                            code: result?.data?.error?.code || null,
+                            message: String(result?.data?.error?.message || 'API da Meta não aceitou o envio.').slice(0, 300)
+                        };
+                        continue;
+                    }
                     sent++;
                     await db.collection('whatsapp_inbound').add({
                         storeId, to: phone, templateName,
@@ -2830,9 +2877,13 @@ const aiResponse = await fetchGeminiWithRetry(`https://generativelanguage.google
                         direction: 'outbound', status: 'sent'
                     });
                 }
+                const message = `Lote concluído: ${sent} aceitos pela Meta, ${failed} falhas, ${skippedDailyLimit} ignorados por cota, descadastro ou envio anterior. Limite de 20 por lote e até ${MANUAL_MARKETING_DAILY_LIMIT} tentativas por dia.`;
+                if(sent===0 && failed>0)return res.status(502).json({
+                    success:false,sent,failed,skippedDailyLimit,metaError:firstMetaError,
+                    error: `Nenhuma mensagem foi aceita pela API da Meta. ${firstMetaError?.message || ''}`
+                });
                 return res.status(200).json({
-                    success: true, sent, failed, skippedDailyLimit,
-                    message: `Campanha: ${sent} aceitos pela Meta, ${failed} falhas, ${skippedDailyLimit} bloqueados pelo limite diário. Consentimento e idade verificados pelos campos existentes.`
+                    success:sent>0,sent,failed,skippedDailyLimit,metaError:firstMetaError,message
                 });
             }
 
