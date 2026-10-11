@@ -275,6 +275,28 @@ export default function AdminChat() {
     };
 
 
+    const handleBasePreview = async () => {
+        if (!storeId) return;
+        setIsLoadingBasePreview(true);
+        setBasePreview(null);
+        try {
+            const res = await authenticatedFetch('/api/whatsapp-send', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    action: 'broadcast_preview', storeId, maxRecipients: Number(baseMaxRecipients)
+                })
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || 'Erro ao calcular a base.');
+            setBasePreview(data);
+        } catch (error) {
+            alert('Erro ao calcular a base: ' + error.message);
+        } finally {
+            setIsLoadingBasePreview(false);
+        }
+    };
+
     const handleLoadLifecycleMetrics = async () => {
         if (!storeId) return;
         setIsLoadingLifecycleMetrics(true);
