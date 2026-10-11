@@ -1288,6 +1288,7 @@ export default function AdminChat() {
                                                 <option value="velo_retencao_30_bebidas">30 dias · Retenção leve</option>
                                                 <option value="velo_retencao_60_bebidas">60 dias · Oportunidade</option>
                                                 <option value="velo_retencao_90_bebidas">90 dias · Recuperação</option>
+                                                    <option value="velo_momentos_bebidas">🥤 Futebol e ocasiões · Bebidas geladas</option>
                                             </>
                                         ) : (
                                             <>
@@ -1508,7 +1509,10 @@ export default function AdminChat() {
                                                 onChange={(e) => { setReactivationMaxRecipients(Number(e.target.value)); setReactivationPreview(null); }}
                                                 className="w-full p-3 bg-white border border-amber-200 rounded-xl font-bold text-amber-900 outline-none"
                                             >
-                                                <option value={20}>20 clientes — teste seguro</option>
+                                                <option value={1}>1 cliente — teste inicial</option>
+                                                <option value={5}>5 clientes — lote pequeno</option>
+                                                <option value={10}>10 clientes — lote intermediário</option>
+                                                <option value={20}>20 clientes — limite diário</option>
                                                 {/* Piloto: teto compartilhado de 20 tentativas de marketing por loja/dia. */}
                                             </select>
                                         </div>
@@ -1609,6 +1613,12 @@ export default function AdminChat() {
                                     </select>
                                 </div>
 
+                                {broadcastTemplate === 'velo_momentos_bebidas' && (
+                                    <div className="rounded-xl border border-blue-200 bg-blue-50 p-3 text-xs text-blue-900">
+                                        <strong>Ocasião:</strong> Um bom jogo de futebol.
+                                        <p>Modelo com uma variável preenchida automaticamente. Escolha Reativação, calcule o público e comece com 1 destinatário elegível.</p>
+                                    </div>
+                                )}
                                 {/* SELETOR DINÂMICO DE PRODUTO PARA LANÇAMENTO */}
                                 {broadcastTemplate === 'velo_lancamento_dinamico' && (
                                     <div className="mt-2 animate-in fade-in slide-in-from-top-2">
@@ -1632,6 +1642,9 @@ export default function AdminChat() {
                                     disabled={isBroadcasting || !broadcastTemplate || (broadcastAudienceMode === 'reactivation' && !reactivationPreview)}
                                     onClick={async () => {
                                         const isReactivation = broadcastAudienceMode === 'reactivation';
+                                        if (broadcastTemplate === 'velo_momentos_bebidas' && !isReactivation) {
+                                            return alert('Este modelo exige Reativação, com público calculado e consentimento verificado.');
+                                        }
                                         if (isReactivation && !reactivationPreview) {
                                             return alert("Calcule o público de reativação antes do envio.");
                                         }
@@ -1644,6 +1657,7 @@ export default function AdminChat() {
                                         setIsBroadcasting(true);
                                         try {
                                             let variablesToSend = [];
+                                            if (broadcastTemplate === 'velo_momentos_bebidas') variablesToSend = ['Um bom jogo de futebol'];
                                             
                                             if (broadcastTemplate === 'velo_lancamento_dinamico') {
                                                 if (!broadcastSelectedProduct) {
