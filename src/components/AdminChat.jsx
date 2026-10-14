@@ -15,7 +15,7 @@ const safeEncode = (text) => {
     }
 };
 
-export default function AdminChat() {
+export default function AdminChat({ canManageSound = false }) {
     const { store } = useStore();
     const storeId = store?.slug; 
     const storeSignals = [
@@ -246,6 +246,7 @@ export default function AdminChat() {
     }, [activeChat]);
 
     const toggleMute = () => {
+        if (!canManageSound) return;
         const newState = !isMuted;
         setIsMuted(newState);
         localStorage.setItem('mute_whatsapp_sound', newState.toString());
@@ -1277,6 +1278,7 @@ export default function AdminChat() {
                         )}
                     </div>
                     
+                    {canManageSound && (
                     <button 
                         onClick={toggleMute}
                         className={`p-2 rounded-lg transition-colors shadow-sm ${isMuted ? 'bg-red-50 text-red-500 border border-red-100' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'}`}
@@ -1284,6 +1286,7 @@ export default function AdminChat() {
                     >
                         {isMuted ? <BellOff size={20} /> : <Bell size={20} />}
                     </button>
+                    )}
 
                     <button 
                         onClick={() => setShowBroadcastModal(true)}

@@ -1018,6 +1018,19 @@ const educationalBanners = [
     });
     // --- ESTADOS DE EQUIPE / USUÁRIOS ---
     const [teamMembers, setTeamMembers] = useState([]);
+    // Somente na CSI: titular ou gestor da equipe pode desativar o som.
+    const soundOperator = auth.currentUser;
+    const soundOwnerByUid = Boolean(soundOperator?.uid && store?.ownerUid === soundOperator.uid);
+    const soundOwnerByEmail = Boolean(soundOperator?.email && store?.ownerEmail &&
+        store.ownerEmail.toLowerCase() === soundOperator.email.toLowerCase());
+    const soundAdminByTeam = teamMembers.some(member =>
+        member.storeId === storeId &&
+        member.email?.toLowerCase() === soundOperator?.email?.toLowerCase() &&
+        member.permissions?.team === true
+    );
+    const canManageChatSound = storeId !== 'csi' || soundOwnerByUid || soundOwnerByEmail || soundAdminByTeam;
+    const canManageChatSoundRef = useRef(false);
+    canManageChatSoundRef.current = canManageChatSound;
     const [isTeamModalOpen, setIsTeamModalOpen] = useState(false);
     const [editingTeamId, setEditingTeamId] = useState(null);
     const [teamForm, setTeamForm] = useState({
@@ -2629,7 +2642,12 @@ const [vipMissions, setVipMissions] = useState([]);
             const handoffTriggerText = settings?.integrations?.whatsapp?.botOption2 || "Falar com Humano";
 
             // Descobre qual conversa o lojista está olhando agora
-            const activeChatInScreen = localStorage.getItem('active_whatsapp_chat');
+            const normalizeChatPhone = (value) => {
+                const digits = String(value || '').replace(/\D/g, '');
+                return digits.startsWith('55') && digits.length > 11 ? digits.substring(2) : digits;
+            };
+            const storedActiveChat = localStorage.getItem('active_whatsapp_chat');
+            const activeChatInScreen = storeId === 'csi' ? normalizeChatPhone(storedActiveChat) : storedActiveChat;
 
             if (!initialChat) {
                 for (const change of s.docChanges()) {
@@ -2638,6 +2656,9 @@ const [vipMissions, setVipMissions] = useState([]);
                         // Normaliza o número
                         let senderPhone = String(data.from || '').replace(/\D/g, '');
                         if (senderPhone.startsWith('55')) senderPhone = senderPhone.substring(2);
+                        // Conversa ativa já está sendo acompanhada: não repetir alertas.
+                        // Isto inclui pedidos de transferência para atendimento humano.
+                        if (storeId === 'csi' && senderPhone && senderPhone === activeChatInScreen) continue;
 
                         // VERIFICA SE O BOT ESTÁ PAUSADO PARA ESSE CLIENTE ESPECÍFICO (COM CACHE)
                         let isBotPaused = false;
@@ -2672,7 +2693,7 @@ const [vipMissions, setVipMissions] = useState([]);
 
                 // Toca o som APENAS UMA VEZ
                 if (shouldPlaySound) {
-                    const isMuted = localStorage.getItem('mute_whatsapp_sound') === 'true';
+                    const isMuted = canManageChatSoundRef.current && localStorage.getItem('mute_whatsapp_sound') === 'true';
                     if (!isMuted) {
                         // Se for alerta de humano, toca o sino de alerta (Sino alto). Se não, o som padrão.
                         const defaultSound = localStorage.getItem('custom_chat_sound') || 'https://assets.mixkit.co/active_storage/sfx/1359/1359-preview.mp3';
@@ -6512,7 +6533,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                         {/* VALIDAÇÃO: Só exibe o Chat se o ID e o Token da Meta estiverem salvos */}
                         {settings?.integrations?.whatsapp?.phoneNumberId && settings?.integrations?.whatsapp?.apiToken ? (
                             <Suspense fallback={<LoadingTab />}>
-                                <AdminChat />
+                                <AdminChat canManageSound={canManageChatSound} />
                             </Suspense>
                         ) : (
                             <div className="bg-white p-12 rounded-[3rem] border border-slate-100 text-center shadow-sm max-w-2xl mx-auto mt-12 animate-in zoom-in">
