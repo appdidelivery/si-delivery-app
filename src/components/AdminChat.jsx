@@ -223,6 +223,7 @@ export default function AdminChat({ canManageSound = false }) {
     const [reactivationPreview, setReactivationPreview] = useState(null);
     const [basePreview, setBasePreview] = useState(null);
     const [baseMaxRecipients, setBaseMaxRecipients] = useState(1);
+    const [broadcastAllProgress, setBroadcastAllProgress] = useState(null);
     const [isLoadingBasePreview, setIsLoadingBasePreview] = useState(false);
     const [isSendingConsentInvites, setIsSendingConsentInvites] = useState(false);
     const [consentInviteResult, setConsentInviteResult] = useState(null);
@@ -336,6 +337,59 @@ export default function AdminChat({ canManageSound = false }) {
             setConsentInviteResult({...totals, error: error.message, inProgress: false});
         } finally {
             setIsSendingConsentInvites(false);
+        }
+    };
+
+    const handleBroadcastAllAuthorized = async () => {
+        if (!storeId || !broadcastTemplate || !basePreview?.sendableNow || isBroadcasting) return;
+        const estimatedCount = Number(basePreview.eligibleCount || 0);
+        if (!window.confirm(
+            `Enviar o template "${broadcastTemplate}" automaticamente a TODOS os ${estimatedCount} contatos autorizados da base geral?\\n\\n` +
+            'A plataforma processará grupos técnicos sucessivos, registrará falhas e respeitará os limites da Meta. ' +
+            'O envio pode gerar cobranças na Meta. Mantenha o painel aberto durante o processamento.'
+        )) return;
+        let variablesToSend = [];
+        if (broadcastTemplate === 'velo_momentos_bebidas') variablesToSend = [broadcastOccasion];
+        if (broadcastTemplate === 'velo_lancamento_dinamico') {
+            if (!broadcastSelectedProduct) return alert('Selecione o produto antes de enviar.');
+            const prod = products.find(p => p.id === broadcastSelectedProduct);
+            if (!prod) return alert('Produto selecionado não encontrado.');
+            variablesToSend = [prod.name, Number(prod.promotionalPrice > 0 ? prod.promotionalPrice : prod.price).toFixed(2).replace('.', ',')];
+        }
+        setIsBroadcasting(true);
+        const totals = {sent: 0, failed: 0, skipped: 0, batches: 0, running: true, finished: false, error: ''};
+        setBroadcastAllProgress({...totals});
+        try {
+            // Each serverless request handles a bounded group. Progress is deduplicated
+            // by the backend, so one confirmed operation covers the eligible audience.
+            for (let batch = 0; batch < 1000; batch++) {
+                const response = await authenticatedFetch('/api/whatsapp-send', {
+                    method: 'POST', headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({action: 'broadcast', storeId,
+                        templateName: broadcastTemplate, variables: variablesToSend, maxRecipients: 20})
+                });
+                const data = await response.json();
+                if (!response.ok) {
+                    if (response.status === 409 && data.code === 'ALL_RECIPIENTS_ALREADY_ATTEMPTED_TODAY') {
+                        totals.finished = true;
+                        break;
+                    }
+                    throw new Error(data.metaError?.message || data.error || 'A API recusou o envio');
+                }
+                totals.sent += Number(data.sent || 0);
+                totals.failed += Number(data.failed || 0);
+                totals.skipped += Number(data.skippedDailyLimit || 0);
+                totals.batches++;
+                setBroadcastAllProgress({...totals});
+                if (totals.failed > 0) throw new Error(data.metaError?.message || 'A Meta recusou mensagens. Envio pausado para análise.');
+                if (!data.sent) { totals.finished = true; break; }
+            }
+            setBroadcastAllProgress({...totals, running: false});
+            setBasePreview(null);
+        } catch (error) {
+            setBroadcastAllProgress({...totals, running: false, error: error.message});
+        } finally {
+            setIsBroadcasting(false);
         }
     };
 
@@ -1889,6 +1943,24 @@ export default function AdminChat({ canManageSound = false }) {
                                             ? 'Enviar Reativação'
                                             : 'Iniciar Disparo em Massa'}
                                 </button>
+                                {broadcastAudienceMode === 'all' && (
+                                    <div className="mt-3 space-y-2">
+                                        <button type="button" onClick={handleBroadcastAllAuthorized}
+                                            disabled={isBroadcasting || !broadcastTemplate || !basePreview?.sendableNow}
+                                            className="w-full bg-emerald-700 text-white py-4 rounded-xl font-bold disabled:opacity-50">
+                                            {isBroadcasting ? 'Processando campanha...' : 'Enviar para TODOS os autorizados'}
+                                        </button>
+                                        <p className="text-xs text-slate-600">O botão acima é para testes em grupos pequenos. Esta opção percorre automaticamente toda a base com autorização registrada, sem teto diário interno. Limites da Meta continuam válidos.</p>
+                                        {broadcastAllProgress && (
+                                            <p role="status" className="text-xs rounded-xl p-3 border border-blue-200 bg-white">
+                                                <b>{broadcastAllProgress.running ? 'Campanha em andamento' : broadcastAllProgress.error ? 'Campanha interrompida' : broadcastAllProgress.finished ? 'Campanha concluída' : 'Campanha pausada para continuar'}</b>
+                                                <span className="block">Aceitas pela Meta: {broadcastAllProgress.sent} · Falhas: {broadcastAllProgress.failed} · Ignoradas: {broadcastAllProgress.skipped} · Grupos: {broadcastAllProgress.batches}</span>
+                                                {broadcastAllProgress.error && <span className="block text-red-700">{broadcastAllProgress.error}</span>}
+                                                <span className="block">Aceite da API não garante entrega.</span>
+                                            </p>
+                                        )}
+                                    </div>
+                                )}
                             </div>
                         </div>
                     )}
