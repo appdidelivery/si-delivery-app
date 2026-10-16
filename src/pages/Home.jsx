@@ -2100,7 +2100,6 @@ export default function Home() {
       if (isWeightedProduct(p)) {
         const error = validateWeight(p, Math.round(Number(quantity) * 1000), Number(existingItem?.quantity || 0));
         if (error) {
-          setWeightError(error);
           return prev;
         }
       }
@@ -2174,7 +2173,7 @@ export default function Home() {
         return prevCart.map(item => {
             if (item.id === productId) {
                 const newQuantity = Math.round((Number(item.quantity) + Number(amount)) * 1000) / 1000;
-                if (newQuantity <= 0) return null;
+                if (newQuantity <= 0 || (isWeightedProduct(item) && Math.round(newQuantity * 1000) < getMinWeightGrams(item))) return null;
 
                 const productOriginal = products.find(p => p.id === productId);
 
