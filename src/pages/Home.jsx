@@ -7,6 +7,7 @@ import { Store, ShoppingCart, Search, Flame, X, Utensils, Beer, Wine, Refrigerat
 import { motion, AnimatePresence, useInView } from 'framer-motion';
 import useProducts from '../hooks/useProducts';
 import SEO from '../components/SEO';
+import { effectivePromoPrice, promotionStatus } from '../lib/promotions';
 import { isWeightedProduct, getWeightStepGrams, getMinWeightGrams, gramsFromInput, validateWeight, quantityKgFromGrams, formatWeight, formatCartQuantity } from '../lib/weightProducts';
 import VeloProductVideo from '../components/VeloProductVideo';
 import { Carousel } from 'react-responsive-carousel';
@@ -182,7 +183,7 @@ const renderCategoryIcon = (iconName, categoryName) => {
 
 const getPriceWithQuantityDiscount = (product, quantity) => {
     // 1. Define o preço base: Se tem promocional usa ele, senão usa o normal.
-    const basePrice = Number(product.promotionalPrice) > 0 ? Number(product.promotionalPrice) : Number(product.price);
+    const basePrice = effectivePromoPrice(product) || Number(product.price);
     
     if (!product.quantityDiscounts || product.quantityDiscounts.length === 0) {
         return basePrice; 
@@ -497,9 +498,7 @@ export default function Home() {
 
   const calculateModalTotal = () => {
       if (!selectedProduct) return 0;
-      let basePrice = Number(selectedProduct.promotionalPrice) > 0 
-          ? Number(selectedProduct.promotionalPrice) 
-          : Number(selectedProduct.price || 0);
+      let basePrice = effectivePromoPrice(selectedProduct) || Number(selectedProduct.price || 0);
           
       let total = basePrice;
       
@@ -2157,7 +2156,7 @@ export default function Home() {
       if (existingItem) {
           return prev.map(i => i.id === p.id ? { ...i, quantity: newQuantity, price: finalPricePerUnit, isUpsell: i.isUpsell || isUpsell } : i);
       } else {
-          return [...prev, { ...p, quantity: newQuantity, price: finalPricePerUnit, isUpsell }];
+          return [...prev, { ...p, quantity: newQuantity, price: finalPricePerUnit, isUpsell, promotionWasActiveAtAdd: effectivePromoPrice(p) > 0 }];
       }
     });
 
@@ -2359,6 +2358,32 @@ export default function Home() {
     setCouponError('✅ Cupom aplicado com sucesso!');
   };
 
+  // Bloqueia checkout quando uma oferta mudou desde a montagem do carrinho.
+  const ensurePromotionalPricesCurrent = () => {
+    let mismatch = false;
+    const updated = cart.map(item => {
+      if (item.isReward || !item.promotionStartAt || !item.promotionEndAt) return item;
+      const customized = item.cartItemId && item.cartItemId !== item.id;
+      if (customized) {
+        if (item.promotionWasActiveAtAdd && promotionStatus(item) !== 'active') mismatch = true;
+        return item; // Adicionais devem ser escolhidos novamente pelo cliente.
+      }
+      const expectedPrice = getPriceWithQuantityDiscount(item, item.quantity);
+      if (Math.abs(Number(item.price) - expectedPrice) > 0.009) {
+        mismatch = true;
+        return { ...item, price: expectedPrice, promotionalPrice: effectivePromoPrice(item) };
+      }
+      return item;
+    });
+    if (mismatch) {
+      setCart(updated);
+      draftOrderIdRef.current = null;
+      alert('O período da promoção mudou e o carrinho foi atualizado. Confira o novo total antes de confirmar. Para produtos com adicionais, remova-os e escolha novamente.');
+      return false;
+    }
+    return true;
+  };
+
   const finalizeOrder = async () => {
     if (isFinalizing) return; 
 
@@ -2394,6 +2419,7 @@ export default function Home() {
     }
 
    if (cart.length === 0) return alert("Carrinho vazio!");
+   if (!ensurePromotionalPricesCurrent()) return;
 
     // Trava de Valor Mínimo de Pedido
     if (!isWaiterMode && storeSettings?.minOrderValue > 0) {
@@ -3298,6 +3324,7 @@ upsellAmount: upsellTotal, // Mantido por retrocompatibilidade com painéis anti
                               if (loadingDiv) loadingDiv.style.display = 'none';
                           },
                           onSubmit: async (cardFormData) => {
+                              if (!ensurePromotionalPricesCurrent()) return;
                               if (!isStoreOpenNow) return alert(storeMessage);
                               if (cart.length === 0) return alert("Carrinho vazio!");
                               
