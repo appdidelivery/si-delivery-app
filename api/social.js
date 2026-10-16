@@ -39,6 +39,10 @@ const SCHEMA_TYPES = {
     bebidas: 'LiquorStore',
     market: 'GroceryStore',
     mercado: 'GroceryStore',
+    supermercado: 'GroceryStore',
+    minimercado: 'GroceryStore',
+    mercearia: 'GroceryStore',
+    hortifruti: 'GroceryStore',
     floricultura: 'Florist',
 };
 const FOOD_TYPES = new Set(['Restaurant', 'FastFoodRestaurant', 'IceCreamShop', 'Bakery']);
