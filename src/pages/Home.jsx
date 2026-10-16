@@ -7,6 +7,7 @@ import { Store, ShoppingCart, Search, Flame, X, Utensils, Beer, Wine, Refrigerat
 import { motion, AnimatePresence, useInView } from 'framer-motion';
 import useProducts from '../hooks/useProducts';
 import SEO from '../components/SEO';
+import { isWeightedProduct, getWeightStepGrams, getMinWeightGrams, gramsFromInput, validateWeight, quantityKgFromGrams, formatWeight, formatCartQuantity } from '../lib/weightProducts';
 import VeloProductVideo from '../components/VeloProductVideo';
 import { Carousel } from 'react-responsive-carousel';
 import useSmartRetention from '../hooks/useSmartRetention';
@@ -348,7 +349,11 @@ export default function Home() {
       return () => window.removeEventListener('popstate', handlePopState);
   }, []);
   
-  const [selectedProduct, setSelectedProduct] = useState(null); 
+  const [selectedProduct, setSelectedProduct] = useState(null);
+  const [weightProduct, setWeightProduct] = useState(null);
+  const [weightInput, setWeightInput] = useState('500');
+  const [weightInputUnit, setWeightInputUnit] = useState('g');
+  const [weightError, setWeightError] = useState('');
   const [isFullscreenMedia, setIsFullscreenMedia] = useState(false); // NOVO: Controle da tela cheia
   const [selectedOptions, setSelectedOptions] = useState({}); 
   const [itemObservation, setItemObservation] = useState('');
@@ -575,6 +580,15 @@ export default function Home() {
           observation: itemObservation,
           price: calculateModalTotal() 
       };
+      if (isWeightedProduct(itemToAdd)) {
+          setWeightProduct(itemToAdd);
+          setWeightInput(String(getMinWeightGrams(itemToAdd)));
+          setWeightInputUnit('g');
+          setWeightError('');
+          setSelectedProduct(null);
+          window.history.pushState(null, '', '/');
+          return;
+      }
       addToCart(itemToAdd, 1);
       setSelectedProduct(null); 
       window.history.pushState(null, '', '/'); // Limpa a URL silenciosamente sem perder o carrinho
@@ -2053,7 +2067,16 @@ export default function Home() {
       return isOpenToday || isOpenFromYesterday;
   };
   // --- FIM: TRAVA DE HORÁRIO EM TEMPO REAL ---
-  const addToCart = (p, quantity = 1, isUpsell = false) => {
+  const addToCart = (p, quantity = 1, isUpsell = false, confirmedWeight = false) => {
+    if (isWeightedProduct(p) && !confirmedWeight) {
+      setWeightProduct(p);
+      setWeightInput(String(getMinWeightGrams(p)));
+      setWeightInputUnit('g');
+      setWeightError('');
+      return;
+    }
+    if (!Number.isFinite(Number(quantity)) || Number(quantity) <= 0) return;
+
     // Verifica a hora EXATA do clique (Permite que o Garçom fure a regra se precisar)
     const isReallyOpen = checkRealTimeStoreStatus();
     if (!isReallyOpen && !isWaiterMode) { 
@@ -2069,14 +2092,20 @@ export default function Home() {
 
     setCart(prev => {
       const existingItem = prev.find(i => i.id === p.id);
-      let newQuantity = quantity;
+      let newQuantity = Number(quantity);
 
       if (existingItem) {
-        newQuantity += existingItem.quantity;
+        newQuantity = Math.round((newQuantity + Number(existingItem.quantity)) * 1000) / 1000;
+      }
+      if (isWeightedProduct(p)) {
+        const error = validateWeight(p, Math.round(Number(quantity) * 1000), Number(existingItem?.quantity || 0));
+        if (error) {
+          return prev;
+        }
       }
 
       if (p.stock !== undefined && (newQuantity > Number(p.stock))) {
-              alert(`⚠️ Desculpe, só temos ${p.stock} unidades de ${p.name} disponíveis no momento.`);
+              alert(`⚠️ Desculpe, só temos ${isWeightedProduct(p) ? formatWeight(Number(p.stock)) : `${p.stock} unidades`} de ${p.name} disponíveis no momento.`);
               return prev; 
           }
 
@@ -2143,14 +2172,14 @@ export default function Home() {
     setCart(prevCart => {
         return prevCart.map(item => {
             if (item.id === productId) {
-                const newQuantity = item.quantity + amount;
-                if (newQuantity <= 0) return null;
+                const newQuantity = Math.round((Number(item.quantity) + Number(amount)) * 1000) / 1000;
+                if (newQuantity <= 0 || (isWeightedProduct(item) && Math.round(newQuantity * 1000) < getMinWeightGrams(item))) return null;
 
                 const productOriginal = products.find(p => p.id === productId);
 
                 if (amount > 0 && productOriginal && productOriginal.stock !== undefined) {
                     if (newQuantity > Number(productOriginal.stock)) {
-                        alert(`⚠️ Limite atingido! Temos apenas ${productOriginal.stock} unidades de ${productOriginal.name}.`);
+                        alert(`⚠️ Limite atingido! Temos apenas ${isWeightedProduct(productOriginal) ? formatWeight(Number(productOriginal.stock)) : `${productOriginal.stock} unidades`} de ${productOriginal.name}.`);
                         return item; 
                     }
                 }
@@ -2622,7 +2651,7 @@ upsellAmount: upsellTotal, // Mantido por retrocompatibilidade com painéis anti
           }
 
           const itemsList = cart.map(i => {
-                let text = `🔸 ${i.quantity}x *${i.name}* - R$ ${(i.price * i.quantity).toFixed(2)}`;
+                let text = `🔸 ${formatCartQuantity(i)} *${i.name}* - R$ ${(i.price * i.quantity).toFixed(2)}`;
                 if (i.observation) text += `\n      _Obs: ${i.observation}_`;
                 return text;
             }).join('\n');
@@ -3858,7 +3887,7 @@ alert("Pagamento recusado pelo Mercado Pago. Tente outro cartão ou entre em con
                                                   {p.hasDiscount && p.discountPercentage && <span className="absolute top-3 right-3 bg-red-500 text-white text-[10px] font-black px-2 py-0.5 rounded-md shadow-md z-10">-{p.discountPercentage}%</span>}
                                               </div>
                                               <div className="p-4 flex flex-col flex-1 bg-white">
-                                                  <h3 className="font-bold text-slate-800 text-[11px] uppercase tracking-tight line-clamp-2 h-8 leading-tight mb-2 cursor-pointer" onClick={() => handleOpenProduct(p)}>{p.name}</h3>
+                                                  <h3 className="font-bold text-slate-800 text-[11px] uppercase tracking-tight line-clamp-2 h-8 leading-tight mb-2 cursor-pointer" onClick={() => handleOpenProduct(p)}>{p.name}{isWeightedProduct(p) ? ' • R$/kg' : ''}</h3>
                                                   <div className="flex justify-between items-center mt-auto">
                                                       <div className="flex flex-col">
                                                           {Number(p.promotionalPrice) > 0 ? (
@@ -3898,7 +3927,7 @@ alert("Pagamento recusado pelo Mercado Pago. Tente outro cartão ou entre em con
                                                   {p.hasDiscount && p.discountPercentage && <span className="absolute top-2 left-2 bg-red-500 text-white text-[10px] font-black px-2 py-0.5 rounded-md shadow-md">-{p.discountPercentage}%</span>}
                                                   {Number(p.promotionalPrice) > 0 && <div className="absolute top-2 right-2 bg-red-600 text-white text-[10px] font-black px-2 py-1 rounded-lg shadow-lg animate-pulse z-10">OFERTA 🔥</div>}
                                               </div>
-                                              <h3 className="font-bold text-slate-800 text-[11px] uppercase tracking-tight line-clamp-2 h-8 leading-tight mb-2 cursor-pointer" onClick={() => handleOpenProduct(p)}>{p.name}</h3>
+                                              <h3 className="font-bold text-slate-800 text-[11px] uppercase tracking-tight line-clamp-2 h-8 leading-tight mb-2 cursor-pointer" onClick={() => handleOpenProduct(p)}>{p.name}{isWeightedProduct(p) ? ' • R$/kg' : ''}</h3>
                                               <div className="flex justify-between items-center mt-auto pt-2 border-t border-slate-50">
                                                   <div className="flex flex-col">
                                                       {Number(p.promotionalPrice) > 0 ? (
@@ -3959,7 +3988,7 @@ alert("Pagamento recusado pelo Mercado Pago. Tente outro cartão ou entre em con
                                             {p.hasDiscount && p.discountPercentage && <span className="absolute top-3 right-3 bg-red-500 text-white text-[10px] font-black px-2 py-0.5 rounded-md shadow-md z-10">-{p.discountPercentage}%</span>}
                                         </div>
                                         <div className="p-4 flex flex-col flex-1 bg-white justify-between">
-                                            <h3 className="font-bold text-slate-800 text-[11px] uppercase tracking-tight line-clamp-2 leading-tight mb-2 cursor-pointer" onClick={() => hasStock ? handleOpenProduct(p) : null}>{p.name}</h3>
+                                            <h3 className="font-bold text-slate-800 text-[11px] uppercase tracking-tight line-clamp-2 leading-tight mb-2 cursor-pointer" onClick={() => hasStock ? handleOpenProduct(p) : null}>{p.name}{isWeightedProduct(p) ? ' • R$/kg' : ''}</h3>
                                             <div className="flex justify-between items-center mt-auto pt-2">
                                                 <div className="flex flex-col">
                                                     {Number(p.promotionalPrice) > 0 ? (
@@ -4006,7 +4035,7 @@ alert("Pagamento recusado pelo Mercado Pago. Tente outro cartão ou entre em con
                                         </div>
                                         <div className="flex flex-col flex-1 justify-between">
                                             <div>
-                                                <h3 className="font-bold text-slate-800 text-[11px] uppercase tracking-tight line-clamp-2 leading-tight mb-1 cursor-pointer" onClick={() => hasStock ? handleOpenProduct(p) : null}>{p.name}</h3>
+                                                <h3 className="font-bold text-slate-800 text-[11px] uppercase tracking-tight line-clamp-2 leading-tight mb-1 cursor-pointer" onClick={() => hasStock ? handleOpenProduct(p) : null}>{p.name}{isWeightedProduct(p) ? ' • R$/kg' : ''}</h3>
                                                 {p.description && <p className="text-[10px] text-slate-500 line-clamp-2 leading-tight mb-2">{p.description}</p>}
                                             </div>
                                             <div className="flex justify-between items-center mt-auto pt-2 border-t border-slate-50">
@@ -4072,7 +4101,7 @@ alert("Pagamento recusado pelo Mercado Pago. Tente outro cartão ou entre em con
                                                 className={`bg-white rounded-3xl border border-slate-100 shadow-sm p-4 flex gap-4 cursor-pointer hover:shadow-md transition-all active:scale-[0.98] ${!hasStock ? 'opacity-60 grayscale' : ''}`}
                                             >
                                                 <div className="flex-1 flex flex-col justify-center">
-                                                    <h3 className="font-black text-slate-800 text-sm leading-tight mb-1">{p.name}</h3>
+                                                    <h3 className="font-black text-slate-800 text-sm leading-tight mb-1">{p.name}{isWeightedProduct(p) ? ' • R$/kg' : ''}</h3>
                                                     <p className="text-xs text-slate-500 line-clamp-2 mb-3 leading-relaxed">
                                                         {p.description || "Clique para ver mais detalhes e opções."}
                                                     </p>
@@ -4402,7 +4431,7 @@ alert("Pagamento recusado pelo Mercado Pago. Tente outro cartão ou entre em con
             <AnimatePresence>
                 {cart.length > 0 && (
                 <motion.div aria-label={`${cart.length} itens no carrinho`} initial={{ scale: 0 }} animate={{ scale: 1 }} exit={{ scale: 0 }} className="absolute top-0 right-0 bg-red-500 text-white text-[10px] font-black rounded-full w-5 h-5 flex items-center justify-center border-2 border-white shadow-sm z-60">
-                    {cart.reduce((acc, item) => acc + item.quantity, 0)}
+                    {cart.reduce((acc, item) => acc + (isWeightedProduct(item) ? 1 : Number(item.quantity)), 0)}
                 </motion.div>
                 )}
             </AnimatePresence>
@@ -4481,7 +4510,7 @@ alert("Pagamento recusado pelo Mercado Pago. Tente outro cartão ou entre em con
                                 </span>
                             ) : (
                                 <>
-                                    <button onClick={() => updateQuantity(item.id, -1)} className="p-1"><Minus size={16}/></button><span>{item.quantity}</span><button onClick={() => updateQuantity(item.id, 1)} className="p-1"><Plus size={16}/></button>
+                                    <button aria-label={`Diminuir quantidade de ${item.name}`} onClick={() => updateQuantity(item.id, isWeightedProduct(item) ? -(getWeightStepGrams(item) / 1000) : -1)} className="p-1"><Minus size={16}/></button><span className="text-xs whitespace-nowrap">{formatCartQuantity(item)}</span><button aria-label={`Aumentar quantidade de ${item.name}`} onClick={() => updateQuantity(item.id, isWeightedProduct(item) ? getWeightStepGrams(item) / 1000 : 1)} className="p-1"><Plus size={16}/></button>
                                     <button onClick={() => removeFromCart(item.id)} className="p-1 text-red-500"><Trash2 size={16}/></button>
                                 </>
                             )}
@@ -4938,6 +4967,46 @@ alert("Pagamento recusado pelo Mercado Pago. Tente outro cartão ou entre em con
         )}
       </AnimatePresence>
 
+      {/* Seleção de peso: valores em kg no carrinho e no pedido; entrada em g ou kg. */}
+      {weightProduct && (
+        <div className="fixed inset-0 z-[180] flex items-end justify-center bg-slate-900/80 p-3 sm:items-center" role="dialog" aria-modal="true" aria-label="Escolher peso do produto">
+          <div className="w-full max-w-md space-y-4 rounded-3xl bg-white p-6 shadow-2xl text-slate-800">
+            <div className="flex items-start justify-between gap-2">
+              <div><h2 className="text-xl font-black">{weightProduct.name}</h2><p className="text-sm text-slate-500">R$ {getPriceWithQuantityDiscount(weightProduct, 1).toFixed(2)} por kg</p></div>
+              <button type="button" onClick={() => setWeightProduct(null)} aria-label="Fechar"><X size={24}/></button>
+            </div>
+            <div className="grid grid-cols-3 gap-2">
+              <label className="col-span-2 text-sm font-bold">Quantidade
+                <input type="text" inputMode="decimal" className="mt-1 w-full rounded-xl border border-slate-200 p-3" value={weightInput} onChange={e => { setWeightInput(e.target.value); setWeightError(''); }} />
+              </label>
+              <label className="text-sm font-bold">Unidade
+                <select className="mt-1 w-full rounded-xl border border-slate-200 p-3" value={weightInputUnit} onChange={e => { setWeightInputUnit(e.target.value); setWeightError(''); }}>
+                  <option value="g">g</option><option value="kg">kg</option>
+                </select>
+              </label>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {[500, 1000, 1500].map(g => (
+                <button type="button" key={g} className="rounded-xl bg-slate-100 px-3 py-2 text-sm font-semibold" onClick={() => { setWeightInput(String(g)); setWeightInputUnit('g'); setWeightError(''); }}>{formatWeight(g / 1000)}</button>
+              ))}
+            </div>
+            <p className="text-xs text-slate-600">Mínimo: {formatWeight(getMinWeightGrams(weightProduct) / 1000)} · Incrementos de {getWeightStepGrams(weightProduct)} g · Estoque: {weightProduct.stock === undefined ? 'a confirmar' : formatWeight(Number(weightProduct.stock))}</p>
+            {weightError && <p role="alert" className="rounded-lg bg-red-50 p-3 text-sm text-red-700">{weightError}</p>}
+            <div className="flex items-center justify-between">
+              <p className="font-bold">{(() => { const grams = gramsFromInput(weightInput, weightInputUnit); return Number.isFinite(grams) ? `Total: R$ ${(getPriceWithQuantityDiscount(weightProduct, grams / 1000) * grams / 1000).toFixed(2)}` : 'Peso inválido'; })()}</p>
+              <button type="button" className="rounded-xl bg-emerald-700 px-4 py-3 text-sm font-bold text-white" onClick={() => {
+                const grams = gramsFromInput(weightInput, weightInputUnit);
+                const existing = cart.find(i => i.id === weightProduct.id);
+                const error = validateWeight(weightProduct, grams, Number(existing?.quantity || 0));
+                if (error) { setWeightError(error); return; }
+                addToCart(weightProduct, quantityKgFromGrams(grams), false, true);
+                setWeightProduct(null);
+              }}>Adicionar</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <AnimatePresence>
         {selectedProduct && (
           <motion.div 
@@ -5042,7 +5111,7 @@ alert("Pagamento recusado pelo Mercado Pago. Tente outro cartão ou entre em con
 
               <div className="p-6 overflow-y-auto pb-32 custom-scrollbar flex-1">
                 <div className="flex justify-between items-start gap-4 mb-2">
-                    <h2 className="text-2xl font-black text-slate-900 leading-tight">{selectedProduct.name}</h2>
+                    <h2 className="text-2xl font-black text-slate-900 leading-tight">{selectedProduct.name}{isWeightedProduct(selectedProduct) ? ' — preço por kg' : ''}</h2>
                     
                     {/* BOTOES DE AÇÃO: FAVORITAR E COMPARTILHAR */}
                     <div className="flex items-center gap-2 shrink-0 mt-1">

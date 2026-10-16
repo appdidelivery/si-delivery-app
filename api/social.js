@@ -39,6 +39,10 @@ const SCHEMA_TYPES = {
     bebidas: 'LiquorStore',
     market: 'GroceryStore',
     mercado: 'GroceryStore',
+    supermercado: 'GroceryStore',
+    minimercado: 'GroceryStore',
+    mercearia: 'GroceryStore',
+    hortifruti: 'GroceryStore',
     floricultura: 'Florist',
 };
 const FOOD_TYPES = new Set(['Restaurant', 'FastFoodRestaurant', 'IceCreamShop', 'Bakery']);
@@ -145,8 +149,9 @@ export default async function handler(req, res) {
                                 
                                 const pDesc = item.document.fields.description?.stringValue || '';
                                 const pPrice = item.document.fields.price?.doubleValue || item.document.fields.price?.integerValue || 0;
-                                const pPromoPrice = item.document.fields.promoPrice?.doubleValue || item.document.fields.promoPrice?.integerValue || 0;
+                                const pPromoPrice = item.document.fields.promotionalPrice?.doubleValue || item.document.fields.promotionalPrice?.integerValue || item.document.fields.promoPrice?.doubleValue || item.document.fields.promoPrice?.integerValue || 0;
                                 const finalPrice = pPromoPrice > 0 ? pPromoPrice : pPrice;
+                                const pSaleUnit = item.document.fields.saleUnit?.stringValue || 'un';
                                 const pBrand = item.document.fields.brand?.stringValue || title; 
                                 
                                 // ATRIBUTOS RICOS RESTAURADOS DO SEU CÓDIGO ORIGINAL
@@ -174,7 +179,7 @@ export default async function handler(req, res) {
                                 <meta property="product:price:currency" content="BRL" />
                                 ${pGtin ? `<meta property="product:gtin" content="${pGtin}" />` : ''}`;
 
-                                const isFoodItem = pPrepTime !== null || pCalories !== null || pDietSchema !== "";
+                                const isFoodItem = isFoodBusiness && (pPrepTime !== null || pCalories !== null || pDietSchema !== "");
                                 const schemaType = isFoodItem ? "MenuItem" : "Product";
 
                                 mainSchema = `
@@ -196,6 +201,7 @@ export default async function handler(req, res) {
                                     "url": "${finalCleanUrl}",
                                     "priceCurrency": "BRL",
                                     "price": "${finalPrice}",
+                                    ${pSaleUnit === 'kg' ? `"priceSpecification": { "@type": "UnitPriceSpecification", "price": "${finalPrice}", "priceCurrency": "BRL", "referenceQuantity": { "@type": "QuantitativeValue", "value": 1, "unitCode": "KGM" } },` : ''}
                                     "availability": "https://schema.org/InStock",
                                     "itemCondition": "https://schema.org/NewCondition"
                                     ${pDeliveryTime ? `,"deliveryLeadTime": { "@type": "QuantitativeValue", "value": "${pDeliveryTime}", "unitCode": "MIN" }` : ''}

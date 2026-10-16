@@ -94,6 +94,10 @@ export default function SEO({ title, description, image, productData }) {
                     bebidas: 'LiquorStore',
                     market: 'GroceryStore',
                     mercado: 'GroceryStore',
+                    supermercado: 'GroceryStore',
+                    minimercado: 'GroceryStore',
+                    mercearia: 'GroceryStore',
+                    hortifruti: 'GroceryStore',
                     floricultura: 'Florist'
                 };
                 const googleBusinessType = schemaTypes[niche] || 'LocalBusiness';
@@ -211,6 +215,7 @@ export default function SEO({ title, description, image, productData }) {
                         "@id": `${baseUrl}#product`,
                         "name": productData.name || "Produto",
                         "description": productData.description || "Produto oficial da loja.",
+                        ...(productData.saleUnit === 'kg' ? { "size": { "@type": "QuantitativeValue", "value": 1, "unitCode": "KGM" } } : {}),
                         "image": productData.imageUrl ? [ensureAbsoluteUrl(productData.imageUrl)] : [absoluteFetchedImage],
                         "sku": productData.sku || productData.id || "SKU-PADRAO",
                         ...(!isFoodBusiness ? { "brand": { "@type": "Brand", "name": productData.brand || fetchedName || "Marca Própria" } } : {}),
@@ -219,6 +224,14 @@ export default function SEO({ title, description, image, productData }) {
                             "url": currentUrl,
                             "priceCurrency": "BRL",
                             "price": Number(rawPrice).toFixed(2),
+                            ...(productData.saleUnit === 'kg' ? {
+                                "priceSpecification": {
+                                    "@type": "UnitPriceSpecification",
+                                    "price": Number(rawPrice).toFixed(2),
+                                    "priceCurrency": "BRL",
+                                    "referenceQuantity": { "@type": "QuantitativeValue", "value": 1, "unitCode": "KGM" }
+                                }
+                            } : {}),
                             "availability": (productData.stock === undefined || Number(productData.stock) > 0) ? "https://schema.org/InStock" : "https://schema.org/OutOfStock",
                             "itemCondition": "https://schema.org/NewCondition",
                             "hasMerchantReturnPolicy": {

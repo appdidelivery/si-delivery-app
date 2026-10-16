@@ -1,0 +1,36 @@
+name: Velo Mercado — Peso e Build
+
+on:
+  pull_request:
+    paths:
+      - 'src/lib/weightProducts.js'
+      - 'src/components/MarketCatalogSettings.jsx'
+      - 'src/components/SEO.jsx'
+      - 'src/pages/Home.jsx'
+      - 'src/pages/Admin.jsx'
+      - 'api/social.js'
+      - 'middleware.js'
+      - 'tests/weightProducts.test.mjs'
+      - 'firebase-functions/index.js'
+  push:
+    branches:
+      - feat/mercado-peso-schema-20261016
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+      # Lockfile legado fora de sincronia com @vercel/queue; validar sem alterar o projeto.
+      - run: npm install --legacy-peer-deps --no-audit --no-fund
+      - name: Testes de cálculo por peso
+        run: node --test tests/weightProducts.test.mjs
+      - name: Verificação de sintaxe fiscal
+        run: node --check firebase-functions/index.js
+      - name: Build Vite
+        run: npm run build

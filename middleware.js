@@ -24,6 +24,10 @@ const SCHEMA_TYPES = {
     bebidas: 'LiquorStore',
     market: 'GroceryStore',
     mercado: 'GroceryStore',
+    supermercado: 'GroceryStore',
+    minimercado: 'GroceryStore',
+    mercearia: 'GroceryStore',
+    hortifruti: 'GroceryStore',
     floricultura: 'Florist',
 };
 
