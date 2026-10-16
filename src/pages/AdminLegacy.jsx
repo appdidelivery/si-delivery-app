@@ -47,6 +47,8 @@ import {
 import { lazy, Suspense } from 'react';
 import VeloSupportWidget from "../components/VeloSupportWidget";
 import { MissionTracker } from '../components/MissionTracker';
+import PromotionScheduleFields from '../components/PromotionScheduleFields';
+import { promotionStatus, effectivePromoPrice, effectiveUnitPrice, validatePromotion } from '../lib/promotions';
 
 // Esses componentes só serão baixados pelo navegador QUANDO o lojista clicar na aba deles
 const AdminChat = lazy(() => import('../components/AdminChat'));
@@ -1509,7 +1511,7 @@ const educationalBanners = [
                                     name: novoNome, 
                                     brand: novaMarca,
                                     gtin: decodedText, // Já cola o código lido!
-                                    description: '', price: '', costPrice: '', promotionalPrice: '', originalPrice: '', category: '', imageUrl: '', tag: '', stock: 0, hasDiscount: false, discountPercentage: null, isFeatured: false, isBestSeller: false, quantityDiscounts:[], recommendedIds:[], complements:[], isChilled: false, prepTime: '', deliveryLeadTime: '', calories: '', suitableForDiet:[], variations: '', removables: '', ratingValue: '', reviewCount: '', isActive: true 
+                                    description: '', price: '', costPrice: '', promotionalPrice: '', promotionStartAt: '', promotionEndAt: '', originalPrice: '', category: '', imageUrl: '', tag: '', stock: 0, hasDiscount: false, discountPercentage: null, isFeatured: false, isBestSeller: false, quantityDiscounts:[], recommendedIds:[], complements:[], isChilled: false, prepTime: '', deliveryLeadTime: '', calories: '', suitableForDiet:[], variations: '', removables: '', ratingValue: '', reviewCount: '', isActive: true 
                                 });
                                 
                                 // BÔNUS: Joga o nome do produto no campo da IA para facilitar a vida do lojista
@@ -2105,7 +2107,9 @@ const [vipMissions, setVipMissions] = useState([]);
         description: '', 
         price: '', 
         costPrice: '', 
-        promotionalPrice: '', 
+        promotionalPrice: '',
+        promotionStartAt: '',
+        promotionEndAt: '',
         originalPrice: '', 
         category: '', 
         imageUrl: '', 
@@ -7798,7 +7802,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                 </button>
 
                                 {/* PASSO 1 (continuação): Resetar os novos campos ao criar item novo */}
-                               <button onClick={() => { setEditingId(null); setForm({ name: '', description: '', price: '', costPrice: '', promotionalPrice: '', originalPrice: '', category: '', imageUrl: '', tag: '', stock: 0, hasDiscount: false, discountPercentage: null, isFeatured: false, isBestSeller: false, quantityDiscounts:[], recommendedIds:[], complements:[], isChilled: false, gtin: '', brand: '', prepTime: '', deliveryLeadTime: '', calories: '', suitableForDiet:[], variations: '', removables: '', ratingValue: '', reviewCount: '', isActive: true }); setIsModalOpen(true); }} className="bg-blue-600 text-white px-6 py-3 rounded-xl font-black shadow-lg shadow-blue-100 uppercase tracking-widest text-[10px] md:text-xs flex items-center gap-1 active:scale-95 transition-all">
+                               <button onClick={() => { setEditingId(null); setForm({ name: '', description: '', price: '', costPrice: '', promotionalPrice: '', promotionStartAt: '', promotionEndAt: '', originalPrice: '', category: '', imageUrl: '', tag: '', stock: 0, hasDiscount: false, discountPercentage: null, isFeatured: false, isBestSeller: false, quantityDiscounts:[], recommendedIds:[], complements:[], isChilled: false, gtin: '', brand: '', prepTime: '', deliveryLeadTime: '', calories: '', suitableForDiet:[], variations: '', removables: '', ratingValue: '', reviewCount: '', isActive: true }); setIsModalOpen(true); }} className="bg-blue-600 text-white px-6 py-3 rounded-xl font-black shadow-lg shadow-blue-100 uppercase tracking-widest text-[10px] md:text-xs flex items-center gap-1 active:scale-95 transition-all">
                                    <Plus size={16} className="hidden md:block"/> Novo Item
                                </button>
 
@@ -7932,7 +7936,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                             const summaryTotalUnits = filteredProductsList.reduce((acc, p) => acc + (p.stock !== undefined && p.stock !== '' ? Number(p.stock) : 0), 0);
                             const summaryTotalCost = filteredProductsList.reduce((acc, p) => acc + ((Number(p.costPrice) || 0) * (p.stock !== undefined && p.stock !== '' ? Number(p.stock) : 0)), 0);
                             const summaryTotalSales = filteredProductsList.reduce((acc, p) => {
-                                const activePrice = Number(p.promotionalPrice) > 0 ? Number(p.promotionalPrice) : Number(p.price);
+                                const activePrice = effectiveUnitPrice(p);
                                 return acc + ((activePrice || 0) * (p.stock !== undefined && p.stock !== '' ? Number(p.stock) : 0));
                             }, 0);
 
@@ -8047,15 +8051,17 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                                         )}
                                                         
                                                         <div className='flex items-center gap-2 mt-1'>
-                                                            <p className={`text-blue-600 font-black text-lg ${p.promotionalPrice > 0 ? 'line-through text-slate-400 text-sm' : ''}`}>
+                                                            <p className={`text-blue-600 font-black text-lg ${effectivePromoPrice(p) > 0 ? 'line-through text-slate-400 text-sm' : ''}`}>
                                                                 R$ {Number(p.price)?.toFixed(2)}
                                                             </p>
-                                                            {p.promotionalPrice > 0 && (
+                                                            {effectivePromoPrice(p) > 0 && (
                                                                 <p className="text-orange-500 font-black text-lg">
-                                                                    R$ {Number(p.promotionalPrice)?.toFixed(2)}
+                                                                    R$ {effectivePromoPrice(p).toFixed(2)}
                                                                 </p>
                                                             )}
                                                         </div>
+                                                        {promotionStatus(p) === 'scheduled' && <p className="text-xs font-bold text-blue-700">📅 Promoção agendada</p>}
+                                                        {promotionStatus(p) === 'expired' && <p className="text-xs font-bold text-slate-400">Prazo encerrado — preço normal</p>}
                                                         
                                                         {p.costPrice > 0 && (
                                                              <p className="text-[10px] font-bold text-slate-400 mt-1 uppercase tracking-widest">
@@ -8771,8 +8777,8 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                                         setPdvActiveProduct({ 
                                                             ...p, 
                                                             quantity: 1, 
-                                                            basePrice: p.promotionalPrice > 0 ? p.promotionalPrice : p.price,
-                                                            price: p.promotionalPrice > 0 ? p.promotionalPrice : p.price,
+                                                            basePrice: effectiveUnitPrice(p),
+                                                            price: effectiveUnitPrice(p),
                                                             selectedComplements: [] 
                                                         });
                                                     } else {
@@ -8784,7 +8790,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                                             const productToAdd = { 
                                                                 ...p, 
                                                                 quantity: 1, 
-                                                                price: p.promotionalPrice > 0 ? p.promotionalPrice : p.price 
+                                                                price: effectiveUnitPrice(p) 
                                                             };
                                                             setManualCart([...manualCart, productToAdd]);
                                                         }
@@ -8804,7 +8810,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                                 </div>
                                                 <div>
                                                     <p className="font-bold text-slate-700 text-xs leading-tight line-clamp-2 mb-1">{p.name}</p>
-                                                    <p className="font-black text-blue-600 text-sm">R$ {Number(p.promotionalPrice > 0 ? p.promotionalPrice : p.price).toFixed(2)}</p>
+                                                    <p className="font-black text-blue-600 text-sm">R$ {Number(effectiveUnitPrice(p)).toFixed(2)}</p>
                                                 </div>
                                             </div>
                                         );
@@ -10538,7 +10544,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                                             setForm({
                                                                 name: `Combo IA: ${topPair[0]}`,
                                                                 description: `Combo gerado por inteligência artificial baseado no que nossos clientes mais amam pedir juntos!`,
-                                                                price: '', costPrice: '', promotionalPrice: '', originalPrice: '', category: 'Combos', imageUrl: '', tag: '', stock: 100, hasDiscount: true, discountPercentage: 10, isFeatured: true, isBestSeller: true, quantityDiscounts: [], recommendedIds: [], complements: [], isChilled: false, gtin: '', brand: '', prepTime: '', deliveryLeadTime: '', calories: '', suitableForDiet: [], variations: '', removables: '', ratingValue: '', reviewCount: '', isActive: true
+                                                                price: '', costPrice: '', promotionalPrice: '', promotionStartAt: '', promotionEndAt: '', originalPrice: '', category: 'Combos', imageUrl: '', tag: '', stock: 100, hasDiscount: true, discountPercentage: 10, isFeatured: true, isBestSeller: true, quantityDiscounts: [], recommendedIds: [], complements: [], isChilled: false, gtin: '', brand: '', prepTime: '', deliveryLeadTime: '', calories: '', suitableForDiet: [], variations: '', removables: '', ratingValue: '', reviewCount: '', isActive: true
                                                             });
                                                             setActiveTab('products');
                                                             setIsModalOpen(true);
@@ -14088,11 +14094,20 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                 const isFood = isFoodCategory(form.category) && storeStatus?.storeNiche !== 'floricultura';
                                 
                                 // PASSO 3: Parse dos novos campos antes de salvar (TRAVA REMOVIDA)
-                                const data = { 
+                                const promoError = validatePromotion({
+                                    ...form,
+                                    price: parseFloat(form.price) || 0,
+                                    promotionalPrice: parseFloat(form.promotionalPrice) || 0
+                                });
+                                if (promoError) return alert('⚠️ Promoção: ' + promoError);
+
+                                const data = {
                                     ...form, 
                                     price: parseFloat(form.price) || 0, 
                                     costPrice: parseFloat(form.costPrice) || 0,
                                     promotionalPrice: parseFloat(form.promotionalPrice) || 0,
+                                    promotionStartAt: form.promotionStartAt || '',
+                                    promotionEndAt: form.promotionEndAt || '',
                                     stock: form.stock === '' || form.stock === null ? '' : parseInt(form.stock), // <-- Salva vazio se o lojista deixar vazio!
                                     // Zera preparo, caloria e dieta se não for comida
                                     prepTime: isFood && form.prepTime ? parseInt(form.prepTime) : null,
@@ -14275,11 +14290,15 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                         <input type="number" step="0.01" placeholder="Opcional" className="w-full p-4 bg-orange-50 text-orange-600 rounded-xl outline-none font-bold border-none" value={form.promotionalPrice} onChange={e => setForm({ ...form, promotionalPrice: e.target.value })} />
                                     </div>
                                 </div>
+                                <PromotionScheduleFields
+                                    product={form}
+                                    onChange={updates => setForm(prev => ({ ...prev, ...updates }))}
+                                />
                                 
                                 {/* PASSO 2 (continuação): Badge de cálculo de lucro */}
                                 {(() => {
                                     const cost = parseFloat(form.costPrice) || 0;
-                                    const salePrice = parseFloat(form.promotionalPrice) > 0 ? parseFloat(form.promotionalPrice) : parseFloat(form.price) || 0;
+                                    const salePrice = effectiveUnitPrice(form);
                                     if (cost > 0 && salePrice > 0) {
                                         const profitValue = salePrice - cost;
                                         const profitMargin = (profitValue / salePrice) * 100;
