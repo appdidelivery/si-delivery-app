@@ -94,6 +94,10 @@ export default function SEO({ title, description, image, productData }) {
                     bebidas: 'LiquorStore',
                     market: 'GroceryStore',
                     mercado: 'GroceryStore',
+                    supermercado: 'GroceryStore',
+                    minimercado: 'GroceryStore',
+                    mercearia: 'GroceryStore',
+                    hortifruti: 'GroceryStore',
                     floricultura: 'Florist'
                 };
                 const googleBusinessType = schemaTypes[niche] || 'LocalBusiness';
