@@ -1,4 +1,5 @@
 import admin from 'firebase-admin';
+import { effectiveUnitPrice } from '../src/lib/promotions.js';
 
 // Inicializa o Firebase Admin
 if (!admin.apps.length) {
@@ -150,7 +151,7 @@ export default async function handler(req, res) {
                                 const pDesc = item.document.fields.description?.stringValue || '';
                                 const pPrice = item.document.fields.price?.doubleValue || item.document.fields.price?.integerValue || 0;
                                 const pPromoPrice = item.document.fields.promotionalPrice?.doubleValue || item.document.fields.promotionalPrice?.integerValue || item.document.fields.promoPrice?.doubleValue || item.document.fields.promoPrice?.integerValue || 0;
-                                const finalPrice = pPromoPrice > 0 ? pPromoPrice : pPrice;
+                                const finalPrice = effectiveUnitPrice({ price: pPrice, promotionalPrice: pPromoPrice, promotionStartAt: item.document.fields.promotionStartAt?.stringValue || '', promotionEndAt: item.document.fields.promotionEndAt?.stringValue || '' });
                                 const pSaleUnit = item.document.fields.saleUnit?.stringValue || 'un';
                                 const pBrand = item.document.fields.brand?.stringValue || title; 
                                 
@@ -225,7 +226,7 @@ export default async function handler(req, res) {
                                 const pName = fields.name?.stringValue || '';
                                 const promoPrice = fields.promotionalPrice?.doubleValue || fields.promotionalPrice?.integerValue || fields.promoPrice?.doubleValue || fields.promoPrice?.integerValue || 0;
                                 const basePrice = fields.price?.doubleValue || fields.price?.integerValue || 0;
-                                const finalPrice = Number(promoPrice > 0 ? promoPrice : basePrice).toFixed(2);
+                                const finalPrice = effectiveUnitPrice({ price: basePrice, promotionalPrice: promoPrice, promotionStartAt: fields.promotionStartAt?.stringValue || '', promotionEndAt: fields.promotionEndAt?.stringValue || '' }).toFixed(2);
                                 const category = fields.category?.stringValue || 'Destaques';
 
                                 if (pName) {

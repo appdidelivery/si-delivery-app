@@ -2,6 +2,8 @@ import React, { useEffect, useState } from 'react';
 import { collection, doc, onSnapshot, query, updateDoc, where } from 'firebase/firestore';
 import { db } from '../services/firebase';
 import { getMinWeightGrams, getWeightStepGrams } from '../lib/weightProducts';
+import PromotionScheduleFields from './PromotionScheduleFields';
+import { validatePromotion } from '../lib/promotions';
 
 const BUSINESS_TYPES = [
   ['mercado', 'Mercado / Supermercado (GroceryStore)'],
@@ -38,6 +40,8 @@ export default function MarketCatalogSettings({ store, onClose }) {
       saleUnit: product.saleUnit === 'kg' ? 'kg' : 'un',
       price: String(product.price ?? ''),
       promotionalPrice: String(product.promotionalPrice ?? 0),
+      promotionStartAt: product.promotionStartAt || '',
+      promotionEndAt: product.promotionEndAt || '',
       stock: String(product.stock ?? ''),
       weightStepGrams: String(getWeightStepGrams(product)),
       minWeightGrams: String(getMinWeightGrams(product))
@@ -65,10 +69,15 @@ export default function MarketCatalogSettings({ store, onClose }) {
       if (!Number.isFinite(price) || price <= 0) throw new Error('Informe um preço válido.');
       const promotionalPrice = parseNumber(editing.promotionalPrice || '0');
       if (!Number.isFinite(promotionalPrice) || promotionalPrice < 0) throw new Error('Preço promocional inválido.');
+      const scheduleError = validatePromotion({ price, promotionalPrice,
+        promotionStartAt: editing.promotionStartAt, promotionEndAt: editing.promotionEndAt });
+      if (scheduleError) throw new Error(scheduleError);
       const updates = {
         saleUnit: editing.saleUnit,
         price,
-        promotionalPrice
+        promotionalPrice,
+        promotionStartAt: editing.promotionStartAt || '',
+        promotionEndAt: editing.promotionEndAt || ''
       };
       if (editing.saleUnit === 'kg') {
         const stock = parseNumber(editing.stock);
@@ -145,6 +154,7 @@ export default function MarketCatalogSettings({ store, onClose }) {
               {field(editing.saleUnit === 'kg' ? 'Preço por 1 kg (R$)' : 'Preço por unidade (R$)', 'price')}
               {field('Preço promocional (R$)', 'promotionalPrice', '0 = sem promoção')}
             </div>
+            <PromotionScheduleFields product={editing} onChange={updates => setEditing(prev => ({ ...prev, ...updates }))} />
             {editing.saleUnit === 'kg' && <>
               {field('Estoque disponível (kg)', 'stock', 'Ao mudar de unidade para kg, informe o estoque em quilogramas.')}
               <div className="grid grid-cols-2 gap-3">
@@ -153,7 +163,7 @@ export default function MarketCatalogSettings({ store, onClose }) {
               </div>
               <p className="text-xs text-slate-600">Ex.: R$ 39,90/kg → 500 g = R$ 19,95; 1,5 kg = R$ 59,85.</p>
             </>}
-            <button disabled={saving} onClick={saveProduct} className="rounded-xl bg-emerald-600 px-4 py-2 font-bold text-white disabled:opacity-50">Salvar unidade e preços</button>
+            <button disabled={saving} onClick={saveProduct} className="rounded-xl bg-emerald-600 px-4 py-2 font-bold text-white disabled:opacity-50">Salvar unidade, preços e validade</button>
           </div>}
         </section>
         {message && <p role="status" className="rounded-lg bg-slate-100 p-3 text-sm">{message}</p>}
