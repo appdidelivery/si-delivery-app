@@ -64,7 +64,7 @@ export function effectivePromoPrice(product, now = Date.now()) {
   return promotionStatus(product, now) === 'active' ? Number(product.promotionOriginalPrice ?? product.promotionalPrice) : 0;
 }
 export function effectiveUnitPrice(product, now = Date.now()) {
-  return effectivePromoPrice(product, now) || Number(product?.price || 0);
+  return effectivePromoPrice(product, now) || Number(product?.catalogBasePrice ?? product?.price ?? 0);
 }
 export function validatePromotion(product) {
   const promotionalPrice = Number(product?.promotionalPrice || 0);
