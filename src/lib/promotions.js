@@ -47,7 +47,7 @@ export function presetPromotionRange(preset, today = dateInSaoPaulo()) {
   return { promotionStartAt: promotionStartIso(first), promotionEndAt: promotionEndIso(last) };
 }
 export function promotionStatus(product, now = Date.now()) {
-  const promo = Number(product?.promotionalPrice);
+  const promo = Number(product?.promotionOriginalPrice ?? product?.promotionalPrice);
   if (!Number.isFinite(promo) || promo <= 0) return 'none';
   const start = product?.promotionStartAt;
   const end = product?.promotionEndAt;
@@ -61,7 +61,7 @@ export function promotionStatus(product, now = Date.now()) {
   return 'active';
 }
 export function effectivePromoPrice(product, now = Date.now()) {
-  return promotionStatus(product, now) === 'active' ? Number(product.promotionalPrice) : 0;
+  return promotionStatus(product, now) === 'active' ? Number(product.promotionOriginalPrice ?? product.promotionalPrice) : 0;
 }
 export function effectiveUnitPrice(product, now = Date.now()) {
   return effectivePromoPrice(product, now) || Number(product?.price || 0);
