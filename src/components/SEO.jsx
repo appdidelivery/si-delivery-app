@@ -2,6 +2,7 @@ import React, { useEffect } from 'react';
 import { Helmet } from 'react-helmet-async';
 import { useStore } from '../context/StoreContext';
 import { getStoreIdFromHostname } from '../utils/domainHelper';
+import { effectiveUnitPrice } from '../lib/promotions';
 
 export default function SEO({ title, description, image, productData }) {
     const { store } = useStore();
@@ -151,6 +152,8 @@ export default function SEO({ title, description, image, productData }) {
                                 imageUrl: pf.imageUrl?.stringValue || '',
                                 price: pf.price?.doubleValue || pf.price?.integerValue || 0,
                                 promotionalPrice: pf.promotionalPrice?.doubleValue || pf.promotionalPrice?.integerValue || pf.promoPrice?.doubleValue || 0,
+                                promotionStartAt: pf.promotionStartAt?.stringValue || '',
+                                promotionEndAt: pf.promotionEndAt?.stringValue || '',
                                 stock: pf.stock?.integerValue !== undefined ? pf.stock.integerValue : 1,
                                 category: pf.category?.stringValue || 'Destaques'
                             };
@@ -173,7 +176,7 @@ export default function SEO({ title, description, image, productData }) {
                         "@type": "MenuSection",
                         "name": category,
                         "hasMenuItem": products.map((prod) => {
-                            const price = Number(prod.promotionalPrice > 0 ? prod.promotionalPrice : (prod.price || 0)).toFixed(2);
+                            const price = effectiveUnitPrice(prod).toFixed(2);
                             return {
                                 "@type": "MenuItem",
                                 "@id": `${safeOrigin}/p/${prod.id}#menu-item`,
@@ -208,7 +211,7 @@ export default function SEO({ title, description, image, productData }) {
                 // ESTRUTURA PARA A PÁGINA INDIVIDUAL DO PRODUTO (Seu código preservado)
                 let structuredData;
                 if (productData) {
-                    const rawPrice = productData.promotionalPrice > 0 ? productData.promotionalPrice : (productData.price || 0);
+                    const rawPrice = effectiveUnitPrice(productData);
                     structuredData = {
                         "@context": "https://schema.org",
                         "@type": isFoodBusiness ? "MenuItem" : "Product",
