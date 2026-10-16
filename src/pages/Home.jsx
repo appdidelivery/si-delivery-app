@@ -183,7 +183,7 @@ const renderCategoryIcon = (iconName, categoryName) => {
 
 const getPriceWithQuantityDiscount = (product, quantity) => {
     // 1. Define o preço base: Se tem promocional usa ele, senão usa o normal.
-    const basePrice = effectivePromoPrice(product) || Number(product.price);
+    const basePrice = effectivePromoPrice(product) || Number(product.catalogBasePrice ?? product.price);
     
     if (!product.quantityDiscounts || product.quantityDiscounts.length === 0) {
         return basePrice; 
@@ -2154,9 +2154,9 @@ export default function Home() {
 
       // 3. TERCEIRO: Atualizamos o carrinho marcando a flag do Upsell
       if (existingItem) {
-          return prev.map(i => i.id === p.id ? { ...i, quantity: newQuantity, price: finalPricePerUnit, isUpsell: i.isUpsell || isUpsell } : i);
+          return prev.map(i => i.id === p.id ? { ...i, quantity: newQuantity, price: finalPricePerUnit, catalogBasePrice: Number(p.price), promotionOriginalPrice: Number(p.promotionOriginalPrice ?? p.promotionalPrice), promotionStartAt: p.promotionStartAt || '', promotionEndAt: p.promotionEndAt || '', isUpsell: i.isUpsell || isUpsell } : i);
       } else {
-          return [...prev, { ...p, quantity: newQuantity, price: finalPricePerUnit, isUpsell, promotionWasActiveAtAdd: effectivePromoPrice(p) > 0 }];
+          return [...prev, { ...p, quantity: newQuantity, price: finalPricePerUnit, catalogBasePrice: Number(p.price), isUpsell, promotionWasActiveAtAdd: effectivePromoPrice(p) > 0 }];
       }
     });
 
