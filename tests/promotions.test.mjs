@@ -13,6 +13,11 @@ test('datas de São Paulo e limites do prazo com fim exclusivo',()=>{
   assert.equal(effectivePromoPrice(p,Date.parse('2026-10-19T03:00:00Z')),0);
   assert.equal(effectiveUnitPrice(p,Date.parse('2026-10-19T03:00:00Z')),49.9);
 });
+test('carrinho guarda o preço normal mesmo se a propriedade price contém desconto antigo',()=>{
+ const item={...p,price:39.9,catalogBasePrice:49.9,promotionOriginalPrice:39.9};
+ assert.equal(effectiveUnitPrice(item,Date.parse('2026-10-17T13:00:00Z')),39.9);
+ assert.equal(effectiveUnitPrice(item,Date.parse('2026-10-19T13:00:00Z')),49.9);
+});
 test('promoções sem datas continuam funcionando para lojas existentes',()=>{
   const legacy={price:20,promotionalPrice:15};
   assert.equal(promotionStatus(legacy,0),'active');
