@@ -250,8 +250,9 @@ exports.emitirNotaFiscal = functions.firestore
 
             // 1. Monta os itens blindados exatamente como o Suporte da Focus pediu
             const itensNfe = (order.items || []).map((item, index) => {
-                const qty = item.quantity;
+                const qty = Number(item.quantity);
                 const price = Number(item.price);
+                const unit = item.saleUnit === 'kg' ? 'KG' : 'UN';
                 
                 // Prioridade absoluta para as informações tributárias a nível de item (Evita erro de CFOP vs CSOSN)
                 const itemCfop = String(item.cfop || '').trim();
@@ -263,8 +264,8 @@ exports.emitirNotaFiscal = functions.firestore
                     codigo_produto: item.id || `ITEM-${index}`,
                     descricao: item.name.substring(0, 120),
                     cfop: itemCfop !== '' ? itemCfop : (fiscal.defaultCFOP || "5102"),
-                    unidade_comercial: "UN",
-                    unidade_tributavel: "UN",
+                    unidade_comercial: unit,
+                    unidade_tributavel: unit,
                     quantidade_comercial: qty,
                     quantidade_tributavel: qty,
                     valor_unitario_comercial: price,
