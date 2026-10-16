@@ -54,6 +54,7 @@ const PartnersMarketplace = lazy(() => import('../components/PartnersMarketplace
 const GoogleIntegrationDashboard = lazy(() => import('../components/GoogleIntegrationDashboard'));
 const MetaAdsDashboard = lazy(() => import('../components/MetaAdsDashboard'));
 const LinvixIntegrationPanel = lazy(() => import('../components/LinvixIntegrationPanel'));
+const MarketCatalogSettings = lazy(() => import('../components/MarketCatalogSettings'));
 
 // Helper para mostrar algo enquanto a aba pesada está baixando
 const LoadingTab = () => (
@@ -661,6 +662,7 @@ const [magicPromoDesc, setMagicPromoDesc] = useState('');
     const [dataFuelPeriod, setDataFuelPeriod] = useState(30); // <-- NOVO ESTADO DE FILTRO DE DATA
     const [isSyncingGoogle, setIsSyncingGoogle] = useState(false);
     const [globalSearchText, setGlobalSearchText] = useState('');
+    const [showMarketSettings, setShowMarketSettings] = useState(false);
     const [isGlobalSearchFocused, setIsGlobalSearchFocused] = useState(false);
 
     // Faz os botões do GA4 e GMB serem clicados sozinhos quando a data mudar
@@ -678,6 +680,7 @@ const [magicPromoDesc, setMagicPromoDesc] = useState('');
         { keywords: ['cupom', 'desconto', 'voucher', 'promoção'], tab: 'marketing', label: 'Criar Cupom de Desconto', icon: <Tags size={16}/> },
         { keywords: ['banner', 'imagem', 'fachada', 'carrossel', 'foto'], tab: 'banners', label: 'Gerenciar Banners da Loja', icon: <Image size={16}/> },
         { keywords: ['produto', 'lanche', 'pizza', 'bebida', 'estoque', 'adicionar item', 'novo item', 'preço'], tab: 'products', label: 'Gerenciar Produtos e Estoque', icon: <Package size={16}/> },
+        { keywords: ['mercado', 'supermercado', 'mercearia', 'carne', 'açougue', 'peso', 'gramas', 'kg', 'quilo'], tab: 'store_settings', openMarket: true, label: 'Mercado / Produtos por Peso (g e kg)', icon: <ShoppingBag size={16}/> },
         { keywords: ['categoria', 'seção', 'menu', 'cardápio'], tab: 'categories', label: 'Gerenciar Categorias', icon: <List size={16}/> },
         { keywords: ['entregador', 'motoboy', 'mapa', 'radar', 'rastreio', 'frota', 'gps'], tab: 'fleet', label: 'Monitor de Frota (Motoboys)', icon: <Truck size={16}/> },
         { keywords: ['fatura', 'pagar', 'cartão', 'pix', 'velopay', 'banco', 'receber', 'financeiro', 'taxa'], tab: 'finance', label: 'Financeiro e Recebimentos', icon: <Wallet size={16}/> },
@@ -4960,6 +4963,11 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
 
     return (
         <div className="flex min-h-screen bg-slate-50 font-sans text-slate-800">
+            {showMarketSettings && (
+                <Suspense fallback={<LoadingTab />}>
+                    <MarketCatalogSettings store={{ ...storeStatus, id: storeId, slug: storeId }} onClose={() => setShowMarketSettings(false)} />
+                </Suspense>
+            )}
             <aside className="w-64 bg-white border-r border-slate-100 p-6 hidden lg:flex flex-col sticky top-0 h-screen">
                 <div className="flex flex-col items-center mb-6">
                     <img src={storeStatus.storeLogoUrl} className="h-16 w-16 rounded-full border-4 border-blue-50 mb-4 object-cover" onError={(e) => e.target.src = "https://cdn-icons-png.flaticon.com/512/606/606197.png"} />
@@ -4998,6 +5006,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                             key={idx}
                                             onClick={() => {
                                                 setActiveTab(feat.tab);
+                                                if (feat.openMarket) setShowMarketSettings(true);
                                                 setGlobalSearchText('');
                                                 setIsGlobalSearchFocused(false);
                                             }}
@@ -7729,6 +7738,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                             <h1 className="text-4xl font-black italic tracking-tighter uppercase">Estoque</h1>
                             <div className="flex flex-wrap gap-3">
+                                <button type="button" onClick={() => setShowMarketSettings(true)} className="bg-emerald-700 text-white px-4 py-3 rounded-xl font-black flex items-center gap-2 hover:bg-emerald-800 uppercase tracking-widest text-[10px]">⚖️ Configurar Venda por Peso (g/kg)</button>
                                 {/* NOVO: BOTÃO EXPORTAR PLANILHA CSV */}
                                 <button 
                                     onClick={handleExportInventoryCSV}
@@ -12059,6 +12069,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                     { id: 'pizza', label: 'Pizzaria', icon: '🍕', color: '#e11d48' },
                                     { id: 'oriental', label: 'Oriental', icon: '🍣', color: '#111827' },
                                     { id: 'natural', label: 'Hortifruti', icon: '🥗', color: '#16a34a' },
+                                    { id: 'mercado', label: 'Mercado / Supermercado', icon: '🛒', color: '#16a34a' },
                                     { id: 'sweet', label: 'Doceria/Açaí', icon: '🍦', color: '#9333ea' },
                                     { id: 'burger', label: 'Hamburgueria', icon: '🍔', color: '#ea580c' },
                                     { id: 'drinks', label: 'Adega', icon: '🍷', color: '#f59e0b' },
@@ -12068,13 +12079,17 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                 ].map(nicho => (
                                     <button
                                         key={nicho.id}
-                                        onClick={() => updateDoc(doc(db, "stores", storeId), { storeNiche: nicho.id }, { merge: true })}
+                                        onClick={() => updateDoc(doc(db, "stores", storeId), { storeNiche: nicho.id, seoCategory: nicho.id })}
                                         className={`p-4 rounded-2xl border-2 flex flex-col items-center gap-2 transition-all ${storeStatus.storeNiche === nicho.id ? 'border-blue-600 bg-blue-50 shadow-md' : 'border-slate-100 bg-white hover:bg-slate-50'}`}
                                     >
                                         <div className="flex items-center justify-center w-8 h-8 rounded-full text-xl" style={{ backgroundColor: `${nicho.color}15`, color: nicho.color }}>{nicho.icon}</div>
                                         <span className="text-[10px] font-black uppercase text-slate-700 text-center">{nicho.label}</span>
                                     </button>
                                 ))}
+                            </div>
+                            <div className="mt-4 rounded-2xl border border-emerald-100 bg-emerald-50 p-4 flex flex-wrap items-center justify-between gap-3">
+                                <div><p className="text-sm font-black text-emerald-900">⚖️ Produtos por peso: g e kg</p><p className="text-xs text-emerald-700">Carnes, frios e hortifruti: defina preço/kg, mínimo e incrementos em gramas.</p></div>
+                                <button type="button" onClick={() => setShowMarketSettings(true)} className="rounded-xl bg-emerald-700 px-4 py-3 text-xs font-black text-white hover:bg-emerald-800">CONFIGURAR VENDA POR PESO</button>
                             </div>
 
                             <div className="mt-6 p-6 bg-slate-50 border border-slate-200 rounded-3xl space-y-4">
@@ -12701,6 +12716,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                                 onChange={(e) => updateDoc(doc(db, "stores", storeId), { seoCategory: e.target.value }, { merge: true })}
                                                 className="w-full p-5 bg-slate-50 rounded-2xl font-bold border-none text-slate-600 outline-none focus:ring-2 ring-blue-500 cursor-pointer"
                                             >
+                                                <option value="mercado">Mercado / Supermercado (GroceryStore)</option>
                                                 <option value="bakery">Padaria / Artesanal</option>
                                                 <option value="florist">Floricultura / Presentes</option>
                                                 <option value="burger">Hamburgueria / Fast Food</option>
