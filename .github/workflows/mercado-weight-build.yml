@@ -26,8 +26,8 @@ jobs:
         with:
           node-version: '22'
           cache: 'npm'
-      # @eslint/js v10 com eslint v8 é conflito preexistente no lockfile.
-      - run: npm ci --legacy-peer-deps
+      # Lockfile legado fora de sincronia com @vercel/queue; validar sem alterar o projeto.
+      - run: npm install --legacy-peer-deps --no-audit --no-fund
       - name: Testes de cálculo por peso
         run: node --test tests/weightProducts.test.mjs
       - name: Verificação de sintaxe fiscal
