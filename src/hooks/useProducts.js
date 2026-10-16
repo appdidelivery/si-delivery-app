@@ -1,11 +1,17 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { collection, query, where, getDocs } from 'firebase/firestore';
 import { db } from '../services/firebase';
+import { effectivePromoPrice } from '../lib/promotions';
 
 export default function useProducts(storeId, activeCategory, searchTerm) {
     const [allProducts, setAllProducts] = useState([]);
     const [loading, setLoading] = useState(true);
     const [visibleCount, setVisibleCount] = useState(12);
+    const [promotionClock, setPromotionClock] = useState(() => Date.now());
+    useEffect(() => {
+      const id = setInterval(() => setPromotionClock(Date.now()), 15000);
+      return () => clearInterval(id);
+    }, []);
 
     const fetchCatalog = useCallback(async () => {
         if (!storeId) return;
@@ -13,9 +19,10 @@ export default function useProducts(storeId, activeCategory, searchTerm) {
         // 1. CHAVE DO CACHE (Segurança e Isolamento por Loja)
         const cacheKey = `velo_catalog_${storeId}`;
         const cachedData = sessionStorage.getItem(cacheKey);
+        const fetchedAt = Number(sessionStorage.getItem(`${cacheKey}_fetchedAt`) || 0);
 
         // 2. SE TEM EM CACHE, USA A MEMÓRIA (Custo ZERO no Firebase)
-        if (cachedData) {
+        if (cachedData && fetchedAt > 0 && Date.now() - fetchedAt < 5 * 60 * 1000) {
             try {
                 setAllProducts(JSON.parse(cachedData));
                 setLoading(false);
@@ -38,6 +45,7 @@ export default function useProducts(storeId, activeCategory, searchTerm) {
             
             // 4. SALVA O RESULTADO NO CACHE DO NAVEGADOR
             sessionStorage.setItem(cacheKey, JSON.stringify(docs));
+            sessionStorage.setItem(`${cacheKey}_fetchedAt`, String(Date.now()));
         } catch (error) {
             console.error("Erro ao buscar produtos:", error);
         } finally {
@@ -71,11 +79,15 @@ export default function useProducts(storeId, activeCategory, searchTerm) {
             );
         }
 
-        const paginated = filtered.slice(0, visibleCount);
+        const paginated = filtered.slice(0, visibleCount).map(p => ({
+          ...p,
+          promotionOriginalPrice: Number(p.promotionalPrice || 0),
+          promotionalPrice: effectivePromoPrice(p, promotionClock)
+        }));
         const hasMoreItems = visibleCount < filtered.length;
 
         return { products: paginated, hasMore: hasMoreItems };
-    }, [allProducts, activeCategory, searchTerm, visibleCount]);
+    }, [allProducts, activeCategory, searchTerm, visibleCount, promotionClock]);
 
     return { 
         products, 
