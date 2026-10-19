@@ -1,5 +1,6 @@
 import { useStore } from '../../src/context/StoreContext';
 import React, { useState, useEffect } from 'react';
+import ProductSalesReport from '../components/ProductSalesReport';
 import { db, auth } from '../../src/services/firebase';
 import {
     collection, onSnapshot, doc, updateDoc, deleteDoc,
@@ -16658,7 +16659,9 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                                     </div>
                                                 </div>
 
-                                                {/* LISTAGEM DETALHADA DOS PEDIDOS DO CAIXA */}
+                                                <ProductSalesReport orders={filteredReportOrders} />
+
+                                                 {/* LISTAGEM DETALHADA DOS PEDIDOS DO CAIXA */}
                                                 <div className="mt-6 border-t border-slate-200 pt-6">
                                                     <h4 className="text-sm font-black text-slate-800 uppercase mb-4 flex items-center gap-2">
                                                         <List size={18}/> Lista de Pedidos ({reportSeller === 'todos' ? 'Geral' : reportSeller})
