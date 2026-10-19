@@ -1,6 +1,7 @@
 import { useStore } from '../../src/context/StoreContext';
 import React, { useState, useEffect } from 'react';
 import ProductSalesReport from '../components/ProductSalesReport';
+import InsightsProductSalesReport from '../components/InsightsProductSalesReport';
 import { db, auth } from '../../src/services/firebase';
 import {
     collection, onSnapshot, doc, updateDoc, deleteDoc,
@@ -5841,6 +5842,9 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                     )}
                                 </div>
                             </div>
+
+                            {/* Relatórios de vendas no Insights, somente para quem possui permissão financeira. */}
+                            {hasPermission('finance') && <InsightsProductSalesReport storeId={storeId} />}
 
                             {/* CONTAINER ONDE A IA VAI RESPONDER */}
                             {insightsResponse ? (
