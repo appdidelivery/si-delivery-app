@@ -22,6 +22,7 @@ import { buildUnifiedWhatsAppAudience, latestOrderPerPhone, addInboundLead } fro
 import { hasMarketingOptIn, hasEligibleMarketingConsent, normalizeMarketingPhone as normalizeVerifiedMarketingPhone, getLifecycleStage, brazilDayKey, isMarketingOptedOut, reserveMarketingAttempt } from '../lib/whatsappMarketingGuard.js';
 import { handleChangeTeamPassword } from '../server/changeTeamPassword.js';
 import { handleLinvixRequest, syncLinvixStore } from '../lib/linvix.js';
+import { handleWhatsAppQrManager, handleWhatsAppQrWebhook, sendWhatsAppQrReply } from '../server/whatsappQrConnection.js';
 
 // --- IMPORTAÇÕES OFICIAIS SOLANA ---
 // 🛡️ REMOVIDO: Imports estáticos da Solana causam Erro 500 (ERR_REQUIRE_ESM) na Vercel.
@@ -478,6 +479,7 @@ export default async function handler(req, res) {
         '/api/pos-webhook',
         '/api/velopay-webhook',
         '/api/whatsapp-webhook',
+        '/api/whatsapp-qr-webhook',
         '/api/ifood-webhook',
         '/api/cron-automations',
         '/api/football-radar',
@@ -550,6 +552,13 @@ export default async function handler(req, res) {
     }
 
     // BUILD VERSION (SEM CACHE) - usado pelo atualizador automático do painel
+    if (path === '/api/whatsapp-qr-webhook') {
+        return handleWhatsAppQrWebhook(req, res, { db, admin });
+    }
+    if (path === '/api/whatsapp-qr') {
+        return handleWhatsAppQrManager(req, res, { db, admin, assertStoreAccess });
+    }
+
     if (path === '/api/journey-schedule') {
         res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
         return scheduleJourneyRequest(req, res);
@@ -2094,6 +2103,17 @@ const aiResponse = await fetchGeminiWithRetry(`https://generativelanguage.google
             }
 
             const waConfig = settingsData.integrations?.whatsapp;
+            // Sessão QR funciona apenas para respostas individuais, nunca para campanhas Meta.
+            if (waConfig?.connectionMode === 'qr' && !waConfig.phoneNumberId && !waConfig.apiToken) {
+                if (action !== 'chat_reply') {
+                    return res.status(400).json({ success: false, error: 'Este recurso exige a API Oficial da Meta. A sessão por QR permite respostas do chat.' });
+                }
+                if (dynamicParams?.mediaUrl || !dynamicParams?.text) {
+                    return res.status(400).json({ success: false, error: 'A conexão QR aceita apenas mensagens de texto neste momento.' });
+                }
+                const reply = await sendWhatsAppQrReply({ storeId, toPhone, text: String(dynamicParams.text) });
+                return res.status(reply.success ? 200 : 502).json(reply);
+            }
             if (!waConfig || !waConfig.phoneNumberId || !waConfig.apiToken) {
                 return res.status(400).json({ error: 'WhatsApp não configurado.' });
             }

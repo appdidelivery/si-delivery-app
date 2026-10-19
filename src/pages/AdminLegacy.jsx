@@ -2,6 +2,7 @@ import { useStore } from '../../src/context/StoreContext';
 import React, { useState, useEffect } from 'react';
 import ProductSalesReport from '../components/ProductSalesReport';
 import InsightsProductSalesReport from '../components/InsightsProductSalesReport';
+import WhatsAppConnectionChoice from '../components/WhatsAppConnectionChoice';
 import { db, auth } from '../../src/services/firebase';
 import {
     collection, onSnapshot, doc, updateDoc, deleteDoc,
@@ -13591,6 +13592,11 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                 </div>
                             </div>
 
+                            <WhatsAppConnectionChoice
+                                storeId={storeId}
+                                metaConnected={Boolean(settings?.integrations?.whatsapp?.phoneNumberId && settings?.integrations?.whatsapp?.apiToken)}
+                                authenticatedFetch={authenticatedFetch}
+                            />
                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                                 {integrationList.map((app) => {
                                     //att    Verifica se esta integração já tem dados salvos no Firebase
