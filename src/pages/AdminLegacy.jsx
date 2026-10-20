@@ -1,6 +1,7 @@
 import { useStore } from '../../src/context/StoreContext';
 import React, { useState, useEffect } from 'react';
 import ProductSalesReport from '../components/ProductSalesReport';
+import ProductCatalogImportExport from '../components/ProductCatalogImportExport';
 import InsightsProductSalesReport from '../components/InsightsProductSalesReport';
 import WhatsAppConnectionChoice from '../components/WhatsAppConnectionChoice';
 import { db, auth } from '../../src/services/firebase';
@@ -7749,6 +7750,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                             <h1 className="text-4xl font-black italic tracking-tighter uppercase">Estoque</h1>
                             <div className="flex flex-wrap gap-3">
                                 <button type="button" onClick={() => setShowMarketSettings(true)} className="bg-emerald-700 text-white px-4 py-3 rounded-xl font-black flex items-center gap-2 hover:bg-emerald-800 uppercase tracking-widest text-[10px]">⚖️ Configurar Venda por Peso (g/kg)</button>
+                                <ProductCatalogImportExport storeId={storeId} storeName={storeStatus?.name} products={products} categories={categories} />
                                 {/* NOVO: BOTÃO EXPORTAR PLANILHA CSV */}
                                 <button 
                                     onClick={handleExportInventoryCSV}
