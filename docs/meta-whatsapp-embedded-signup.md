@@ -1,0 +1,30 @@
+# WhatsApp oficial — onboarding dos lojistas Velo
+
+## Fluxo implantado
+- Admin > Integrações > Conectar WhatsApp Oficial — Meta.
+- Lojista escolhe **Já uso WhatsApp Business (Coexistência)** ou **Novo número para API**.
+- Facebook Login for Business / Embedded Signup (Meta v4) retorna código de autorização.
+- Backend `POST /api/whatsapp-embedded-signup` valida identidade da loja, troca código no servidor, valida permissões, WABA/número, impede vinculação cruzada e assina `/{waba_id}/subscribed_apps`.
+- Coexistência concluída: armazena dados nas configurações da loja. Novo número: fica em `integrations.whatsappPending` até `POST /{phone_number_id}/register` com PIN de seis dígitos; não inicia automações antes do registro.
+- Lojas já integradas via Cloud API (ex.: csi) não são modificadas.
+- O onboarding **não utiliza Evolution/WhatsApp Web**. O recurso antigo foi retirado da UI e das rotas ativas.
+
+## Passos externos obrigatórios para habilitação real
+1. No app Meta **associado ao `META_APP_ID` já existente**, habilitar produto WhatsApp e **Embedded Signup / Facebook Login for Business versão v4**.
+2. Criar configuração de Embedded Signup com WhatsApp Business Accounts, números e permissões `whatsapp_business_management` e `whatsapp_business_messaging`. Habilitar Coexistência na configuração se desejar suportar números existentes no WhatsApp Business.
+3. Concluir Business Verification, App Review e Advanced Access necessários para que lojistas externos possam autorizar. Sem aprovação, o fluxo pode funcionar apenas para administradores/testadores do app.
+4. Configurar domínios JS SDK/OAuth: `app.velodelivery.com.br` e outros hosts de painel permitidos, com redirect URLs exatas segundo a configuração Meta.
+5. Confirmar configuração do produto Webhooks no app Meta: callback HTTPS `https://app.velodelivery.com.br/api/whatsapp-webhook` (já existente), assinatura de `messages` e campos da modalidade Coexistência (`account_update`, `history`, `smb_app_state_sync`, `smb_message_echoes`). Verificar entrega e resposta em loja de teste.
+6. No Vercel do projeto, cadastrar **somente após criar a configuração Meta** `META_WHATSAPP_CONFIG_ID` (ID da configuração v4) e `META_WEBHOOK_VERIFY_TOKEN` (igual ao token definido no Webhooks da Meta). **Não substituir tokens existentes sem validar o callback**: o webhook já atende Conveniência Santa Isabel.
+7. Testar com novo lojista e números válidos; conferir `phone_number_id`, `waba_id`, recebimento, resposta e status de entrega. Para números novos, concluir registro com PIN. Para coexistência, validar eventos e sincronização exigidos pela Meta.
+
+## Segurança e restrições
+- Nunca colocar `META_APP_SECRET` no browser. O backend executa a troca do código.
+- O `configId` e `appId` retornados pela rota de status são identificadores públicos.
+- O endpoint restringe a integração ao proprietário ou administrador autorizado, não altera uma conexão ativa e não devolve credenciais em respostas de status.
+- O fluxo de QR/Coexistência **não é** uma sessão WhatsApp Web.
+- O sistema legado guarda `apiToken` em `settings.integrations.whatsapp` para manter compatibilidade com chat e rotinas existentes. É necessário um trabalho posterior de migração de segredos para armazenamento restrito ao servidor, com revisão das regras Firestore.
+- A tela verifica presença das variáveis mas não comprova aprovação na Meta: esta depende de ativação externa e teste real.
+
+## Rollout
+Recomendado: testar o Monte Verde assim que houver chip e aprovação Meta; preservar a CSI; expandir aos demais lojistas depois da validação de ponta a ponta.

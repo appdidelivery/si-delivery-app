@@ -1,140 +1,141 @@
-import React, { useCallback, useEffect, useState } from 'react';
-import { CheckCircle2, Loader2, QrCode, ShieldCheck, Smartphone, RefreshCw, AlertTriangle } from 'lucide-react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { CheckCircle2, ShieldCheck, Smartphone, Loader2, AlertTriangle } from 'lucide-react';
 
-// Onboarding por loja: não modifica a API Cloud já ativa.
 export default function WhatsAppConnectionChoice({ storeId, metaConnected, authenticatedFetch }) {
-  const [method, setMethod] = useState('official');
-  const [available, setAvailable] = useState(null);
+  const fetchRef = useRef(authenticatedFetch);
+  fetchRef.current = authenticatedFetch;
+  const session = useRef(null);
+  const code = useRef(null);
+  const started = useRef(false);
+  const timer = useRef(null);
+  const selectedMode = useRef('coexistence');
+  const [config, setConfig] = useState(null);
+  const [mode, setMode] = useState('coexistence');
   const [busy, setBusy] = useState(false);
-  const [qr, setQr] = useState('');
-  const [connected, setConnected] = useState(false);
+  const [pin, setPin] = useState('');
   const [error, setError] = useState('');
-  const [scanning, setScanning] = useState(false);
-  const api = useCallback(async action => {
-    const response = await authenticatedFetch('/api/whatsapp-qr', {
+  const [message, setMessage] = useState('');
+
+  const api = useCallback(async (action, values = {}) => {
+    const response = await fetchRef.current('/api/whatsapp-embedded-signup', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ storeId, action })
+      body: JSON.stringify({ storeId, action, ...values })
     });
     const data = await response.json();
-    if (!response.ok || !data.success) throw new Error(data.error || 'Não foi possível consultar a conexão.');
+    if (!response.ok || !data.success) throw new Error(data.error || 'Falha na conexão Meta.');
     return data;
-  }, [storeId, authenticatedFetch]);
+  }, [storeId]);
+
+  const refresh = useCallback(async () => {
+    setConfig(await api('status'));
+  }, [api]);
 
   useEffect(() => {
-    let mounted = true;
-    setQr(''); setConnected(false); setError(''); setScanning(false); setAvailable(null); setMethod('official');
-    if (storeId) api('availability').then(data => {
-      if (mounted) { setAvailable(data); setConnected(data.connectedMode === 'qr'); }
-    }).catch(err => { if (mounted) setError(err.message); });
-    return () => { mounted = false; };
-  }, [storeId, metaConnected]);
+    let current = true;
+    setConfig(null); setError(''); setMessage('');
+    api('status').then(s => { if (current) setConfig(s); })
+      .catch(e => { if (current) setError(e.message); });
+    return () => { current = false; if (timer.current) clearTimeout(timer.current); };
+  }, [api]);
 
-  useEffect(() => {
-    if (!scanning || method !== 'qr' || !storeId) return undefined;
-    let alive = true;
-    const interval = setInterval(async () => {
-      try {
-        const status = await api('status');
-        if (alive && status.connected) {
-          setConnected(true); setScanning(false); setQr(''); setError('');
-        }
-      } catch (err) { if (alive) setError(err.message); }
-    }, 4000);
-    return () => { alive = false; clearInterval(interval); };
-  }, [scanning, method, storeId, api]);
-
-  const run = async action => {
-    setBusy(true); setError('');
+  const complete = useCallback(async () => {
+    if (!code.current || started.current) return;
+    started.current = true;
+    setBusy(true);
+    if (timer.current) clearTimeout(timer.current);
     try {
-      const result = await api(action);
-      if (result.connected) {
-        setConnected(true); setQr(''); setScanning(false);
-      } else {
-        setConnected(false);
-        if (result.needsCreate) {
-          setError('A instância ainda não foi criada. Clique em Gerar QR Code.');
-        }
-        if (result.qr) {
-          setQr(result.qr);
-          setScanning(true);
-        } else if (action === 'create') {
-          const second = await api('qr');
-          if (second.qr) { setQr(second.qr); setScanning(true); }
-          else setError('Aguardando o servidor gerar a imagem. Clique em Atualizar QR Code.');
-        }
-      }
-    } catch (err) { setError(err.message); }
+      const selected = session.current;
+      const result = await api('complete', {
+        code: code.current,
+        wabaId: selected?.wabaId,
+        phoneNumberId: selected?.phoneNumberId,
+        coexistence: selectedMode.current === 'coexistence' && selected?.event === 'FINISH_WHATSAPP_BUSINESS_APP_ONBOARDING'
+      });
+      setMessage(result.active ? 'Conta oficial vinculada à Velo.' : 'Conta autorizada: conclua o registro do número.');
+      code.current = null;
+      await refresh();
+    } catch (e) { setError(e.message); }
     finally { setBusy(false); }
+  }, [api, refresh]);
+  const completeRef = useRef(complete);
+  completeRef.current = complete;
+
+  useEffect(() => {
+    const listener = event => {
+      if (!['https://www.facebook.com', 'https://web.facebook.com'].includes(event.origin)) return;
+      let data = event.data;
+      if (typeof data === 'string') { try { data = JSON.parse(data); } catch { return; } }
+      if (data?.type !== 'WA_EMBEDDED_SIGNUP') return;
+      const name = String(data.event || '').toUpperCase();
+      if (['FINISH', 'FINISH_ONLY_WABA', 'FINISH_WHATSAPP_BUSINESS_APP_ONBOARDING'].includes(name)) {
+        session.current = { wabaId: data.data?.waba_id, phoneNumberId: data.data?.phone_number_id, event: name };
+        if (code.current) void completeRef.current();
+      }
+    };
+    window.addEventListener('message', listener);
+    return () => window.removeEventListener('message', listener);
+  }, []);
+
+  const connect = () => {
+    setError(''); setMessage('');
+    if (!config?.ready || !config.configId) return setError('Integração Meta pendente de configuração.');
+    if (!window.FB?.login) return setError('SDK da Meta indisponível. Atualize a página e tente novamente.');
+    code.current = null; session.current = null; started.current = false; selectedMode.current = mode;
+    window.FB.init({ appId: config.appId, cookie: true, xfbml: false, version: 'v25.0' });
+    window.FB.login(response => {
+      if (!response?.authResponse?.code) return setError('Autorização cancelada ou não concluída.');
+      code.current = response.authResponse.code;
+      setBusy(true);
+      if (session.current) void completeRef.current();
+      else timer.current = setTimeout(() => void completeRef.current(), 1800);
+    }, {
+      config_id: config.configId, response_type: 'code', override_default_response_type: true,
+      extras: mode === 'coexistence' ? { setup: {}, featureType: 'whatsapp_business_app_onboarding' } : { setup: {} }
+    });
   };
 
-  const disconnect = async () => {
-    if (!window.confirm('Desconectar este WhatsApp da Velo? Esta ação encerra a sessão vinculada ao número.')) return;
-    setBusy(true); setError('');
-    try { await api('disconnect'); setConnected(false); setScanning(false); setQr(''); }
+  const register = async e => {
+    e.preventDefault(); setBusy(true); setError('');
+    try { await api('register', { pin }); setPin(''); setMessage('Número registrado com sucesso.'); await refresh(); }
     catch (err) { setError(err.message); }
     finally { setBusy(false); }
   };
-
   return (
-    <section className="bg-white border border-slate-200 rounded-3xl p-5 md:p-7 shadow-sm space-y-5">
-      <div>
-        <h2 className="text-xl font-black text-slate-900 uppercase">Conectar WhatsApp da loja</h2>
-        <p className="text-xs text-slate-500 mt-1">Escolha como vincular o número. Cada loja possui sua própria conexão.</p>
-      </div>
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-        <button type="button" onClick={() => { setMethod('official'); setScanning(false); }} className={`p-4 text-left rounded-2xl border-2 transition-all ${method === 'official' ? 'border-green-500 bg-green-50' : 'border-slate-200 hover:border-green-200'}`}>
-          <div className="flex items-center gap-2 text-green-700 font-black"><ShieldCheck size={20}/> API oficial da Meta</div>
-          <p className="text-xs text-slate-600 mt-2">Recomendada para chat, automações e campanhas com modelos aprovados.</p>
-          {metaConnected && <span className="inline-block mt-2 text-[10px] text-green-700 font-black">CONECTADA NESTA LOJA</span>}
-        </button>
-        <button type="button" onClick={() => setMethod('qr')} className={`p-4 text-left rounded-2xl border-2 transition-all ${method === 'qr' ? 'border-blue-500 bg-blue-50' : 'border-slate-200 hover:border-blue-200'}`}>
-          <div className="flex items-center gap-2 text-blue-700 font-black"><QrCode size={20}/> Conexão por QR Code</div>
-          <p className="text-xs text-slate-600 mt-2">Vincula como aparelho conectado. O número continua no WhatsApp Business do celular.</p>
-          {available?.connectedMode === 'qr' && <span className="inline-block mt-2 text-[10px] text-blue-700 font-black">SESSÃO VINCULADA</span>}
-        </button>
-      </div>
-      {method === 'official' ? (
-        <div className="rounded-xl bg-green-50 border border-green-100 p-4 text-sm text-green-900">
-          {metaConnected
-            ? 'A API Oficial já está configurada. Nenhuma alteração será feita. Você pode gerenciar as credenciais e automações no cartão WhatsApp API abaixo.'
-            : 'Para usar a API Oficial, abra o cartão WhatsApp API na seção de integrações abaixo. Essa opção exige configuração e aprovação junto à Meta.'}
+    <section className="bg-white border border-slate-200 rounded-3xl p-6 space-y-5">
+      <h2 className="text-xl font-black text-slate-900 flex items-center gap-2"><ShieldCheck className="text-green-600"/> Conectar WhatsApp Oficial — Meta</h2>
+      <p className="text-sm text-slate-500">Vinculação pela Meta Cloud API, sem Evolution e sem copiar tokens.</p>
+      {!config ? <p className="text-sm text-slate-500"><Loader2 size={18} className="animate-spin inline"/> Consultando configurações...</p> :
+      (config.active || metaConnected) ? (
+        <div className="bg-green-50 border border-green-200 rounded-xl p-5 text-green-800">
+          <p className="font-black flex items-center gap-2"><CheckCircle2 size={20}/> WhatsApp oficial conectado</p>
+          <p className="text-sm mt-1">{config.phone || 'A conexão atual será preservada.'}</p>
         </div>
+      ) : config.pending ? (
+        <form className="bg-blue-50 border border-blue-200 p-5 rounded-xl space-y-3" onSubmit={register}>
+          <p className="font-black text-blue-800">Registrar número {config.phone}</p>
+          <p className="text-sm text-blue-800">Informe o PIN de seis dígitos de verificação em duas etapas. Guarde esse PIN com segurança.</p>
+          <input value={pin} onChange={e=>setPin(e.target.value.replace(/\D/g,''))} maxLength={6} inputMode="numeric" autoComplete="off" type="password" placeholder="PIN de 6 dígitos" className="block bg-white border rounded-lg p-3"/>
+          <button type="submit" disabled={busy || pin.length!==6} className="bg-blue-700 text-white px-5 py-3 rounded-xl font-bold disabled:opacity-50">Concluir registro</button>
+        </form>
       ) : (
-        <div className="rounded-2xl bg-blue-50/60 border border-blue-100 p-4 md:p-6 space-y-4">
-          {metaConnected ? (
-            <p className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-amber-800 font-bold text-sm">Esta loja já usa a API Oficial. O sistema não permite substituir automaticamente a conexão para evitar perda de atendimento.</p>
-          ) : !available?.enabled ? (
-            <p className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-amber-800 font-bold text-sm flex items-start gap-2">
-              <AlertTriangle size={20} className="shrink-0"/> QR Code ainda depende da habilitação do servidor Evolution API pela equipe Velo. Nenhum número será desconectado.
-            </p>
-          ) : (
-            <>
-              {connected ? (
-                <div className="flex flex-col gap-3">
-                  <span className="flex items-center gap-2 text-green-700 font-black"><CheckCircle2/> WhatsApp vinculado ao painel Velo!</span>
-                  <div className="flex gap-3 flex-wrap">
-                    <button type="button" disabled={busy} onClick={() => run('status')} className="bg-white border rounded-xl px-4 py-3 font-bold text-xs text-blue-700">Verificar conexão</button>
-                    <button type="button" disabled={busy} onClick={disconnect} className="bg-white border border-red-200 rounded-xl px-4 py-3 font-bold text-xs text-red-600">Desconectar sessão</button>
-                  </div>
-                </div>
-              ) : (
-                <div className="flex flex-col items-center text-center gap-3">
-                  <div className="flex items-center gap-2 font-black text-slate-800"><Smartphone size={20}/> Leia o QR com o WhatsApp Business</div>
-                  {qr && <img src={qr} alt="QR Code para vincular WhatsApp ao painel Velo" className="w-56 h-56 bg-white rounded-xl p-2 border border-blue-100" />}
-                  <p className="text-xs text-slate-600 max-w-md">No celular com o número da loja, abra WhatsApp Business → Aparelhos conectados → Conectar um aparelho e aponte a câmera para o código.</p>
-                  {scanning && <p className="text-xs font-black text-blue-600 flex items-center gap-2"><Loader2 className="animate-spin" size={15}/> Aguardando leitura do QR...</p>}
-                  <div className="flex gap-3 justify-center flex-wrap">
-                    <button type="button" disabled={busy} onClick={() => run('create')} className="bg-blue-600 rounded-xl text-white px-5 py-3 text-xs font-black uppercase flex gap-2 items-center disabled:opacity-50">{busy ? <Loader2 size={16} className="animate-spin"/> : <QrCode size={16}/>} Gerar QR Code</button>
-                    <button type="button" disabled={busy} onClick={() => run('qr')} className="bg-white border border-blue-200 rounded-xl text-blue-700 px-5 py-3 text-xs font-black uppercase flex gap-2 items-center disabled:opacity-50"><RefreshCw size={16}/> Atualizar QR</button>
-                  </div>
-                </div>
-              )}
-            </>
-          )}
-          {error && <p role="alert" className="text-xs font-bold text-red-700 rounded-xl bg-red-50 border border-red-100 p-3">{error}</p>}
-          <p className="text-[11px] text-slate-500">Esta modalidade usa uma sessão vinculada, não a API oficial. Pode exigir reconexão e não libera campanhas por modelos da Meta. A conexão só é marcada como ativa após confirmação do servidor.</p>
+        <div className="space-y-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <button type="button" disabled={busy} onClick={()=>setMode('coexistence')} className={`text-left border-2 p-4 rounded-xl ${mode==='coexistence'?'border-green-500 bg-green-50':'border-slate-200'}`}>
+              <p className="font-black flex items-center gap-2"><Smartphone size={18}/> Já uso WhatsApp Business</p>
+              <p className="text-xs mt-2">Coexistência: manter aplicativo no celular quando elegível.</p>
+            </button>
+            <button type="button" disabled={busy} onClick={()=>setMode('new')} className={`text-left border-2 p-4 rounded-xl ${mode==='new'?'border-green-500 bg-green-50':'border-slate-200'}`}>
+              <p className="font-black">Novo número para API</p>
+              <p className="text-xs mt-2">Verificação e registro de número dedicado à Cloud API.</p>
+            </button>
+          </div>
+          <button type="button" disabled={busy || !config.ready} onClick={connect} className="bg-green-600 text-white rounded-xl p-4 font-black disabled:opacity-50">{busy?'Autorizando...':'Conectar oficialmente com a Meta'}</button>
+          {!config.ready && <p className="text-sm bg-amber-50 border border-amber-200 p-4 rounded-xl text-amber-900 flex items-start gap-2"><AlertTriangle size={20}/> Falta configurar: {(config.missing || []).join('; ')}. <a className="underline" href="https://developers.facebook.com/apps/" target="_blank" rel="noopener noreferrer">Meta Developers</a></p>}
+          <p className="text-xs text-slate-500">O cadastro abre uma janela oficial da Meta. Não usa QR Code do WhatsApp Web.</p>
         </div>
       )}
+      {error && <p role="alert" className="text-red-700 bg-red-50 rounded-xl p-3 text-sm">{error}</p>}
+      {message && <p role="status" className="text-green-700 bg-green-50 rounded-xl p-3 text-sm">{message}</p>}
     </section>
   );
 }

@@ -13562,7 +13562,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                         { 
                             id: 'whatsapp', 
                             name: 'WhatsApp API', 
-                            desc: 'Disparos automáticos pela API Oficial Cloud.', 
+                            desc: 'Credenciais avançadas (legado). Para novos lojistas, use Conectar oficialmente com a Meta acima.', 
                             icon: <FaWhatsapp className="text-green-500" size={40}/>, 
                             fields:[
                                 {key: 'phoneNumberId', label: 'ID do Número de Telefone'}, 
