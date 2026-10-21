@@ -1,4 +1,5 @@
 import { trackMetaPurchase } from '../utils/metaPixel.js';
+import { trackGooglePurchase } from '../utils/googlePurchase.js';
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { db, auth } from '../../src/services/firebase'; 
@@ -68,6 +69,16 @@ export default function Tracking() {
     if (order?.paymentStatus === 'paid' && order?.orderType !== 'garcom') {
       trackMetaPurchase(order.id, order);
     }
+  }, [order]);
+
+  // Only the buyer's original device attributes paid online orders to Google.
+  // The order is observed from Firestore; an unconfirmed checkout is never a purchase.
+  useEffect(() => {
+    if (!order || order.paymentStatus !== 'paid') return;
+    try {
+      if (localStorage.getItem('activeOrderId') !== order.id) return;
+    } catch { return; }
+    trackGooglePurchase(order);
   }, [order]);
 
   // MOTOR 1: OUVINTE DO REALTIME DATABASE
