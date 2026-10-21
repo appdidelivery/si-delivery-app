@@ -81,7 +81,7 @@ export default function WhatsAppConnectionChoice({ storeId, metaConnected, authe
     if (!config?.ready || !config.configId) return setError('Integração Meta pendente de configuração.');
     if (!window.FB?.login) return setError('SDK da Meta indisponível. Atualize a página e tente novamente.');
     code.current = null; session.current = null; started.current = false; selectedMode.current = mode;
-    window.FB.init({ appId: config.appId, cookie: true, xfbml: false, version: 'v25.0' });
+    window.FB.init({ appId: config.appId, cookie: true, xfbml: false, version: 'v26.0' });
     window.FB.login(response => {
       if (!response?.authResponse?.code) return setError('Autorização cancelada ou não concluída.');
       code.current = response.authResponse.code;
