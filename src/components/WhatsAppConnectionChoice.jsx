@@ -90,7 +90,9 @@ export default function WhatsAppConnectionChoice({ storeId, metaConnected, authe
       else timer.current = setTimeout(() => void completeRef.current(), 1800);
     }, {
       config_id: config.configId, response_type: 'code', override_default_response_type: true,
-      extras: mode === 'coexistence' ? { setup: {}, featureType: 'whatsapp_business_app_onboarding' } : { setup: {} }
+      extras: mode === 'coexistence'
+        ? { version: 'v4', featureType: 'whatsapp_business_app_onboarding' }
+        : { version: 'v4' }
     });
   };
 
