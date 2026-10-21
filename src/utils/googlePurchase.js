@@ -46,6 +46,7 @@ function ensureGoogleTag(destinationId) {
 }
 
 export function trackGooglePurchase(order) {
+  try {
   if (!isGooglePurchaseEligible(order)) return false;
   const { ga4Id = '', adsId = '', conversionLabel = '' } = order.googleTracking || {};
   const hasGa4 = validGa4(ga4Id);
@@ -93,4 +94,8 @@ export function trackGooglePurchase(order) {
   purchasesSent.add(key);
   try { localStorage.setItem(key, '1'); } catch { /* Keep in-memory protection. */ }
   return true;
+  } catch {
+    // Analytics must never break order creation or the customer tracking page.
+    return false;
+  }
 }

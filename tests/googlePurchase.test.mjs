@@ -51,3 +51,17 @@ test('emits each confirmed purchase once and explicitly targets the correct GA4 
   assert.equal(events[1][1], 'conversion');
   assert.equal(events[1][2].send_to, 'AW-12345/Label_1');
 });
+
+test('never throws when the Google script is blocked', () => {
+  globalThis.window = { dataLayer: [] };
+  globalThis.document = {
+    getElementById() { return null; },
+    createElement() { return {}; },
+    head: { appendChild() { throw new Error('blocked'); } },
+  };
+  globalThis.localStorage = { getItem() { return null; }, setItem() {} };
+  assert.equal(trackGooglePurchase({
+    id: 'blocked-order', storeId: 'shop', paymentStatus: 'paid',
+    googleTracking: { ga4Id: 'G-3MZRMRQ8XJ' },
+  }), false);
+});
