@@ -1412,8 +1412,8 @@ const educationalBanners = [
 
     // --- 🧠 MOTOR DE CÁLCULO GLOBAL: CURVA ABC E CAPITAL PARADO ---
     // Movido para o topo para respeitar as Regras de Hooks do React
-    const { abcData, capitalParado } = React.useMemo(() => {
-        if (activeTab !== 'products') return { abcData: {}, capitalParado: 0 };
+    const { abcData, capitalParado, capitalParadoIds } = React.useMemo(() => {
+        if (activeTab !== 'products') return { abcData: {}, capitalParado: 0, capitalParadoIds: new Set() };
         
         const trintaDiasAtras = Date.now() - (30 * 24 * 60 * 60 * 1000);
         const vendasPorProduto = {};
@@ -1444,13 +1444,16 @@ const educationalBanners = [
         });
 
         let capParado = 0;
+        const capitalParadoIds = new Set();
         products.forEach(p => {
             if (!produtosVendidosSet.has(p.id) && p.stock !== undefined && p.stock !== '' && Number(p.stock) > 0) {
-                capParado += (Number(p.costPrice) || 0) * Number(p.stock);
+                const custoEmEstoque = (Number(p.costPrice) || 0) * Number(p.stock);
+                capParado += custoEmEstoque;
+                if (custoEmEstoque > 0) capitalParadoIds.add(p.id);
             }
         });
 
-        return { abcData: abcMap, capitalParado: capParado };
+        return { abcData: abcMap, capitalParado: capParado, capitalParadoIds };
     }, [orders, products, activeTab]);
 
     // --- ESTADOS DO MODAL DE MOVIMENTAÇÃO DE ESTOQUE ---
@@ -7898,6 +7901,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                         <div className="flex gap-2 overflow-x-auto custom-scrollbar pb-4 mb-2 -mt-2">
                             <button onClick={() => setProductSmartFilter('all')} className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest whitespace-nowrap transition-all border shadow-sm ${productSmartFilter === 'all' ? 'bg-slate-800 text-white border-slate-800' : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-50'}`}>📦 Todos</button>
                             <button onClick={() => setProductSmartFilter('zerado')} className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest whitespace-nowrap transition-all border shadow-sm ${productSmartFilter === 'zerado' ? 'bg-red-500 text-white border-red-500' : 'bg-white text-red-500 border-red-100 hover:bg-red-50'}`}>🚨 Estoque Zerado</button>
+                            <button onClick={() => setProductSmartFilter('parado')} aria-pressed={productSmartFilter === 'parado'} title="Produtos com custo em estoque e sem vendas nos últimos 30 dias" className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest whitespace-nowrap transition-all border shadow-sm ${productSmartFilter === 'parado' ? 'bg-rose-600 text-white border-rose-600' : 'bg-white text-rose-600 border-rose-200 hover:bg-rose-50'}`}>⏳ Capital Parado +30d ({capitalParadoIds.size})</button>
                             <button onClick={() => setProductSmartFilter('fiscal')} className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest whitespace-nowrap transition-all border shadow-sm ${productSmartFilter === 'fiscal' ? 'bg-orange-500 text-white border-orange-500' : 'bg-white text-orange-500 border-orange-100 hover:bg-orange-50'}`}>⚠️ Pendência Fiscal</button>
                             <button onClick={() => setProductSmartFilter('imagem')} className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest whitespace-nowrap transition-all border shadow-sm ${productSmartFilter === 'imagem' ? 'bg-purple-500 text-white border-purple-500' : 'bg-white text-purple-500 border-purple-100 hover:bg-purple-50'}`}>🖼️ Sem Imagem</button>
                         </div>
@@ -7931,6 +7935,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                 // Filtros Rápidos (Smart Tabs)
                                 let matchesSmart = true;
                                 if (productSmartFilter === 'zerado') matchesSmart = p.stock !== undefined && p.stock !== '' && Number(p.stock) <= 0;
+                                if (productSmartFilter === 'parado') matchesSmart = capitalParadoIds.has(p.id);
                                 if (productSmartFilter === 'fiscal') matchesSmart = !p.ncm || !p.cfop || !p.csosn_cst;
                                 if (productSmartFilter === 'imagem') matchesSmart = !p.imageUrl;
 
@@ -7978,7 +7983,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                         <div className="bg-white p-12 rounded-[3rem] border-2 border-dashed border-slate-200 text-center flex flex-col items-center">
                                             <Package size={48} className="text-slate-300 mb-4" />
                                             <p className="text-slate-500 font-bold">Nenhum produto encontrado com esses filtros.</p>
-                                            <button onClick={() => {setProductFilterCategory('all'); setProductFilterStatus('all'); setProductSearch('');}} className="mt-4 text-blue-600 font-black text-xs uppercase tracking-widest hover:underline">Limpar Filtros</button>
+                                            <button onClick={() => {setProductFilterCategory('all'); setProductFilterStatus('all'); setProductSmartFilter('all'); setProductSearch('');}} className="mt-4 text-blue-600 font-black text-xs uppercase tracking-widest hover:underline">Limpar Filtros</button>
                                         </div>
                                     ) : (
                                         <>
