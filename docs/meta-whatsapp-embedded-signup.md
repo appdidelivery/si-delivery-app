@@ -15,11 +15,11 @@
 3. Concluir Business Verification, App Review e Advanced Access necessários para que lojistas externos possam autorizar. Sem aprovação, o fluxo pode funcionar apenas para administradores/testadores do app.
 4. Configurar domínios JS SDK/OAuth: `app.velodelivery.com.br` e outros hosts de painel permitidos, com redirect URLs exatas segundo a configuração Meta.
 5. Confirmar configuração do produto Webhooks no app Meta: callback HTTPS `https://app.velodelivery.com.br/api/whatsapp-webhook` (já existente), assinatura de `messages` e campos da modalidade Coexistência (`account_update`, `history`, `smb_app_state_sync`, `smb_message_echoes`). Verificar entrega e resposta em loja de teste.
-6. No Vercel do projeto, cadastrar **somente após criar a configuração Meta** `META_WHATSAPP_CONFIG_ID` (ID da configuração v4) e `META_WEBHOOK_VERIFY_TOKEN` (igual ao token definido no Webhooks da Meta). **Não substituir tokens existentes sem validar o callback**: o webhook já atende Conveniência Santa Isabel.
+6. No Vercel do projeto, cadastrar **somente após criar a configuração Meta** `META_WHATSAPP_CONFIG_ID` (ID da configuração v4), `META_WHATSAPP_APP_ID` (ID do app Velo Delivery), `META_WHATSAPP_APP_SECRET` (segredo exclusivo do app Velo Delivery) e `META_WEBHOOK_VERIFY_TOKEN` (igual ao token definido no Webhooks da Meta). **Não substituir tokens existentes sem validar o callback**: o webhook já atende Conveniência Santa Isabel.
 7. Testar com novo lojista e números válidos; conferir `phone_number_id`, `waba_id`, recebimento, resposta e status de entrega. Para números novos, concluir registro com PIN. Para coexistência, validar eventos e sincronização exigidos pela Meta.
 
 ## Segurança e restrições
-- Nunca colocar `META_APP_SECRET` no browser. O backend executa a troca do código.
+- Nunca colocar `META_WHATSAPP_APP_SECRET` no browser. O backend executa a troca do código. Não usar `META_APP_SECRET` legado de anúncios no WhatsApp.
 - O `configId` e `appId` retornados pela rota de status são identificadores públicos.
 - O endpoint restringe a integração ao proprietário ou administrador autorizado, não altera uma conexão ativa e não devolve credenciais em respostas de status.
 - O fluxo de QR/Coexistência **não é** uma sessão WhatsApp Web.

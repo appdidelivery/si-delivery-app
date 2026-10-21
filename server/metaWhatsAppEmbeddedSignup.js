@@ -4,7 +4,7 @@ const VERSION = /^v\d+\.\d+$/.test(process.env.META_GRAPH_VERSION || '') ? proce
 const digits = v => String(v || '').replace(/\D/g, '');
 export const isWhatsAppId = v => /^\d{6,30}$/.test(String(v || ''));
 export const validatePin = v => /^\d{6}$/.test(String(v || ''));
-const appReady = () => Boolean(process.env.META_APP_ID && process.env.META_APP_SECRET && process.env.META_WHATSAPP_CONFIG_ID);
+const appReady = () => Boolean(process.env.META_WHATSAPP_APP_ID && process.env.META_WHATSAPP_APP_SECRET && process.env.META_WHATSAPP_CONFIG_ID);
 const requireStore = async (req, db, storeId) => {
   if (!/^[a-zA-Z0-9_-]{1,70}$/.test(String(storeId || ''))) {
     const e = new Error('Loja inválida.'); e.statusCode = 400; throw e;
@@ -31,7 +31,7 @@ const parseGraph = async response => {
 };
 const graph = async (endpoint, token, { method = 'GET', body = null } = {}) => {
   const headers = { Authorization: 'Bearer ' + token, ...(body ? { 'Content-Type': 'application/json' } : {}) };
-  const proof = crypto.createHmac('sha256', process.env.META_APP_SECRET).update(token).digest('hex');
+  const proof = crypto.createHmac('sha256', process.env.META_WHATSAPP_APP_SECRET).update(token).digest('hex');
   const separator = endpoint.includes('?') ? '&' : '?';
   const res = await fetch('https://graph.facebook.com/' + VERSION + '/' + endpoint + separator + 'appsecret_proof=' + proof,
     { method, headers, ...(body ? { body: JSON.stringify(body) } : {}), signal: AbortSignal.timeout(15000) });
@@ -39,8 +39,8 @@ const graph = async (endpoint, token, { method = 'GET', body = null } = {}) => {
 };
 async function exchangeCode(code) {
   const params = new URLSearchParams({
-    client_id: process.env.META_APP_ID,
-    client_secret: process.env.META_APP_SECRET,
+    client_id: process.env.META_WHATSAPP_APP_ID,
+    client_secret: process.env.META_WHATSAPP_APP_SECRET,
     code
   });
   const response = await fetch('https://graph.facebook.com/' + VERSION + '/oauth/access_token?' + params,
@@ -50,7 +50,7 @@ async function exchangeCode(code) {
   return result.access_token;
 }
 async function debugToken(token) {
-  const appAccess = process.env.META_APP_ID + '|' + process.env.META_APP_SECRET;
+  const appAccess = process.env.META_WHATSAPP_APP_ID + '|' + process.env.META_WHATSAPP_APP_SECRET;
   const params = new URLSearchParams({ input_token: token });
   const response = await fetch('https://graph.facebook.com/' + VERSION + '/debug_token?' + params,
     { headers: { Authorization: 'Bearer ' + appAccess }, signal: AbortSignal.timeout(15000) });
@@ -82,10 +82,12 @@ export async function handleMetaWhatsAppSignup(req, res, { db, admin }) {
       return res.json({
         success: true,
         ready: appReady() && Boolean(process.env.META_WEBHOOK_VERIFY_TOKEN),
-        appId: String(process.env.META_APP_ID || ''),
+        appId: String(process.env.META_WHATSAPP_APP_ID || ''),
         configId: String(process.env.META_WHATSAPP_CONFIG_ID || ''),
         missing: [
-          ...(!appReady() ? ['Configuração Embedded Signup no Meta Developers'] : []),
+           ...(!process.env.META_WHATSAPP_APP_ID ? ['ID do aplicativo WhatsApp'] : []),
+          ...(!process.env.META_WHATSAPP_APP_SECRET ? ['Chave secreta do aplicativo Velo Delivery (Meta)'] : []),
+          ...(!process.env.META_WHATSAPP_CONFIG_ID ? ['Configuração Embedded Signup no Meta Developers'] : []),
           ...(!process.env.META_WEBHOOK_VERIFY_TOKEN ? ['Token de verificação do webhook oficial'] : [])
         ],
         active, pending: !active && Boolean(pending?.phoneNumberId),
@@ -127,7 +129,7 @@ export async function handleMetaWhatsAppSignup(req, res, { db, admin }) {
 
     const token = await exchangeCode(code);
     const debug = await debugToken(token);
-    if (debug.is_valid !== true || String(debug.app_id) !== String(process.env.META_APP_ID)) {
+    if (debug.is_valid !== true || String(debug.app_id) !== String(process.env.META_WHATSAPP_APP_ID)) {
       throw new Error('A autorização não pertence ao aplicativo da Velo.');
     }
     const granted = new Set([...(debug.scopes || []), ...(debug.granular_scopes || []).map(s => s.scope)]);
