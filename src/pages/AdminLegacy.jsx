@@ -73,6 +73,7 @@ const LoadingTab = () => (
 import { FaFacebook, FaInstagram, FaGoogle, FaWhatsapp, FaTags } from 'react-icons/fa6';
 import { Link as LinkIcon, Sparkles } from 'lucide-react'; // <-- ÍCONE SPARKLES ADICIONADO AQUI
 import { authenticatedFetch } from '../utils/apiAuth';
+import { ADDITIONAL_CATEGORY_ICONS } from '../lib/categoryIconCatalog';
 
 // =========================================================================
 // 🧠 MOTOR DE IA (E-E-A-T) - RESPOSTAS HUMANIZADAS
@@ -206,7 +207,9 @@ const AVAILABLE_ICONS = [
   { id: 'Rose', label: 'Flores / Rosas', component: <GiRose size={24} /> },
   { id: 'FlowerPot', label: 'Arranjos / Vasos', component: <GiFlowerPot size={24} /> },
   { id: 'Gift', label: 'Cestas / Presentes', component: <Gift size={24} /> },
-  { id: 'Heart', label: 'Romântico / Coração', component: <FaHeart size={24} /> }
+  { id: 'Heart', label: 'Romântico / Coração', component: <FaHeart size={24} /> },
+  // Categorias de supermercado, bazar e utilidades; IDs compartilhados com a vitrine.
+  ...ADDITIONAL_CATEGORY_ICONS.map(({ id, label, Icon }) => ({ id, label, component: <Icon size={24} /> }))
 ];
 
 // --- CONFIGURAÇÕES DO CLOUDINARY ---
@@ -2182,6 +2185,8 @@ const [vipMissions, setVipMissions] = useState([]);
     const[isCatModalOpen, setIsCatModalOpen] = useState(false);
     const [catForm, setCatForm] = useState({ name: '', icon: 'List', order: 0, isActive: true });
     const [editingCatId, setEditingCatId] = useState(null);
+    const [iconSearch, setIconSearch] = useState('');
+    useEffect(() => { if (!isCatModalOpen) setIconSearch(''); }, [isCatModalOpen]);
 
     // Banners
     const [isBannerModalOpen, setIsBannerModalOpen] = useState(false);
@@ -13975,8 +13980,9 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                 </div>
                                 {/* NOVO: SELETOR DE ÍCONES */}
 <label className="text-xs font-bold text-slate-400 mb-2 block">Selecione um Ícone</label>
-<div className="grid grid-cols-4 gap-2 mb-6 max-h-40 overflow-y-auto p-2 border border-slate-100 rounded-xl bg-slate-50 custom-scrollbar">
-    {AVAILABLE_ICONS.map(iconDef => (
+<input type="search" aria-label="Buscar ícone de categoria" placeholder="Buscar ícone (papelaria, limpeza, perfumaria...)" className="w-full mb-3 p-3 rounded-xl bg-slate-50 border border-slate-200 text-sm" value={iconSearch} onChange={e => setIconSearch(e.target.value)} />
+<div className="grid grid-cols-4 gap-2 mb-6 max-h-48 overflow-y-auto p-2 border border-slate-100 rounded-xl bg-slate-50 custom-scrollbar">
+    {AVAILABLE_ICONS.filter(iconDef => (iconDef.label + " " + iconDef.id).normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().includes(iconSearch.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim())).map(iconDef => (
         <button
             type="button"
             key={iconDef.id}

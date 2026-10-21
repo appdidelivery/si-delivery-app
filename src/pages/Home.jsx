@@ -14,6 +14,7 @@ import { Carousel } from 'react-responsive-carousel';
 import useSmartRetention from '../hooks/useSmartRetention';
 import "react-responsive-carousel/lib/styles/carousel.min.css";
 import { getStoreIdFromHostname } from '../utils/domainHelper';
+import { ADDITIONAL_CATEGORY_ICONS, getSuggestedCategoryIconId } from '../lib/categoryIconCatalog';
 
 // =========================================================================
 // 🧠 MOTOR DE IA (E-E-A-T) - HUMANIZAÇÃO DE REVIEWS (INJETADO AQUI)
@@ -90,8 +91,12 @@ const optimizeCloudinary = (url, width = 200) => {
 };
 
 const renderCategoryIcon = (iconName, categoryName) => {
-    if (iconName) {
-        switch (iconName) {
+    // Mantém a escolha manual; só sugere ícone pela categoria quando não há ícone gravado.
+    const selectedIcon = iconName || getSuggestedCategoryIconId(categoryName);
+    const ExtraIcon = ADDITIONAL_CATEGORY_ICONS.find(item => item.id === selectedIcon)?.Icon;
+    if (ExtraIcon) return <ExtraIcon size={18} />;
+    if (selectedIcon) {
+        switch (selectedIcon) {
             case 'Combo': return <FaBoxOpen size={18} />;
             case 'Star': return <FaStar size={18} />;
             case 'Watermelon': return <GiWatermelon size={18} />;
