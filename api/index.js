@@ -15,6 +15,7 @@ import { fetchGeminiWithRetry } from '../lib/gemini.js';
 import { scheduleJourneyRequest } from '../server/journeyQueue.js';
 import { marketingMessagesEndpoint } from '../lib/whatsappMarketingGraph.js';
 import { hasAuthorizedCsiMarketingConsent } from '../lib/csiMarketingEligibility.js';
+import { buildCsiConsentInvite, CSI_CONSENT_BUTTON_YES, CSI_CONSENT_BUTTON_NO } from '../lib/csiMarketingConsentInvite.js';
 import { analyzeCsiMarketingReadiness } from '../lib/csiMarketingReadiness.js';
 import { hasValidCsiMarketingRecord } from '../lib/whatsappConsentCapture.js';
 import { handleOccasionLifecycle } from '../server/lifecycleDispatch.js';
@@ -2971,10 +2972,10 @@ const aiResponse = await fetchGeminiWithRetry(`https://generativelanguage.google
                     if (page.empty) break;
                     for (const doc of page.docs) {
                         const d = doc.data();
-                        if (d.direction && d.direction !== 'inbound') continue;
+                        if (d.direction !== 'inbound') continue; // A janela de 24h só abre por mensagem recebida.
                         const time = d.receivedAt || d.createdAt || d.timestamp || d.sentAt;
                         const ms = time?.toMillis?.() || (time?.seconds ? time.seconds * 1000 : Date.parse(time || '') || 0);
-                        if (ms <= cutoff) continue;
+                        if (ms <= cutoff || ms > Date.now()) continue;
                         const phone = normalizeMarketingPhone(d.from || d.phone || d.customerPhone);
                         if (!phone) continue;
                         const previous = recent.get(phone);
@@ -3007,17 +3008,16 @@ const aiResponse = await fetchGeminiWithRetry(`https://generativelanguage.google
                     });
                     if(!claimed){skipped++;continue;}
                     try{
-                        const response=await fetch(GRAPH_API_URL,{
+                        const response=await fetch(marketingMessagesEndpoint(phoneNumberId),{
                             method:'POST',
                             headers:{Authorization:`Bearer ${apiToken}`,'Content-Type':'application/json'},
-                            body:JSON.stringify({messaging_product:'whatsapp',to:'55'+phone,type:'interactive',
-                                interactive:{type:'button',body:{text:CSI_MARKETING_PROMPT},action:{buttons:[
-                                    {type:'reply',reply:{id:'csi_marketing_yes_18',title:'Sou 18+ e aceito'}},
-                                    {type:'reply',reply:{id:'csi_marketing_no',title:'Agora não'}}
-                                ]}}})
+                            body:JSON.stringify(buildCsiConsentInvite('55'+phone))
                         });
                         if (response.ok) {
                             const metaResult = await response.json().catch(() => ({}));
+                            await promptRef.set({inviteFormat:'interactive_buttons_v1',
+                                acceptedByMetaAt:admin.firestore.FieldValue.serverTimestamp(),
+                                metaMessageId:metaResult.messages?.[0]?.id || null},{merge:true});
                             sent++;
                             // The Meta API acknowledges acceptance, not delivery. Record
                             // an outbound message so the admin chat shows the invitation.
@@ -3561,8 +3561,8 @@ const aiResponse = await fetchGeminiWithRetry(`https://generativelanguage.google
                                 if (message.interactive.type === 'button_reply') {
                                     messageText = message.interactive.button_reply.title;
                                     interactivePayload = message.interactive.button_reply.id;
-                                    if (interactivePayload === 'csi_marketing_yes_18') messageText = 'QUERO OFERTAS 18';
-                                    if (interactivePayload === 'csi_marketing_no') messageText = 'NAO QUERO RECEBER OFERTAS';
+                                    if (interactivePayload === CSI_CONSENT_BUTTON_YES) messageText = 'QUERO OFERTAS 18';
+                                    if (interactivePayload === CSI_CONSENT_BUTTON_NO) messageText = 'NAO QUERO RECEBER OFERTAS';
                                 } else if (message.interactive.type === 'list_reply') {
                                     messageText = message.interactive.list_reply.title;
                                     interactivePayload = message.interactive.list_reply.id;
@@ -3832,16 +3832,32 @@ const aiResponse = await fetchGeminiWithRetry(`https://generativelanguage.google
                                                     return true;
                                                 });
                                                 if(claimed){
-                                                    const promptResponse=await fetch(`https://graph.facebook.com/v19.0/${phoneNumberId}/messages`,{
+                                                    const promptResponse=await fetch(marketingMessagesEndpoint(phoneNumberId),{
                                                         method:'POST',
                                                         headers:{Authorization:`Bearer ${apiToken}`,'Content-Type':'application/json'},
-                                                        body:JSON.stringify({messaging_product:'whatsapp',to:message.from,type:'text',
-                                                            text:{body:CSI_MARKETING_PROMPT}})
+                                                        body:JSON.stringify(buildCsiConsentInvite(message.from))
                                                     });
                                                     if(!promptResponse.ok){
-                                                         console.warn('[CSI Consent] prompt rejected',{status:promptResponse.status});
-                                                         await promptRef.delete(); // Allow retry when Meta did not accept the request.
-                                                     }
+                                                        console.warn('[CSI Consent] interactive prompt rejected',{status:promptResponse.status});
+                                                        await promptRef.delete(); // Permite nova tentativa se a Meta recusou.
+                                                    } else {
+                                                        const promptData=await promptResponse.json().catch(()=>({}));
+                                                        await promptRef.set({ inviteFormat:'interactive_buttons_v1',
+                                                            acceptedByMetaAt:admin.firestore.FieldValue.serverTimestamp(),
+                                                            metaMessageId:promptData.messages?.[0]?.id || null
+                                                        },{merge:true});
+                                                        // Confirmado recebimento da API, não a entrega ao cliente.
+                                                        await db.collection('whatsapp_inbound').add({
+                                                            storeId:'csi',direction:'outbound',from:phoneNumberId,to:message.from,
+                                                            text:CSI_MARKETING_PROMPT, message:CSI_MARKETING_PROMPT,
+                                                            type:'interactive',messageType:'interactive',
+                                                            status:'sent',deliveryStatus:'sent',
+                                                            metaMessageId:promptData.messages?.[0]?.id || null,
+                                                            source:'automatic_24h_consent_invite',
+                                                            sentAt:admin.firestore.FieldValue.serverTimestamp(),
+                                                            receivedAt:admin.firestore.FieldValue.serverTimestamp()
+                                                        }).catch(logError=>console.warn('[CSI Consent] convite aceito mas não logado',logError?.message));
+                                                    }
                                                 }
                                             }
                                         }catch(error){
