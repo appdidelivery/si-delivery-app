@@ -1,3 +1,4 @@
+import { marketingMessagesEndpoint } from '../lib/whatsappMarketingGraph.js';
 import admin from 'firebase-admin';
 import { QueueClient, send } from '@vercel/queue';
 import { hasEligibleMarketingConsent, isMarketingOptedOut, reserveMarketingAttempt } from '../lib/whatsappMarketingGuard.js';
@@ -75,7 +76,7 @@ async function sendJourneyTemplate({ phone, templateCandidates, stage, sourceId,
     throw new Error('WhatsApp oficial da CSI não configurado.');
   }
 
-  const endpoint = `https://graph.facebook.com/v19.0/${waConfig.phoneNumberId}/messages`;
+  const endpoint = marketingMessagesEndpoint(waConfig.phoneNumberId);
   const safePhone = `55${normalized}`;
   let lastError = null;
 
