@@ -80,7 +80,7 @@ export default async function handler(req, res) {
     // =========================================================================
     const isMercadoMVHub = hostname.replace(/^www\./, '') === 'mercadomv.com.br';
     if (isMercadoMVHub) {
-      xml += '  <url><loc>https://www.mercadomv.com.br/</loc><changefreq>weekly</changefreq><priority>1.0</priority></url>\\n';
+      xml += '  <url><loc>https://www.mercadomv.com.br/</loc><changefreq>weekly</changefreq><priority>1.0</priority></url>\n';
     } else if (isAggregator) {
       
       // Home do Agregador
