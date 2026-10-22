@@ -1,4 +1,4 @@
-import { trackMetaPurchase } from '../utils/metaPixel.js';
+import { trackMetaPurchase, isOriginalBuyerForMetaPurchase } from '../utils/metaPixel.js';
 import { trackGooglePurchase } from '../utils/googlePurchase.js';
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, Link } from 'react-router-dom';
@@ -65,8 +65,11 @@ export default function Tracking() {
     return () => unsubOrder();
   },[orderId]);
 
+  // A tracking link can be shared with others. Only the buyer's browser
+  // should attribute an online Purchase to Meta, not every visitor.
   useEffect(() => {
-    if (order?.paymentStatus === 'paid' && order?.orderType !== 'garcom') {
+    if (order?.paymentStatus === 'paid' && order?.orderType !== 'garcom' &&
+        isOriginalBuyerForMetaPurchase(order.id)) {
       trackMetaPurchase(order.id, order);
     }
   }, [order]);
