@@ -13,6 +13,7 @@ import { GoogleAuth } from 'google-auth-library'; // <-- NOVA AUTENTICAÇÃO SER
 import crypto from 'crypto'; // <-- OBRIGATÓRIO PARA A CAPI DA META
 import { fetchGeminiWithRetry } from '../lib/gemini.js';
 import { scheduleJourneyRequest } from '../server/journeyQueue.js';
+import { marketingMessagesEndpoint } from '../lib/whatsappMarketingGraph.js';
 import { handleOccasionLifecycle } from '../server/lifecycleDispatch.js';
 import { handleFootballRadar } from '../server/footballRadar.js';
 import { handleFootballAlert } from '../server/footballAlerts.js';
@@ -1374,7 +1375,7 @@ const aiResponse = await fetchGeminiWithRetry(`https://generativelanguage.google
                     const journeyEnabled = journeyConfig.enabled !== false && journeyProfile.key === 'beverage';
 
                     if (journeyEnabled && journeyWa?.phoneNumberId && journeyWa?.apiToken) {
-                        const GRAPH_API_URL = `https://graph.facebook.com/v19.0/${journeyWa.phoneNumberId}/messages`;
+                        const GRAPH_API_URL = marketingMessagesEndpoint(journeyWa.phoneNumberId);
                         const normalizeJourneyPhone = (value) => {
                             let digits = String(value || '').replace(/\D/g, '');
                             if (digits.startsWith('55') && (digits.length === 12 || digits.length === 13)) digits = digits.slice(2);
@@ -2173,7 +2174,7 @@ const aiResponse = await fetchGeminiWithRetry(`https://generativelanguage.google
                 }
 
                 try {
-                    const response = await fetch(GRAPH_API_URL, {
+                    const response = await fetch(marketingMessagesEndpoint(phoneNumberId), {
                         method: 'POST',
                         headers: { 'Authorization': `Bearer ${apiToken}`, 'Content-Type': 'application/json' },
                         body: JSON.stringify(payload)
