@@ -1,5 +1,6 @@
 import { initMetaPixel, trackMetaEvent, trackMetaPurchase, getMetaContext } from '../utils/metaPixel.js';
 import { getGoogleTrackingConfig, trackGooglePurchase } from '../utils/googlePurchase.js';
+import { buildBeginCheckoutPayload } from '../utils/checkoutTracking.js';
 import React, { useState, useEffect, useRef, Suspense } from 'react';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import { db } from '../services/firebase';
@@ -1610,14 +1611,36 @@ export default function Home() {
       // Fallback: Se o usuário abrir e ficar olhando a tela parado por 8 segundos, carrega.
       const fallbackTimer = setTimeout(loadMarketingScripts, 8000);
 
+      // A abertura do checkout é uma interação: carregar GA4 imediatamente,
+      // sem aguardar o fallback de 8 segundos.
+      if (showCheckout) loadMarketingScripts();
+
       return () => {
           window.removeEventListener('scroll', loadMarketingScripts);
           window.removeEventListener('mousemove', loadMarketingScripts);
           window.removeEventListener('touchstart', loadMarketingScripts);
           clearTimeout(fallbackTimer);
       };
-  }, [marketingSettings?.integrations, storeSettings?.gaTrackingId, storeId]);
+  }, [marketingSettings?.integrations, storeSettings?.gaTrackingId, storeId, showCheckout]);
   // --- FIM: SISTEMA INTEGRADO DE PIXELS E ANALYTICS ---
+
+  const checkoutEventSentRef = useRef(false);
+  useEffect(() => {
+      if (!showCheckout) {
+          checkoutEventSentRef.current = false;
+          return;
+      }
+      if (checkoutEventSentRef.current || !storeId) return;
+      const { ga4Id } = getGoogleTrackingConfig(marketingSettings?.integrations, storeSettings);
+      const payload = buildBeginCheckoutPayload(cart, ga4Id);
+      if (!payload || typeof window.gtag !== 'function') return;
+
+      // Envia o funil exclusivamente para a propriedade GA4 da loja atual.
+      // A flag protege o mesmo checkout contra re-renderizações do React.
+      window.gtag('event', 'begin_checkout', payload);
+      checkoutEventSentRef.current = true;
+  }, [showCheckout, cart, storeId, marketingSettings?.integrations, storeSettings?.gaTrackingId]);
+
 
   // --- INICIA A BUSCA DE DADOS DO BANCO ---
   useEffect(() => {
