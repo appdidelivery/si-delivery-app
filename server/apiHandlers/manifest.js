@@ -6,6 +6,8 @@ const DOMAIN_MAP = {
     "ngconveniencia.com.br": "ng",
     "filial.convenienciasantaisabel.com.br": "filialsantaisabel",
     "coelhoscuca.com.br": "coelhoscuca",
+    "monteverde.mercadomv.com.br": "mercadomonteverde",
+    "sacogrande.mercadomv.com.br": "mercadomonteverdesacogrande",
 };
 
 const resolveStoreId = (host) => {
@@ -29,8 +31,9 @@ export default async function handler(req, res) {
     const host = req.headers['x-forwarded-host'] || req.headers.host || '';
     const storeId = resolveStoreId(host);
 
-    let name = 'Velo Delivery';
-    let shortName = 'Velo';
+    const isMarketHub = host.toLowerCase().replace(/^www\./, '') === 'mercadomv.com.br';
+    let name = isMarketHub ? 'Mercado MV | Escolha sua unidade' : 'Velo Delivery';
+    let shortName = isMarketHub ? 'Mercado MV' : 'Velo';
     let themeColor = '#2563eb';
     let logo192 = 'https://app.velodelivery.com.br/logo-square.png';
     let logo512 = logo192;
