@@ -17,6 +17,7 @@ import { marketingMessagesEndpoint } from '../lib/whatsappMarketingGraph.js';
 import { hasAuthorizedCsiMarketingConsent } from '../lib/csiMarketingEligibility.js';
 import { buildCsiConsentInvite, CSI_CONSENT_BUTTON_YES, CSI_CONSENT_BUTTON_NO } from '../lib/csiMarketingConsentInvite.js';
 import { analyzeCsiMarketingReadiness } from '../lib/csiMarketingReadiness.js';
+import { summarizeCsiConsentReceipts, CSI_CONSENT_INVITE_SOURCES } from '../lib/csiConsentReceiptSummary.js';
 import { hasValidCsiMarketingRecord } from '../lib/whatsappConsentCapture.js';
 import { handleOccasionLifecycle } from '../server/lifecycleDispatch.js';
 import { handleFootballRadar } from '../server/footballRadar.js';
@@ -591,6 +592,8 @@ export default async function handler(req, res) {
         const football = wa.footballAutomation || {};
         let readiness = null;
         let templateAudit = null;
+        let receiptAudit = null;
+        let receiptError = null;
         let diagnosticError = null;
         if (String(req.query?.details || '') === '1') {
             try {
@@ -616,6 +619,19 @@ export default async function handler(req, res) {
             } catch (error) {
                 console.warn('[Marketing Readiness CSI] Não foi possível completar análise local:', error?.message);
                 diagnosticError = 'Não foi possível consultar todos os registros agregados. Verifique os logs da Vercel.';
+            }
+            // Read-only receipt reconciliation, isolated from messages and contact details.
+            try {
+                const receiptSnap = await db.collection('whatsapp_inbound')
+                    .where('source', 'in', CSI_CONSENT_INVITE_SOURCES)
+                    .limit(1500).get();
+                receiptAudit = summarizeCsiConsentReceipts(
+                    receiptSnap.docs.map(doc=>doc.data()),
+                    {hours:48, partialScan:receiptSnap.size>=1500}
+                );
+            } catch (error) {
+                receiptError = 'Não foi possível consultar os recibos do WhatsApp. Verifique os logs de produção.';
+                console.warn('[CSI consent receipts] Falha de leitura:', error?.message);
             }
             const wabaId = String(wa.wabaId || wa.whatsappBusinessAccountId || '');
             const templateNames = [
@@ -676,7 +692,7 @@ export default async function handler(req, res) {
                 templateConfigured: Boolean(football.approvedTemplateName)
             },
             attemptsToday: Number(usageDoc.data()?.attempted || 0),
-            readiness, templateAudit, diagnosticError,
+            readiness, templateAudit, diagnosticError, receiptAudit, receiptError,
             deliveryConfirmed: false,
             note: 'Configuração de leitura. A presença de credenciais e flags não prova aprovação de template, execução do cron nem entrega.'
         });
