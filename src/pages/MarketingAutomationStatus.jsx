@@ -116,11 +116,33 @@ export default function MarketingAutomationStatus() {
               <p className="mt-2 text-slate-500">{status.readiness.note}</p>
             </div>
           </section>}
+          {status?.receiptError && <p role="alert" className="rounded-xl bg-amber-50 p-4 text-amber-800">{status.receiptError}</p>}
+          {status?.receiptAudit && <section className="rounded-2xl border border-slate-200 bg-white p-5 space-y-3">
+            <h2 className="text-xl font-black text-slate-900">Entrega dos convites (últimas 48h)</h2>
+            <p className="text-sm text-slate-600">Estatísticas dos convites de autorização enviados pelo canal oficial. O aceite da API não significa entrega.</p>
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+              {[
+                ['Aceitos pela API',status.receiptAudit.accepted],
+                ['Entregues',status.receiptAudit.delivered],
+                ['Lidos',status.receiptAudit.read],
+                ['Não entregues / falhas',status.receiptAudit.failed],
+                ['Enviados sem recibo de entrega',status.receiptAudit.pendingDelivery],
+                ['Sem ID de rastreamento',status.receiptAudit.withoutMessageId]
+              ].map(([name,value])=><div key={name} className="rounded-xl bg-slate-50 p-3">
+                <p className="text-xs text-slate-600">{name}</p>
+                <p className="text-xl font-black text-slate-900">{value}</p>
+              </div>)}
+            </div>
+            <p className="text-sm text-slate-600">Entregues e lidos são contados separadamente: a Meta pode registrar o status final como apenas “lido”. O painel nunca envia mensagens ao consultar estes dados.</p>
+            {status.receiptAudit.partialScan && <p className="font-semibold text-amber-800 text-sm">A consulta atingiu o limite de registros e pode estar incompleta.</p>}
+          </section>}
           {status?.templateAudit && <section className="rounded-2xl border border-slate-200 bg-white p-5 space-y-3">
             <h2 className="text-xl font-black text-slate-900">Templates oficiais da Meta</h2>
             <p className="text-sm text-slate-600">{status.templateAudit.source === 'meta'
               ? 'Status consultado na conta WhatsApp Business.'
-              : 'Não foi possível confirmar o status diretamente na Meta nesta consulta. É necessário conferir a WABA e as permissões.'}</p>
+              : status.templateAudit.source === 'waba_not_available'
+                ? 'O identificador da WABA não está cadastrado na integração nativa. Consulte o ID da conta em Meta Business Suite > Contas do WhatsApp e vincule-o à configuração existente; não altere o token nem o número ativo.'
+                : 'A Meta não confirmou os modelos nesta consulta. Verifique as permissões whatsapp_business_management e os modelos em WhatsApp Manager.'}</p>
             <div className="space-y-2">
               {status.templateAudit.templates.map(t => <div key={t.name}
                 className="flex flex-wrap justify-between gap-3 border-b border-slate-100 py-2 text-sm">
