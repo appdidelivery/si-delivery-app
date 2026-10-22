@@ -1,6 +1,5 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { useStore } from '../context/StoreContext';
 import { authenticatedFetch } from '../utils/apiAuth';
 
 function Metric({ title, enabled, detail }) {
@@ -16,11 +15,9 @@ function Metric({ title, enabled, detail }) {
 }
 
 export default function MarketingAutomationStatus() {
-  const { store, loading } = useStore();
   const [status, setStatus] = useState(null);
   const [error, setError] = useState('');
   const [checking, setChecking] = useState(false);
-  const storeId = store?.id;
   const refresh = async () => {
     setError('');
     setChecking(true);
@@ -35,16 +32,14 @@ export default function MarketingAutomationStatus() {
       setError(e.message);
     } finally { setChecking(false); }
   };
-  useEffect(() => { if (storeId === 'csi') void refresh(); }, [storeId]);
+  useEffect(() => { void refresh(); }, []);
 
   return <main className="min-h-screen bg-slate-50 px-4 py-8">
     <div className="mx-auto max-w-3xl space-y-5">
       <Link to="/admin" className="font-bold text-blue-700">← Voltar ao painel</Link>
       <h1 className="text-2xl font-black text-slate-900">Diagnóstico WhatsApp Marketing — CSI</h1>
       <p className="text-sm text-slate-600">Consulta de leitura: não dispara mensagens, não altera automações e não acessa tokens do WhatsApp.</p>
-      {loading ? <p>Identificando loja...</p> : storeId !== 'csi'
-        ? <p className="rounded-xl bg-amber-50 p-5 text-amber-800">Entre pelo painel da Conveniência Santa Isabel.</p>
-        : <>
+      <>
           <button type="button" onClick={refresh} disabled={checking}
             className="rounded-xl bg-blue-700 px-5 py-3 font-bold text-white disabled:opacity-50">
             {checking ? 'Consultando...' : 'Atualizar diagnóstico'}
@@ -70,7 +65,7 @@ export default function MarketingAutomationStatus() {
               <p className="mt-2 text-sm text-slate-600">Dia {status.localDate}. A Meta pode aceitar uma mensagem sem entregá-la; confirme status de entrega no histórico.</p>
             </div>
           </div>}
-        </>}
+      </>
     </div>
   </main>;
 }
