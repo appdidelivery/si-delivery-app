@@ -97,7 +97,9 @@ export default async function middleware(request) {
 
     const capitalize = (str) => str.charAt(0).toUpperCase() + str.slice(1);
     let name = cleanHost === 'mercadomv.com.br' ? 'Mercado MV | Escolha sua unidade' : capitalize(storeId);
-    let slogan = 'O seu app de entregas';
+    let slogan = cleanHost === 'mercadomv.com.br'
+        ? 'Compre no Mercado MV. Escolha a unidade Monte Verde ou Saco Grande em Florianópolis.'
+        : 'O seu app de entregas';
     let logo = 'https://app.velodelivery.com.br/logo-square.png';
     let telephone = '';
     let address = '';

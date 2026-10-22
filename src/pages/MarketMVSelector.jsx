@@ -24,6 +24,31 @@ const UNITS = [
 export default function MarketMVSelector() {
   const [stores, setStores] = useState(UNITS);
 
+  // Mantém o manifesto da unidade compartilhada com a marca MV, sem
+  // alterar o PWA das demais lojas que usam o mesmo deploy.
+  useEffect(() => {
+    const manifest = document.getElementById('manifest-tag');
+    const favicon = document.getElementById('dynamic-favicon');
+    const appleIcon = document.getElementById('dynamic-apple-icon');
+    const appleTitle = document.querySelector('meta[name="apple-mobile-web-app-title"]');
+    const original = {
+      manifest: manifest?.getAttribute('href'),
+      favicon: favicon?.getAttribute('href'),
+      appleIcon: appleIcon?.getAttribute('href'),
+      appleTitle: appleTitle?.getAttribute('content'),
+    };
+    if (manifest) manifest.setAttribute('href', '/mercadomv-manifest.json');
+    if (favicon) favicon.setAttribute('href', '/mercadomv-icon.svg');
+    if (appleIcon) appleIcon.setAttribute('href', '/mercadomv-icon.svg');
+    if (appleTitle) appleTitle.setAttribute('content', 'Mercado MV');
+    return () => {
+      if (manifest && original.manifest !== null) manifest.setAttribute('href', original.manifest);
+      if (favicon && original.favicon !== null) favicon.setAttribute('href', original.favicon);
+      if (appleIcon && original.appleIcon !== null) appleIcon.setAttribute('href', original.appleIcon);
+      if (appleTitle && original.appleTitle !== null) appleTitle.setAttribute('content', original.appleTitle);
+    };
+  }, []);
+
   useEffect(() => {
     let alive = true;
     Promise.all(UNITS.map(async (unit) => {

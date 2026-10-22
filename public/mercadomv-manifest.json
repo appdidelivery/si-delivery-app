@@ -1,0 +1,17 @@
+{
+  "name": "Mercado MV | Escolha sua unidade",
+  "short_name": "Mercado MV",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#047857",
+  "icons": [
+    {
+      "src": "/mercadomv-icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
