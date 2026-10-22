@@ -28,3 +28,19 @@
 
 ## Rollout
 Recomendado: testar o Monte Verde assim que houver chip e aprovação Meta; preservar a CSI; expandir aos demais lojistas depois da validação de ponta a ponta.
+
+
+## Liberação segura do onboarding v4 (22/10/2026)
+
+- A aba **Admin > Integrações** mantém a visualização da conexão nativa já existente.
+- Para uma nova loja, o botão abre **/admin/whatsapp-meta**, página autenticada exclusiva. O navegador reinicia nesse endereço e carrega o SDK da Meta inicializado somente com o `META_WHATSAPP_APP_ID` da conta WhatsApp.
+- O login usa `config_id` da configuração **Embedded Signup v4**; nunca tenta selecionar uma versão com `extras.version`. A modalidade Coexistência usa `featureType: whatsapp_business_app_onboarding`.
+- O backend só conclui a vinculação depois de receber o código da autorização, WABA ID e Phone Number ID confirmados. Não presume um número se o evento de sessão estiver incompleto.
+- A conta já vinculada por Cloud API (incluindo `csi`) continua bloqueada para substituição por um novo onboarding (`HTTP 409`); **não migrar automaticamente**.
+- Verifique a modalidade de permissão concedida pela Meta (App Review, Advanced Access e app em modo Live) na conta real antes de liberar o recurso aos demais lojistas.
+- **Bloqueio externo atualmente identificado:** `META_WEBHOOK_VERIFY_TOKEN` ausente no projeto Vercel. Não inventar, copiar valores de exemplo nem rotacionar o token do callback que já atende CSI. Configure o mesmo token seguro nas duas plataformas somente após checar a inscrição atual; a integração passa a indicar `ready: true` quando estiver consistente.
+- Confira URL HTTPS `https://app.velodelivery.com.br/api/whatsapp-webhook`, domínio OAuth/JS SDK, WABA inscrita no webhook e eventos de `messages` e Coexistência.
+- Homologue uma **loja de teste sem conexão atual**: consentimento OAuth → retorno de sessão (WABA e telefone) → registro com PIN apenas se for um número novo → mensagem de entrada → resposta → recibo `delivered/read`.
+- A conexão pública só deve ser anunciada como operacional após essa validação real. Verificar também prazo/renovação do token de acesso retornado pelo cadastro.
+
+**Segurança:** nenhum passo acima exige modificar o número ou a sessão existente da Conveniência Santa Isabel.
