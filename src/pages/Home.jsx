@@ -2585,14 +2585,14 @@ upsellAmount: upsellTotal, // Mantido por retrocompatibilidade com painéis anti
               };
               
               await setDoc(newOrderRef, bypassOrderData);
-              trackGooglePurchase({ ...bypassOrderData, id: orderId });
-              trackMetaPurchase(orderId, bypassOrderData);
 
-              // Queima os tokens utilizados no Firebase imediatamente
+              // Compra com tokens: só mede conversão após confirmar a baixa do saldo.
               const cleanPhone = customer.phone.replace(/\D/g, '');
               await updateDoc(doc(db, "wallets", `${storeId}_${cleanPhone}`), { 
                   solanaTokenBalance: increment(-solanaDiscount) 
               });
+              trackGooglePurchase({ ...bypassOrderData, id: orderId });
+              trackMetaPurchase(orderId, bypassOrderData);
 
               // Limpeza de Rascunhos e Abandono
               try { 
