@@ -368,7 +368,22 @@ async function resolveSubscriptionAmount({ storeId, invoiceId, plan, cycle }) {
         if (!invoice || !['PENDENTE', 'pendente'].includes(invoice.status)) {
             throw new Error('Fatura pendente não encontrada.');
         }
-        const value = Number(invoice.amount ?? invoice.total);
+        const rawAmount = invoice.amount ?? invoice.total;
+        // Faturas do cron legado são armazenadas como "R$ 149,90".
+        // Aceita também valores numéricos, sem arredondar ou substituir o valor da fatura.
+        let value;
+        if (typeof rawAmount === 'number') {
+            value = rawAmount;
+        } else if (typeof rawAmount === 'string') {
+            const normalized = rawAmount.trim().replace(/^R\$\s*/i, '').replace(/\s/g, '');
+            if (/^\d{1,3}(?:\.\d{3})*,\d{2}$/.test(normalized)) {
+                value = Number(normalized.replace(/\./g, '').replace(',', '.'));
+            } else if (/^\d+,\d{2}$/.test(normalized)) {
+                value = Number(normalized.replace(',', '.'));
+            } else if (/^\d+(?:\.\d{1,2})?$/.test(normalized)) {
+                value = Number(normalized);
+            }
+        }
         if (!Number.isFinite(value) || value <= 0) throw new Error('Valor da fatura inválido.');
         return value;
     }
