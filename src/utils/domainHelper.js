@@ -69,3 +69,16 @@ export const getStoreIdFromHostname = () => {
     return 'unknown-store';
   }
 };
+/**
+ * Origem pública para links de produtos e anúncios.
+ * As duas unidades MV têm domínio próprio separado, apesar do campo legado
+ * customDomain apontar para o domínio compartilhado (seletor).
+ */
+export const getStorePublicOrigin = (storeId, customDomain) => {
+  const hostByStoreId = {
+    mercadomonteverde: 'monteverde.mercadomv.com.br',
+    mercadomonteverdesacogrande: 'sacogrande.mercadomv.com.br',
+  };
+  const host = hostByStoreId[storeId] || customDomain || `${storeId}.velodelivery.com.br`;
+  return `https://${host}`;
+};
