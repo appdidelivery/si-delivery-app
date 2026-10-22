@@ -27,6 +27,6 @@ export default function AdminBannerStudio() {
     <Link to="/admin" className="text-sm font-semibold text-emerald-700">← Voltar ao painel</Link>
     {loadingStore || loading ? <p>Carregando catálogo...</p> : error ? <p role="alert">{error}</p> : !store?.id ? <p>Loja não identificada.</p> :
       <VeloBannerStudio store={store} products={products} />}
-    <p className="text-xs text-slate-500">Versão de testes: composição PNG. Geração criativa por IA, publicação e cotas diárias ainda não habilitadas.</p>
+    <p className="text-xs text-slate-500">Geração por IA: até 3 cenários por dia por loja. A publicação direta no catálogo de banners permanece em desenvolvimento. Se o serviço de IA não estiver configurado, o sistema mostrará um aviso.</p>
   </main>;
 }
