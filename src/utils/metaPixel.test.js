@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { initMetaPixel, trackMetaEvent, trackMetaPurchase } from './metaPixel.js';
+import { initMetaPixel, trackMetaEvent, trackMetaPurchase, isOriginalBuyerForMetaPurchase } from './metaPixel.js';
 
 test('Pixel enfileira eventos por loja, rejeita IDs inválidos e deduplica compra', t => {
   const scripts = [];
@@ -24,4 +24,21 @@ test('Pixel enfileira eventos por loja, rejeita IDs inválidos e deduplica compr
   const purchases = window.fbq.queue.filter(args => args[2] === 'Purchase');
   assert.equal(purchases.length, 1);
   assert.deepEqual(purchases[0], ['trackSingle', '456', 'Purchase', { value: 10, currency: 'BRL' }, { eventID: 'order-1' }]);
+});
+
+test('only the original buyer can attribute Meta purchases from a paid tracking link', t => {
+  const descriptor = Object.getOwnPropertyDescriptor(globalThis, 'window');
+  t.after(() => {
+    if (descriptor) Object.defineProperty(globalThis, 'window', descriptor);
+    else delete globalThis.window;
+  });
+
+  globalThis.window = { localStorage: { getItem: () => 'order-123' } };
+  assert.equal(isOriginalBuyerForMetaPurchase('order-123'), true);
+  assert.equal(isOriginalBuyerForMetaPurchase('order-shared'), false);
+  assert.equal(isOriginalBuyerForMetaPurchase(''), false);
+
+  // Privacy settings may block storage and must not break order tracking.
+  globalThis.window = { localStorage: { getItem() { throw new Error('blocked'); } } };
+  assert.equal(isOriginalBuyerForMetaPurchase('order-123'), false);
 });
