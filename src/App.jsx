@@ -43,6 +43,9 @@ function AppRouter() {
   if (Capacitor.isNativePlatform()) {
     return <Navigate to="/driver-login" replace />;
   }
+  if (window.location.hostname.replace(/^www\./, '').toLowerCase() === 'mercadomv.com.br') {
+    return <MarketMVSelector />;
+  }
   return <Home />;
 }
 
