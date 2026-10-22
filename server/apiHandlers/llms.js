@@ -39,6 +39,8 @@ export default async function handler(req, res) {
     const customDomains = {
       'convenienciasantaisabel.com.br': 'csi',
       'www.convenienciasantaisabel.com.br': 'csi',
+      'monteverde.mercadomv.com.br': 'mercadomonteverde',
+      'sacogrande.mercadomv.com.br': 'mercadomonteverdesacogrande',
     };
 
     if (customDomains[hostname]) {
@@ -50,11 +52,12 @@ export default async function handler(req, res) {
       }
     }
 
-    let title = "Velo Delivery";
+    const isMarketHub = hostname.replace(/^www\./, '') === 'mercadomv.com.br';
+    let title = isMarketHub ? 'Mercado MV | Escolha sua unidade' : 'Velo Delivery';
     let description = "Plataforma de delivery online para restaurantes e lojas de conveniência focada em qualidade e rapidez.";
 
     // 3. Busca Segura no Firebase
-    if (storeId && db) {
+    if (storeId && !isMarketHub && db) {
       const storeDoc = await db.collection('stores').doc(storeId).get();
       if (storeDoc.exists) {
         const storeData = storeDoc.data();
