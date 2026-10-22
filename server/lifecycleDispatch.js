@@ -1,3 +1,4 @@
+import { marketingMessagesEndpoint } from '../lib/whatsappMarketingGraph.js';
 import admin from 'firebase-admin';
 import crypto from 'node:crypto';
 import {
@@ -171,7 +172,7 @@ export async function handleOccasionLifecycle(req, res, slot) {
 
     const selectedTemplate = useGenericOccasion ? genericTemplate : templates[customer.stage];
     try {
-      const response = await fetch(`https://graph.facebook.com/v19.0/${wa.phoneNumberId}/messages`, {
+      const response = await fetch(marketingMessagesEndpoint(wa.phoneNumberId), {
         method: 'POST',
         headers: { Authorization: `Bearer ${wa.apiToken}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({
