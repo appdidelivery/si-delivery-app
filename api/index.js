@@ -6235,6 +6235,22 @@ if (replyPayload.type === 'text' && replyPayload.text?.body) {
                                 const storeRef = db.collection('stores').doc(saasStoreId);
                                 const storeDoc = await storeRef.get();
                                 let faturasHistorico = storeDoc.data()?.faturasHistorico || [];
+
+                                // Uma fatura identificada só pode ser quitada pelo valor integral.
+                                // Não altera a loja quando o Pix recebido não corresponde à fatura.
+                                if (saasInvoiceId && saasInvoiceId !== 'avulsa') {
+                                    const invoice = faturasHistorico.find(f => f.id === saasInvoiceId);
+                                    const raw = invoice?.amount ?? invoice?.total;
+                                    const expected = typeof raw === 'number' ? raw :
+                                        Number(String(raw ?? '').replace(/^R\\$\\s*/i, '').replace(/\\./g, '').replace(',', '.'));
+                                    const received = Number(chargeDetails.valor?.original);
+                                    if (!invoice || !['PENDENTE', 'pendente'].includes(invoice.status) ||
+                                        !Number.isFinite(expected) || expected <= 0 ||
+                                        !Number.isFinite(received) || Math.round(received * 100) !== Math.round(expected * 100)) {
+                                        console.error('[SaaS Webhook] Valor/status da fatura divergente; baixa recusada', { saasStoreId, saasInvoiceId, txid });
+                                        continue;
+                                    }
+                                }
                                 
                                 faturasHistorico = faturasHistorico.map(fatura => {
                                     if (fatura.id === saasInvoiceId || ((!saasInvoiceId || saasInvoiceId === 'avulsa') && (fatura.status === 'PENDENTE' || fatura.status === 'pendente'))) {
