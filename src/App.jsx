@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react';
 import { Capacitor } from '@capacitor/core';
 import { App as CapacitorApp } from '@capacitor/app'; // <-- NOVO: Plugin para capturar links do WhatsApp
 import VeloLeanEngine from './pages/VeloLeanEngine';
+import MarketMVSelector from './pages/MarketMVSelector';
 import AggregatorStore from './pages/AggregatorStore'; // <-- ADICIONE AQUI
 import WifiPortal from './pages/WifiPortal'; // <-- NOVO: Rota de Captura Wi-Fi Gamificado
 
