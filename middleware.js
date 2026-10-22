@@ -36,6 +36,22 @@ const FOOD_TYPES = new Set(['Restaurant', 'FastFoodRestaurant', 'IceCreamShop', 
 // Arte de compartilhamento do Mercado MV (imagem da própria unidade, não da Velo/CSI).
 // JPG 1200x630 para leitura por WhatsApp, Facebook, Instagram e outros crawlers.
 const MARKET_MV_SHARE_IMAGE = 'https://res.cloudinary.com/dud8fzi5r/image/upload/c_pad,w_1200,h_630,b_white,f_jpg,q_85/v1790159685/zz8ipv2xka9fudxcvgvu.jpg';
+async function fetchMarketMVLogo() {
+    try {
+        const projectId = process.env.VITE_FIREBASE_PROJECT_ID || process.env.FIREBASE_PROJECT_ID || 'zetesteapp';
+        const apiKey = process.env.VITE_FIREBASE_API_KEY || process.env.FIREBASE_API_KEY || '';
+        const authParam = apiKey ? '?key=' + apiKey : '';
+        const response = await fetch('https://firestore.googleapis.com/v1/projects/' + projectId + '/databases/(default)/documents/stores/mercadomonteverde' + authParam, { signal: AbortSignal.timeout(1800) });
+        if (!response.ok) return null;
+        const fields = (await response.json()).fields || {};
+        const logo = fields.storeLogoUrl?.stringValue || fields.logoUrl?.stringValue;
+        if (!logo || !/^https:\/\//i.test(logo)) return null;
+        return logo.includes('res.cloudinary.com') && logo.includes('/upload/')
+            ? logo.replace('/upload/', '/upload/c_pad,w_1200,h_630,b_white,f_jpg,q_85/')
+            : logo;
+    } catch { return null; }
+}
+
 
 const escapeHtml = (value = '') => String(value)
     .replace(/&/g, '&amp;')
@@ -158,7 +174,7 @@ export default async function middleware(request) {
         return fetch(request);
     }
 
-    const shareImage = isMarketMVHub ? MARKET_MV_SHARE_IMAGE : logo;
+    const shareImage = isMarketMVHub ? (await fetchMarketMVLogo() || MARKET_MV_SHARE_IMAGE) : logo;
     const businessType = SCHEMA_TYPES[niche] || 'LocalBusiness';
     const canonicalUrl = `${url.origin}${url.pathname}`;
     const schema = {
