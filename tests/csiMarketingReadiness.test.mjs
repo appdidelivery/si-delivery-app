@@ -37,8 +37,16 @@ test('post-sale and second-purchase identify eligible consented customer', () =>
     completedAt:minutesAgo(45)}];
   const r=analyzeCsiMarketingReadiness({orders,consents:[consent],nowMs:now});
   assert.equal(r.postSale.eligibleNow,1);
-  assert.equal(r.secondPurchase.eligibleNow,1);
+  assert.equal(r.secondPurchase.eligibleNow,0); // pós-venda recente não é segunda compra elegível
   assert.equal(r.retention.examined,0);
+});
+
+test('second-purchase campaign waits at least seven days after the only completed order', () => {
+  const orders=[{status:'completed',customerPhone:phone,createdAt:minutesAgo(15*24*60),
+    completedAt:minutesAgo(15*24*60)}];
+  const r=analyzeCsiMarketingReadiness({orders,consents:[consent],nowMs:now});
+  assert.equal(r.secondPurchase.eligibleNow,1);
+  assert.equal(r.postSale.eligibleNow,0);
 });
 
 test('retention excludes opt-outs and observes 7 day cooldown', () => {
