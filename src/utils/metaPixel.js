@@ -48,6 +48,17 @@ export function getMetaContext(pixelId) {
   };
 }
 
+// Do not attribute a paid order to a visitor who only opened a shared tracking link.
+// The browser Purchase event belongs to the device that originally placed the order.
+export function isOriginalBuyerForMetaPurchase(orderId) {
+  if (!orderId || typeof window === 'undefined') return false;
+  try {
+    return window.localStorage.getItem('activeOrderId') === String(orderId);
+  } catch {
+    return false;
+  }
+}
+
 export function trackMetaPurchase(orderId, order) {
   const pixelId = order.metaTracking?.pixelId;
   if (!orderId || !pixelId) return;
