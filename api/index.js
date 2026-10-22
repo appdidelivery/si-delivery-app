@@ -3001,9 +3001,13 @@ const aiResponse = await fetchGeminiWithRetry(`https://generativelanguage.google
                     const promptRef=db.collection('whatsapp_marketing_consent_prompts').doc(id);
                     const claimed=await db.runTransaction(async tx=>{
                         const previous=await tx.get(promptRef);
-                        const last=previous.data()?.lastPromptAt?.toMillis?.() || 0;
-                        if(last && Date.now()-last < 45*86400000)return false;
-                        tx.set(promptRef,{storeId:'csi',phone,lastPromptAt:admin.firestore.FieldValue.serverTimestamp(),source:'admin_24h_invite'},{merge:true});
+                        const record = previous.data() || {};
+                        const last=record.lastPromptAt?.toMillis?.() || 0;
+                        // Convites legados em texto nunca exibiram botões. Permite uma atualização
+                        // com botões na conversa ativa; depois aplica intervalo de 45 dias.
+                        if(record.inviteFormat==='interactive_buttons_v1' && last && Date.now()-last < 45*86400000)return false;
+                        tx.set(promptRef,{storeId:'csi',phone,lastPromptAt:admin.firestore.FieldValue.serverTimestamp(),
+                            source:'admin_24h_invite',inviteFormat:'interactive_buttons_v1'},{merge:true});
                         return true;
                     });
                     if(!claimed){skipped++;continue;}
@@ -3819,15 +3823,19 @@ const aiResponse = await fetchGeminiWithRetry(`https://generativelanguage.google
                                             })){
                                                 const claimed=await db.runTransaction(async tx=>{
                                                     const snap=await tx.get(promptRef);
-                                                    const previousMs=snap.data()?.lastPromptAt?.toMillis?.() || 0;
-                                                    if(!shouldOfferCsiOptIn({
+                                                    const prev = snap.data() || {};
+                                                    const previousMs=prev.lastPromptAt?.toMillis?.() || 0;
+                                                    // Texto legado não oferecia os botões. Repara uma vez
+                                                    // quando o cliente abre nova janela, depois respeita 45 dias.
+                                                    if(prev.inviteFormat==='interactive_buttons_v1' && !shouldOfferCsiOptIn({
                                                         storeId:'csi',hasApiCredentials:true,optedOut:false,
                                                         alreadyOptedIn:false,lastPromptAtMs:previousMs,nowMs,
                                                         hasText:true,blocked:false
                                                     }))return false;
                                                     tx.set(promptRef,{storeId:'csi',phone:normalizedPhone,
                                                         lastPromptAt:admin.firestore.FieldValue.serverTimestamp(),
-                                                        lastInboundMessageId:String(message.id||'')
+                                                        lastInboundMessageId:String(message.id||''),
+                                                        inviteFormat:'interactive_buttons_v1'
                                                     },{merge:true});
                                                     return true;
                                                 });
