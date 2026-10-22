@@ -28,9 +28,22 @@ export default async function handler(req,res) {
     }
     const db = fb.firestore();
     const profile = await db.collection('users').doc(user.uid).get();
-    const role = profile.data()?.role;
-    if (profile.data()?.storeId !== storeId && !['adminSaaS','superadmin'].includes(role)) {
-      return res.status(403).json({error:'Loja não autorizada'});
+    const account = profile.data() || {};
+    const role = String(account.role || '').toLowerCase();
+    const storeDoc = await db.collection('stores').doc(storeId).get();
+    if (!storeDoc.exists) return res.status(404).json({error:'Loja não encontrada'});
+    const merchant = storeDoc.data() || {};
+    const authorizedIds = [
+      account.storeId, account.lojaId, account.store_id,
+      ...(Array.isArray(account.storeIds) ? account.storeIds : []),
+      merchant.ownerId, merchant.userId, merchant.uid, merchant.adminId,
+      ...(Array.isArray(merchant.adminIds) ? merchant.adminIds : [])
+    ];
+    const adminRoles = ['adminsaas','superadmin','super_admin'];
+    const sameStore = authorizedIds.some(id => String(id || '') === storeId || String(id || '') === user.uid && [merchant.ownerId,merchant.userId,merchant.uid,merchant.adminId].includes(id));
+    const emailMatches = Boolean(user.email && [merchant.ownerEmail,merchant.adminEmail].some(e => typeof e === 'string' && e.toLowerCase() === user.email.toLowerCase()));
+    if (!sameStore && !emailMatches && !adminRoles.includes(role)) {
+      return res.status(403).json({error:'Seu usuário não está vinculado a esta loja. Solicite ao administrador a vinculação do acesso.'});
     }
     const productDoc = await db.collection('products').doc(productId).get();
     if (!productDoc.exists || productDoc.data()?.storeId !== storeId) return res.status(404).json({error:'Produto não encontrado nesta loja'});
