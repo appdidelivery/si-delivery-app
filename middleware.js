@@ -89,12 +89,14 @@ export default async function middleware(request) {
             "ngconveniencia.com.br": "ng",
             "filial.convenienciasantaisabel.com.br": "filialsantaisabel",
             "coelhoscuca.com.br": "coelhoscuca",
+            "monteverde.mercadomv.com.br": "mercadomonteverde",
+            "sacogrande.mercadomv.com.br": "mercadomonteverdesacogrande",
         };
         storeId = domainMap[cleanHost] || cleanHost.split('.')[0];
     }
 
     const capitalize = (str) => str.charAt(0).toUpperCase() + str.slice(1);
-    let name = capitalize(storeId);
+    let name = cleanHost === 'mercadomv.com.br' ? 'Mercado MV | Escolha sua unidade' : capitalize(storeId);
     let slogan = 'O seu app de entregas';
     let logo = 'https://app.velodelivery.com.br/logo-square.png';
     let telephone = '';

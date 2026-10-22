@@ -55,6 +55,18 @@ export const StoreProvider = ({ children }) => {
           if (!querySnapshot.empty) {
             const storeDoc = querySnapshot.docs[0];
             setStore({ id: storeDoc.id, ...storeDoc.data() });
+          } else if (['mercadomonteverde', 'mercadomonteverdesacogrande'].includes(slugToLoad)) {
+             // Unidades MV legadas possuem storeId/documento, mas não o campo slug.
+             // Só habilitamos este fallback para os IDs explicitamente associados aos hosts MV.
+             unsubscribeStore();
+             unsubscribeStore = onSnapshot(doc(db, 'stores', slugToLoad), (snapshot) => {
+               setStore(snapshot.exists() ? { ...snapshot.data(), id: snapshot.id } : null);
+               setLoading(false);
+             }, () => {
+               setStore(null);
+               setLoading(false);
+             });
+             return;
           } else {
              // Loja não existe: Garante que o estado seja limpo, impedindo vazamentos
              setStore(null);

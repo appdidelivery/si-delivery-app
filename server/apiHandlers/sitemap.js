@@ -78,7 +78,10 @@ export default async function handler(req, res) {
     // =========================================================================
     // ROTA A: LÓGICA DO APP AGREGADOR (Shopping)
     // =========================================================================
-    if (isAggregator) {
+    const isMercadoMVHub = hostname.replace(/^www\./, '') === 'mercadomv.com.br';
+    if (isMercadoMVHub) {
+      xml += '  <url><loc>https://www.mercadomv.com.br/</loc><changefreq>weekly</changefreq><priority>1.0</priority></url>\n';
+    } else if (isAggregator) {
       
       // Home do Agregador
       xml += '  <url>\n';
@@ -120,6 +123,8 @@ export default async function handler(req, res) {
       const customDomains = {
         'convenienciasantaisabel.com.br': 'csi',
         'www.convenienciasantaisabel.com.br': 'csi',
+        'monteverde.mercadomv.com.br': 'mercadomonteverde',
+        'sacogrande.mercadomv.com.br': 'mercadomonteverdesacogrande',
       };
 
       if (customDomains[hostname]) {

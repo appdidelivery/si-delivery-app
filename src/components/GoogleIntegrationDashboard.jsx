@@ -1,3 +1,4 @@
+import { getStorePublicOrigin } from '../utils/domainHelper';
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { FaGoogle, FaStore, FaStar, FaImage, FaList, FaBullhorn } from 'react-icons/fa6';
@@ -182,7 +183,7 @@ export default function GoogleIntegrationDashboard({ storeId, products, storeSta
             // Descobre a URL base da loja e formata o slug do produto para o botão do Google
             let productUrl = null;
             if (selectedProduct) {
-                const baseUrl = storeStatus?.customDomain ? `https://${storeStatus.customDomain}` : `https://${storeId}.velodelivery.com.br`;
+                const baseUrl = getStorePublicOrigin(storeId, storeStatus?.customDomain);
                 const safeSlug = selectedProduct.name.toString().toLowerCase()
                     .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
                     .replace(/[^a-z0-9 -]/g, '')

@@ -54,6 +54,8 @@ export const getStoreIdFromHostname = () => {
           "ngconveniencia.com.br": "ng",
           "filial.convenienciasantaisabel.com.br": "filialsantaisabel",
           "coelhoscuca.com.br": "coelhoscuca",
+          "monteverde.mercadomv.com.br": "mercadomonteverde",
+          "sacogrande.mercadomv.com.br": "mercadomonteverdesacogrande",
        };
 
        // CORREÇÃO 3: Se o domínio não estiver no mapa, extrai apenas a primeira palavra antes do ".com" 
@@ -66,4 +68,17 @@ export const getStoreIdFromHostname = () => {
     console.error("Erro Crítico no domainHelper:", error);
     return 'unknown-store';
   }
+};
+/**
+ * Origem pública para links de produtos e anúncios.
+ * As duas unidades MV têm domínio próprio separado, apesar do campo legado
+ * customDomain apontar para o domínio compartilhado (seletor).
+ */
+export const getStorePublicOrigin = (storeId, customDomain) => {
+  const hostByStoreId = {
+    mercadomonteverde: 'monteverde.mercadomv.com.br',
+    mercadomonteverdesacogrande: 'sacogrande.mercadomv.com.br',
+  };
+  const host = hostByStoreId[storeId] || customDomain || `${storeId}.velodelivery.com.br`;
+  return `https://${host}`;
 };
