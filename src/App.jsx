@@ -12,6 +12,7 @@ import WifiPortal from './pages/WifiPortal'; // <-- NOVO: Rota de Captura Wi-Fi 
 import Home from './pages/Home';
 import Admin from './pages/Admin';
 import WhatsAppMetaConnect from './pages/WhatsAppMetaConnect';
+import MarketingAutomationStatus from './pages/MarketingAutomationStatus';
 import Tracking from './pages/Tracking';
 import Login from './pages/Login';
 import AdminSaaS from './pages/AdminSaaS';
@@ -163,6 +164,14 @@ function App() {
               element={
                 <ProtectedRoute user={currentUser}>
                   <Admin currentUser={currentUser} />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/admin/marketing-automation"
+              element={
+                <ProtectedRoute user={currentUser}>
+                  <MarketingAutomationStatus />
                 </ProtectedRoute>
               }
             />

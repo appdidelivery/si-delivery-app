@@ -1,3 +1,4 @@
+import { marketingMessagesEndpoint } from '../lib/whatsappMarketingGraph.js';
 import admin from 'firebase-admin';
 import crypto from 'node:crypto';
 import { brazilLocalParts, isStoreOpenForSlot, confirmedMatchEvent } from '../lib/lifecycleSchedule.js';
@@ -104,7 +105,7 @@ export async function handleFootballAlert(req,res,db,windowName) {
       month:'2-digit',hour:'2-digit',minute:'2-digit',hour12:false
     }).format(kickoff);
     try {
-      const meta=await fetch(`https://graph.facebook.com/v19.0/${wa.phoneNumberId}/messages`,{
+      const meta=await fetch(marketingMessagesEndpoint(wa.phoneNumberId),{
         method:'POST',
         headers:{Authorization:`Bearer ${wa.apiToken}`,'Content-Type':'application/json'},
         body:JSON.stringify({
