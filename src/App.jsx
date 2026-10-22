@@ -11,6 +11,7 @@ import WifiPortal from './pages/WifiPortal'; // <-- NOVO: Rota de Captura Wi-Fi 
 // Seus componentes de página
 import Home from './pages/Home';
 import Admin from './pages/Admin';
+import WhatsAppMetaConnect from './pages/WhatsAppMetaConnect';
 import Tracking from './pages/Tracking';
 import Login from './pages/Login';
 import AdminSaaS from './pages/AdminSaaS';
@@ -162,6 +163,14 @@ function App() {
               element={
                 <ProtectedRoute user={currentUser}>
                   <Admin currentUser={currentUser} />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/admin/whatsapp-meta"
+              element={
+                <ProtectedRoute user={currentUser}>
+                  <WhatsAppMetaConnect />
                 </ProtectedRoute>
               }
             />

@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { CheckCircle2, ShieldCheck, Smartphone, Loader2, AlertTriangle } from 'lucide-react';
 
-export default function WhatsAppConnectionChoice({ storeId, metaConnected, authenticatedFetch }) {
+export default function WhatsAppConnectionChoice({ storeId, metaConnected, authenticatedFetch, standalone = false }) {
   const fetchRef = useRef(authenticatedFetch);
   fetchRef.current = authenticatedFetch;
   const session = useRef(null);
@@ -15,6 +15,7 @@ export default function WhatsAppConnectionChoice({ storeId, metaConnected, authe
   const [pin, setPin] = useState('');
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
+  const [sdkReady, setSdkReady] = useState(false);
 
   const api = useCallback(async (action, values = {}) => {
     const response = await fetchRef.current('/api/whatsapp-embedded-signup', {
@@ -38,8 +39,44 @@ export default function WhatsAppConnectionChoice({ storeId, metaConnected, authe
     return () => { current = false; if (timer.current) clearTimeout(timer.current); };
   }, [api]);
 
+  // The legacy admin loads a different Facebook app. Only initialize the
+  // WhatsApp Meta app in the standalone route to prevent app-ID collisions.
+  useEffect(() => {
+    if (!standalone || !config?.appId) return;
+    let mounted = true;
+    const init = () => {
+      if (!mounted || !window.FB) return;
+      try {
+        window.FB.init({
+          appId: config.appId,
+          cookie: true,
+          xfbml: false,
+          version: 'v25.0'
+        });
+        setSdkReady(true);
+      } catch {
+        if (mounted) setError('Falha ao inicializar o login oficial da Meta.');
+      }
+    };
+    if (window.FB) {
+      init();
+    } else {
+      window.fbAsyncInit = init;
+      if (!document.getElementById('meta-whatsapp-sdk')) {
+        const script = document.createElement('script');
+        script.id = 'meta-whatsapp-sdk';
+        script.src = 'https://connect.facebook.net/pt_BR/sdk.js';
+        script.async = true;
+        script.onerror = () => { if (mounted) setError('Não foi possível carregar o SDK da Meta.'); };
+        document.body.appendChild(script);
+      }
+    }
+    return () => { mounted = false; if (window.fbAsyncInit === init) delete window.fbAsyncInit; };
+  }, [standalone, config?.appId]);
+
   const complete = useCallback(async () => {
-    if (!code.current || started.current) return;
+    if (!code.current || started.current || !session.current?.wabaId || !session.current?.phoneNumberId) return;
+    setError('');
     started.current = true;
     setBusy(true);
     if (timer.current) clearTimeout(timer.current);
@@ -77,22 +114,34 @@ export default function WhatsAppConnectionChoice({ storeId, metaConnected, authe
   }, []);
 
   const connect = () => {
+    if (!standalone) { window.location.assign('/admin/whatsapp-meta'); return; }
     setError(''); setMessage('');
     if (!config?.ready || !config.configId) return setError('Integração Meta pendente de configuração.');
-    if (!window.FB?.login) return setError('SDK da Meta indisponível. Atualize a página e tente novamente.');
+    if (!sdkReady || !window.FB?.login) return setError('SDK da Meta indisponível. Atualize a página e tente novamente.');
     code.current = null; session.current = null; started.current = false; selectedMode.current = mode;
-    window.FB.init({ appId: config.appId, cookie: true, xfbml: false, version: 'v26.0' });
     window.FB.login(response => {
       if (!response?.authResponse?.code) return setError('Autorização cancelada ou não concluída.');
       code.current = response.authResponse.code;
       setBusy(true);
       if (session.current) void completeRef.current();
-      else timer.current = setTimeout(() => void completeRef.current(), 1800);
+      else timer.current = setTimeout(() => {
+        if (session.current?.wabaId && session.current?.phoneNumberId) {
+          void completeRef.current();
+        } else {
+          setBusy(false);
+          setError('A Meta não retornou os identificadores da conta e do número. Verifique se finalizou todas as etapas e tente novamente.');
+        }
+      }, 4500);
     }, {
-      config_id: config.configId, response_type: 'code', override_default_response_type: true,
+      config_id: config.configId,
+      auth_type: 'rerequest',
+      response_type: 'code',
+      override_default_response_type: true,
+      // Embedded Signup v4 is selected by config_id; extras.version is not a
+      // supported way to select a version. Coexistence is opt-in here.
       extras: mode === 'coexistence'
-        ? { version: 'v4', featureType: 'whatsapp_business_app_onboarding' }
-        : { version: 'v4' }
+        ? { setup: {}, featureType: 'whatsapp_business_app_onboarding' }
+        : { setup: {} }
     });
   };
 
@@ -131,7 +180,7 @@ export default function WhatsAppConnectionChoice({ storeId, metaConnected, authe
               <p className="text-xs mt-2">Verificação e registro de número dedicado à Cloud API.</p>
             </button>
           </div>
-          <button type="button" disabled={busy || !config.ready} onClick={connect} className="bg-green-600 text-white rounded-xl p-4 font-black disabled:opacity-50">{busy?'Autorizando...':'Conectar oficialmente com a Meta'}</button>
+          <button type="button" disabled={busy || (standalone && (!config.ready || !sdkReady))} onClick={connect} className="bg-green-600 text-white rounded-xl p-4 font-black disabled:opacity-50">{busy?'Autorizando...':standalone?'Conectar oficialmente com a Meta':'Abrir conexão oficial da Meta'}</button>
           {!config.ready && <p className="text-sm bg-amber-50 border border-amber-200 p-4 rounded-xl text-amber-900 flex items-start gap-2"><AlertTriangle size={20}/> Falta configurar: {(config.missing || []).join('; ')}. <a className="underline" href="https://developers.facebook.com/apps/" target="_blank" rel="noopener noreferrer">Meta Developers</a></p>}
           <p className="text-xs text-slate-500">O cadastro abre uma janela oficial da Meta. Não usa QR Code do WhatsApp Web.</p>
         </div>
