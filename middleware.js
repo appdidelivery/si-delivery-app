@@ -33,6 +33,10 @@ const SCHEMA_TYPES = {
 
 const FOOD_TYPES = new Set(['Restaurant', 'FastFoodRestaurant', 'IceCreamShop', 'Bakery']);
 
+// Arte de compartilhamento do Mercado MV (imagem da própria unidade, não da Velo/CSI).
+// JPG 1200x630 para leitura por WhatsApp, Facebook, Instagram e outros crawlers.
+const MARKET_MV_SHARE_IMAGE = 'https://res.cloudinary.com/dud8fzi5r/image/upload/c_pad,w_1200,h_630,b_white,f_jpg,q_85/v1790159685/zz8ipv2xka9fudxcvgvu.jpg';
+
 const escapeHtml = (value = '') => String(value)
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
@@ -64,6 +68,7 @@ export default async function middleware(request) {
 
     const host = request.headers.get('host') || '';
     const cleanHost = host.toLowerCase().trim().replace(/^www\./, '');
+    const isMarketMVHub = cleanHost === 'mercadomv.com.br';
 
     // --- REGRA DE FALLBACK/REDIRECIONAMENTO LIMPO ---
     if (cleanHost === 'cowburguer.com.br' || cleanHost === 'cowburguer.velodelivery.com.br') {
@@ -96,11 +101,13 @@ export default async function middleware(request) {
     }
 
     const capitalize = (str) => str.charAt(0).toUpperCase() + str.slice(1);
-    let name = cleanHost === 'mercadomv.com.br' ? 'Mercado MV | Escolha sua unidade' : capitalize(storeId);
-    let slogan = cleanHost === 'mercadomv.com.br'
+    let name = isMarketMVHub ? 'Mercado MV | Escolha sua unidade' : capitalize(storeId);
+    let slogan = isMarketMVHub
         ? 'Compre no Mercado MV. Escolha a unidade Monte Verde ou Saco Grande em Florianópolis.'
         : 'O seu app de entregas';
-    let logo = 'https://app.velodelivery.com.br/logo-square.png';
+    let logo = isMarketMVHub
+        ? 'https://www.mercadomv.com.br/mercadomv-icon.svg'
+        : 'https://app.velodelivery.com.br/logo-square.png';
     let telephone = '';
     let address = '';
     let priceRange = '';
@@ -109,7 +116,7 @@ export default async function middleware(request) {
     const projectId = process.env.VITE_FIREBASE_PROJECT_ID || process.env.FIREBASE_PROJECT_ID || 'zetesteapp';
     const apiKey = process.env.VITE_FIREBASE_API_KEY || process.env.FIREBASE_API_KEY || '';
 
-    try {
+    if (!isMarketMVHub) try {
         const authParam = apiKey ? `?key=${apiKey}` : '';
         const firestoreUrl = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/stores/${storeId}${authParam}`;
 
@@ -151,6 +158,7 @@ export default async function middleware(request) {
         return fetch(request);
     }
 
+    const shareImage = isMarketMVHub ? MARKET_MV_SHARE_IMAGE : logo;
     const businessType = SCHEMA_TYPES[niche] || 'LocalBusiness';
     const canonicalUrl = `${url.origin}${url.pathname}`;
     const schema = {
@@ -159,7 +167,7 @@ export default async function middleware(request) {
         "@id": `${url.origin}/#store`,
         "name": name,
         "url": url.origin,
-        "image": logo,
+        "image": shareImage,
         "logo": logo,
         "description": slogan,
         ...(telephone ? { "telephone": telephone.startsWith('+') ? telephone : `+55${telephone.replace(/\D/g, '')}` } : {}),
@@ -185,6 +193,7 @@ export default async function middleware(request) {
     const safeName = escapeHtml(name);
     const safeSlogan = escapeHtml(slogan);
     const safeLogo = escapeHtml(logo);
+    const safeShareImage = escapeHtml(shareImage);
     const safeCanonical = escapeHtml(canonicalUrl);
 
     const tagsSEO = `
@@ -195,14 +204,16 @@ export default async function middleware(request) {
     <link rel="apple-touch-icon" href="${safeLogo}" />
     <meta property="og:title" content="${safeName}" />
     <meta property="og:description" content="${safeSlogan}" />
-    <meta property="og:image" content="${safeLogo}" />
+    <meta property="og:image" content="${safeShareImage}" />
+    <meta property="og:image:secure_url" content="${safeShareImage}" />
+    ${isMarketMVHub ? '<meta property="og:image:type" content="image/jpeg" /><meta property="og:image:width" content="1200" /><meta property="og:image:height" content="630" />' : ''}
     <meta property="og:type" content="website" />
     <meta property="og:url" content="${safeCanonical}" />
     <meta property="og:site_name" content="${safeName}" />
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:title" content="${safeName}" />
     <meta name="twitter:description" content="${safeSlogan}" />
-    <meta name="twitter:image" content="${safeLogo}" />
+    <meta name="twitter:image" content="${safeShareImage}" />
     <script id="velo-server-schema" type="application/ld+json">${JSON.stringify(schema).replace(/</g, '\\u003c')}</script>
     `;
 
