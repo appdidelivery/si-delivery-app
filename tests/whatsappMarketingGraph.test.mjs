@@ -52,3 +52,20 @@ test('the existing production cron schedules are unchanged', () => {
     '/api/whatsapp-retention-sat','/api/whatsapp-retention-sun'
   ]) assert.ok(paths.includes(name), name);
 });
+
+test('operator diagnosis is authenticated, read-only, and never sends messages', () => {
+  const source = readFileSync(new URL('../api/index.js', import.meta.url), 'utf8');
+  const begin = source.indexOf("if (path === '/api/marketing-automation-status')");
+  assert.ok(begin > 0);
+  const end = source.indexOf("if (path === '/api/whatsapp-embedded-signup')", begin);
+  assert.ok(end > begin);
+  const handler = source.slice(begin, end);
+  assert.match(handler, /req\.method !== 'GET'/);
+  assert.match(handler, /assertStoreAccess\(req\.user, statusStoreId\)/);
+  assert.match(handler, /Cache-Control', 'private, no-store'/);
+  assert.doesNotMatch(handler, /await fetch\(|sendMessageToMeta\(|enqueueJourney\(/);
+  assert.doesNotMatch(handler, /apiToken:/);
+  const app = readFileSync(new URL('../src/App.jsx', import.meta.url), 'utf8');
+  assert.match(app, /path="\/admin\/marketing-automation"/);
+  assert.match(app, /<MarketingAutomationStatus \/>/);
+});
