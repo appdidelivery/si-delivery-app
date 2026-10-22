@@ -18,6 +18,8 @@ export default function MarketingAutomationStatus() {
   const [status, setStatus] = useState(null);
   const [error, setError] = useState('');
   const [checking, setChecking] = useState(false);
+  const [inviting, setInviting] = useState(false);
+  const [inviteResult, setInviteResult] = useState(null);
   const refresh = async (deep = false) => {
     setError('');
     setChecking(true);
@@ -31,6 +33,26 @@ export default function MarketingAutomationStatus() {
     } catch (e) {
       setError(e.message);
     } finally { setChecking(false); }
+  };
+  const inviteRecent = async () => {
+    if (checking || inviting) return;
+    if (!window.confirm('Enviar um convite com botões Aceito / Não aceito somente a clientes que escreveram para a Santa Isabel nas últimas 24 horas e ainda não responderam? Máximo 20 convites por execução. Nenhuma campanha promocional será enviada.')) return;
+    setInviting(true);
+    setInviteResult(null);
+    setError('');
+    try {
+      const response = await authenticatedFetch('/api/whatsapp-send', {
+        method: 'POST',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({action:'csi_consent_invite',storeId:'csi',maxRecipients:20})
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Falha no convite de consentimento.');
+      setInviteResult(data);
+      await refresh(true);
+    } catch(e) {
+      setError(e.message);
+    } finally { setInviting(false); }
   };
   useEffect(() => { void refresh(); }, []);
 
@@ -51,6 +73,20 @@ export default function MarketingAutomationStatus() {
             </button>
           </div>
           {error && <p role="alert" className="rounded-xl bg-red-50 p-4 text-red-700">{error}</p>}
+          <section className="rounded-2xl border border-blue-200 bg-blue-50 p-5 space-y-3">
+            <h2 className="font-black text-blue-950 text-lg">Pedir autorização de promoções pelo WhatsApp</h2>
+            <p className="text-sm text-blue-950">Envia dois botões: <strong>Sou 18+ e aceito</strong> ou <strong>Não aceito</strong>. Apenas para contatos que escreveram à loja nas últimas 24 horas, sem autorização anterior e sem bloqueio. A escolha será registrada automaticamente. Não é um disparo de ofertas.</p>
+            <button type="button" disabled={inviting || checking} onClick={inviteRecent}
+              className="rounded-xl bg-blue-700 px-5 py-3 text-white font-bold disabled:opacity-50">
+              {inviting ? 'Enviando convites...' : 'Enviar convites para conversas abertas (até 20)'}
+            </button>
+            {inviteResult && <div role="status" className="text-sm text-blue-950">
+              <p><strong>Aceitos pela Meta: {inviteResult.sent || 0}</strong> · Recusados: {inviteResult.failed || 0} · Ignorados por regras: {inviteResult.skipped || 0}</p>
+              <p>Conversas recentes encontradas: {inviteResult.recentConversations || 0}. Aceitação pela Meta não garante entrega ao celular; confirme os recibos no atendimento.</p>
+              {inviteResult.truncated && <p className="font-bold text-amber-800">A consulta atingiu o limite de registros.</p>}
+              {inviteResult.errors?.length > 0 && <p className="text-amber-800">Ocorreram erros de API. Consulte os logs de produção para detalhes.</p>}
+            </div>}
+          </section>
           {status?.diagnosticError && <p role="alert" className="rounded-xl bg-amber-50 p-4 text-amber-800">{status.diagnosticError}</p>}
           {status?.readiness && <section className="rounded-2xl border border-slate-200 bg-white p-5 space-y-4">
             <h2 className="text-xl font-black text-slate-900">Elegibilidade real — sem disparar mensagens</h2>
