@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { hasAuthorizedCsiMarketingConsent } from '../lib/csiMarketingEligibility.js';
 import { analyzeCsiMarketingReadiness } from '../lib/csiMarketingReadiness.js';
 
@@ -51,7 +52,7 @@ test('retention excludes opt-outs and observes 7 day cooldown', () => {
 });
 
 test('deep audit remains behind authenticated GET and no message sends', () => {
-  const source = (await import('node:fs')).readFileSync(new URL('../api/index.js', import.meta.url),'utf8');
+  const source = readFileSync(new URL('../api/index.js', import.meta.url),'utf8');
   const start = source.indexOf("if (path === '/api/marketing-automation-status')");
   const end = source.indexOf("if (path === '/api/whatsapp-embedded-signup')",start);
   const slice = source.slice(start,end);
