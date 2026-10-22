@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { auth } from '../services/firebase';
 
 const PALETTES = {
   varejo: ['#115e35', '#facc15', '#064e3b'],
@@ -42,6 +43,9 @@ export default function VeloBannerStudio({ products = [], store, onExport }) {
   const [headline, setHeadline] = useState('');
   const [warning, setWarning] = useState('');
   const [ready, setReady] = useState(false);
+  const [aiBackground, setAiBackground] = useState('');
+  const [generating, setGenerating] = useState(false);
+  const [remaining, setRemaining] = useState(null);
   const canvasRef = useRef(null);
   const product = products.find(p => String(p.id) === productId);
   const imageUrl = firstUrl(product?.imageUrl, product?.imageURL, product?.image, product?.photoUrl, product?.photo, product?.thumbnailUrl, product?.images?.[0]?.url, product?.images?.[0], product?.imageUrls?.[0]);
@@ -56,7 +60,7 @@ export default function VeloBannerStudio({ products = [], store, onExport }) {
     setReady(false);
     setWarning('');
     async function draw() {
-      const [photo, logo] = await Promise.all([loadImage(imageUrl), loadImage(logoUrl)]);
+      const [photo, logo, scene] = await Promise.all([loadImage(imageUrl), loadImage(logoUrl), loadImage(aiBackground)]);
       if (cancelled) return;
       const canvas = canvasRef.current;
       if (!canvas) return;
@@ -68,6 +72,7 @@ export default function VeloBannerStudio({ products = [], store, onExport }) {
       const grad = ctx.createLinearGradient(0, 0, w, h);
       grad.addColorStop(0, bg); grad.addColorStop(1, secondary);
       ctx.fillStyle = grad; ctx.fillRect(0, 0, w, h);
+      if (scene) { ctx.drawImage(scene, 0, 0, w, h); ctx.fillStyle = 'rgba(0,0,0,0.4)'; ctx.fillRect(0,0,w,h); }
       ctx.fillStyle = accent; ctx.globalAlpha = 0.11;
       ctx.beginPath(); ctx.arc(650, 30, 230, 0, Math.PI * 2); ctx.fill();
       ctx.beginPath(); ctx.arc(1100, 370, 220, 0, Math.PI * 2); ctx.fill();
@@ -120,7 +125,21 @@ export default function VeloBannerStudio({ products = [], store, onExport }) {
     }
     draw();
     return () => { cancelled = true; };
-  }, [product, campaign, template, headline, imageUrl, logoUrl, store?.name, hasPromo, original, price, percentage]);
+  }, [product, campaign, template, headline, imageUrl, logoUrl, store?.name, hasPromo, original, price, percentage, aiBackground]);
+  async function generateScene() {
+    if (!product || generating) return;
+    setGenerating(true);
+    try {
+      const user = auth.currentUser;
+      if (!user) throw new Error('Entre na sua conta para gerar.');
+      const token = await user.getIdToken();
+      const response = await fetch('/api/banner-ai', {method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+token},body:JSON.stringify({storeId:store.id,productId,campaign,template})});
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || 'Falha na geração');
+      setAiBackground(result.image); setRemaining(result.remaining);
+    } catch (e) { setWarning(e.message); }
+    finally { setGenerating(false); }
+  }
   function download() {
     if (!product || !ready || warning) return;
     canvasRef.current.toBlob(blob => {
@@ -150,6 +169,8 @@ export default function VeloBannerStudio({ products = [], store, onExport }) {
       </select></label>
     </div>
     <label className="block">Chamada opcional<input className="mt-1 w-full rounded border p-2" maxLength={28} value={headline} onChange={e => setHeadline(e.target.value)} placeholder={LABELS[campaign]}/></label>
+    <button type="button" disabled={!product || generating} onClick={generateScene} className="rounded-lg bg-indigo-700 px-5 py-3 font-semibold text-white disabled:opacity-50">{generating ? 'Gerando cenário...' : 'Gerar cenário com IA'}</button>
+    {remaining !== null && <p className="text-sm">Gerações restantes hoje: {remaining}</p>}
     <canvas ref={canvasRef} width={1200} height={400} aria-label="Prévia da arte completa" className="w-full rounded-lg"/>
     {warning && <p role="alert" className="text-sm text-amber-700">{warning}</p>}
     <button type="button" disabled={!product || !ready || Boolean(warning)} onClick={download} className="rounded-lg bg-emerald-700 px-5 py-3 font-semibold text-white disabled:opacity-50">Baixar banner PNG</button>
