@@ -57,7 +57,9 @@ export default async function handler(req, res) {
         "encantolilas.app.br": "encantolilas",
         "macanudorex.com.br": "macanudorex",
         "ngconveniencia.com.br": "ng",
-        "coelhoscuca.com.br": "coelhoscuca"
+        "coelhoscuca.com.br": "coelhoscuca",
+        "monteverde.mercadomv.com.br": "mercadomonteverde",
+        "sacogrande.mercadomv.com.br": "mercadomonteverdesacogrande"
     };
 
     let storeId = 'velo';
@@ -78,8 +80,8 @@ export default async function handler(req, res) {
     const finalCleanUrl = `${safeOrigin}${rawPath.split('?')[0]}`;
 
     const capitalize = (str) => str.charAt(0).toUpperCase() + str.slice(1);
-    let title = `${capitalize(storeId)} - Delivery`;
-    let description = "Peça online com rapidez e segurança. O melhor delivery da sua região.";
+    let title = cleanHost === 'mercadomv.com.br' ? 'Mercado MV | Escolha sua unidade' : `${capitalize(storeId)} - Delivery`;
+    let description = cleanHost === 'mercadomv.com.br' ? 'Escolha a unidade do Mercado MV: Monte Verde ou Saco Grande, em Florianópolis.' : 'Peça online com rapidez e segurança. O melhor delivery da sua região.';
     let image = "https://app.velodelivery.com.br/logo-square.png"; 
 
     let mainSchema = "";
