@@ -47,10 +47,12 @@ const SCHEMA_TYPES = {
     floricultura: 'Florist',
 };
 const FOOD_TYPES = new Set(['Restaurant', 'FastFoodRestaurant', 'IceCreamShop', 'Bakery']);
+const MARKET_MV_SHARE_IMAGE = 'https://res.cloudinary.com/dud8fzi5r/image/upload/c_pad,w_1200,h_630,b_white,f_jpg,q_85/v1790159685/zz8ipv2xka9fudxcvgvu.jpg';
 
 export default async function handler(req, res) {
     const host = req.headers['x-forwarded-host'] || req.headers.host || '';
     const cleanHost = host.toLowerCase().trim().replace(/^www\./, '');
+    const isMarketMVHub = cleanHost === 'mercadomv.com.br';
     
     const domainMap = {
         "convenienciasantaisabel.com.br": "csi",
@@ -82,13 +84,13 @@ export default async function handler(req, res) {
     const capitalize = (str) => str.charAt(0).toUpperCase() + str.slice(1);
     let title = cleanHost === 'mercadomv.com.br' ? 'Mercado MV | Escolha sua unidade' : `${capitalize(storeId)} - Delivery`;
     let description = cleanHost === 'mercadomv.com.br' ? 'Escolha a unidade do Mercado MV: Monte Verde ou Saco Grande, em Florianópolis.' : 'Peça online com rapidez e segurança. O melhor delivery da sua região.';
-    let image = "https://app.velodelivery.com.br/logo-square.png"; 
+    let image = isMarketMVHub ? MARKET_MV_SHARE_IMAGE : 'https://app.velodelivery.com.br/logo-square.png'; 
 
     let mainSchema = "";
     let productMetaTags = "";
     let isProductPage = rawPath.includes('/p/');
 
-    try {
+    if (!isMarketMVHub) try {
         const projectId = process.env.FIREBASE_PROJECT_ID || process.env.VITE_FIREBASE_PROJECT_ID || 'zetesteapp';
         const apiKey = process.env.FIREBASE_API_KEY || process.env.VITE_FIREBASE_API_KEY || '';
         const authParam = apiKey ? `?key=${apiKey}` : '';
@@ -315,6 +317,8 @@ export default async function handler(req, res) {
         <meta property="og:title" content="${title}" />
         <meta property="og:description" content="${description}" />
         <meta property="og:image" content="${image}" />
+        <meta property="og:image:secure_url" content="${image}" />
+        ${isMarketMVHub ? '<meta property="og:image:type" content="image/jpeg" /><meta property="og:image:width" content="1200" /><meta property="og:image:height" content="630" />' : ''}
         <meta property="og:url" content="${finalCleanUrl}" />
         <meta property="og:type" content="${isProductPage ? 'product' : 'website'}" />
         ${productMetaTags}
@@ -325,7 +329,9 @@ export default async function handler(req, res) {
     </body>
     </html>`;
 
-    res.setHeader('Cache-Control', 's-maxage=86400, stale-while-revalidate');
+    res.setHeader('Cache-Control', isMarketMVHub
+        ? 'public, max-age=0, s-maxage=300, stale-while-revalidate=60'
+        : 's-maxage=86400, stale-while-revalidate');
     res.setHeader('Content-Type', 'text/html; charset=utf-8');
     return res.status(200).send(html);
 }
