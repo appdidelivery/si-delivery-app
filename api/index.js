@@ -3815,11 +3815,14 @@ const aiResponse = await fetchGeminiWithRetry(`https://generativelanguage.google
                                         const promptRef=db.collection('whatsapp_marketing_consent_prompts').doc(`csi_${normalizedPhone}`);
                                         const nowMs=Date.now();
                                         try{
-                                            const [consentSnap,optoutSnap]=await Promise.all([consentRef.get(),optoutRef.get()]);
+                                            const [consentSnap,optoutSnap,blockedSnap]=await Promise.all([
+                                                consentRef.get(),optoutRef.get(),
+                                                db.collection('blocked_contacts').doc(`csi_${normalizedPhone}`).get()
+                                            ]);
                                             if(shouldOfferCsiOptIn({
                                                 storeId:'csi',hasApiCredentials:true,optedOut:optoutSnap.exists,
                                                 alreadyOptedIn:consentSnap.data()?.optedIn===true,
-                                                lastPromptAtMs:0,nowMs,hasText:true,blocked:false
+                                                lastPromptAtMs:0,nowMs,hasText:true,blocked:blockedSnap.exists
                                             })){
                                                 const claimed=await db.runTransaction(async tx=>{
                                                     const snap=await tx.get(promptRef);
