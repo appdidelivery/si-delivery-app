@@ -48,6 +48,22 @@ const SCHEMA_TYPES = {
 };
 const FOOD_TYPES = new Set(['Restaurant', 'FastFoodRestaurant', 'IceCreamShop', 'Bakery']);
 const MARKET_MV_SHARE_IMAGE = 'https://res.cloudinary.com/dud8fzi5r/image/upload/c_pad,w_1200,h_630,b_white,f_jpg,q_85/v1790159685/zz8ipv2xka9fudxcvgvu.jpg';
+async function fetchMarketMVLogo() {
+    try {
+        const projectId = process.env.VITE_FIREBASE_PROJECT_ID || process.env.FIREBASE_PROJECT_ID || 'zetesteapp';
+        const apiKey = process.env.VITE_FIREBASE_API_KEY || process.env.FIREBASE_API_KEY || '';
+        const authParam = apiKey ? '?key=' + apiKey : '';
+        const response = await fetch('https://firestore.googleapis.com/v1/projects/' + projectId + '/databases/(default)/documents/stores/mercadomonteverde' + authParam, { signal: AbortSignal.timeout(1800) });
+        if (!response.ok) return null;
+        const fields = (await response.json()).fields || {};
+        const logo = fields.storeLogoUrl?.stringValue || fields.logoUrl?.stringValue;
+        if (!logo || !/^https:\/\//i.test(logo)) return null;
+        return logo.includes('res.cloudinary.com') && logo.includes('/upload/')
+            ? logo.replace('/upload/', '/upload/c_pad,w_1200,h_630,b_white,f_jpg,q_85/')
+            : logo;
+    } catch { return null; }
+}
+
 
 export default async function handler(req, res) {
     const host = req.headers['x-forwarded-host'] || req.headers.host || '';
@@ -84,7 +100,7 @@ export default async function handler(req, res) {
     const capitalize = (str) => str.charAt(0).toUpperCase() + str.slice(1);
     let title = cleanHost === 'mercadomv.com.br' ? 'Mercado MV | Escolha sua unidade' : `${capitalize(storeId)} - Delivery`;
     let description = cleanHost === 'mercadomv.com.br' ? 'Escolha a unidade do Mercado MV: Monte Verde ou Saco Grande, em Florianópolis.' : 'Peça online com rapidez e segurança. O melhor delivery da sua região.';
-    let image = isMarketMVHub ? MARKET_MV_SHARE_IMAGE : 'https://app.velodelivery.com.br/logo-square.png'; 
+    let image = isMarketMVHub ? (await fetchMarketMVLogo() || MARKET_MV_SHARE_IMAGE) : 'https://app.velodelivery.com.br/logo-square.png'; 
 
     let mainSchema = "";
     let productMetaTags = "";
