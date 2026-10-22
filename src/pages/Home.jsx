@@ -1,4 +1,5 @@
 import { initMetaPixel, trackMetaEvent, trackMetaPurchase, getMetaContext } from '../utils/metaPixel.js';
+import { getGoogleTrackingConfig, trackGooglePurchase } from '../utils/googlePurchase.js';
 import React, { useState, useEffect, useRef, Suspense } from 'react';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import { db } from '../services/firebase';
@@ -2468,6 +2469,7 @@ const upsellTotal = sanitizedCart.filter(i => i.isUpsell === true).reduce((acc, 
 
     const orderData = {
         metaTracking: getMetaContext(marketingSettings?.integrations?.meta?.pixelId),
+        googleTracking: getGoogleTrackingConfig(marketingSettings?.integrations, storeSettings),
         customerName: customer.name || "", 
         customerAddress: isWaiterMode ? `Mesa ${tableNumber}` : (isPickup ? "Retirada no Balcão" : (fullAddress || "")), 
         customerPhone: customer.phone || "",
@@ -2567,26 +2569,6 @@ upsellAmount: upsellTotal, // Mantido por retrocompatibilidade com painéis anti
       });
       // =========================================================
 
-      if (window.gtag) { 
-          window.gtag('event', 'purchase', { 
-              transaction_id: orderId, 
-              value: finalTotal, 
-              currency: 'BRL', 
-              items: sanitizedCart.map(i => ({ item_id: i.id, item_name: i.name, price: i.price, quantity: i.quantity })) 
-          }); 
-          
-          // Se tiver o rótulo de conversão específico do Google Ads (ex: AW-XXX/AbCDefg...)
-          const gadsLabel = marketingSettings?.integrations?.gads?.conversionLabel;
-          const gadsId = marketingSettings?.integrations?.gads?.conversionId;
-          if (gadsLabel && gadsId) {
-              window.gtag('event', 'conversion', { 
-                  'send_to': `${gadsId}/${gadsLabel}`, 
-                  'value': finalTotal, 
-                  'currency': 'BRL', 
-                  'transaction_id': orderId 
-              });
-          }
-      }
 
       // ======================================================================
       // 🚀 1. BYPASS SUPREMO (WEB3): PAGAMENTO 100% COM TOKEN VFOOD
@@ -2603,13 +2585,14 @@ upsellAmount: upsellTotal, // Mantido por retrocompatibilidade com painéis anti
               };
               
               await setDoc(newOrderRef, bypassOrderData);
-              trackMetaPurchase(orderId, bypassOrderData);
 
-              // Queima os tokens utilizados no Firebase imediatamente
+              // Compra com tokens: só mede conversão após confirmar a baixa do saldo.
               const cleanPhone = customer.phone.replace(/\D/g, '');
               await updateDoc(doc(db, "wallets", `${storeId}_${cleanPhone}`), { 
                   solanaTokenBalance: increment(-solanaDiscount) 
               });
+              trackGooglePurchase({ ...bypassOrderData, id: orderId });
+              trackMetaPurchase(orderId, bypassOrderData);
 
               // Limpeza de Rascunhos e Abandono
               try { 
@@ -2653,7 +2636,10 @@ upsellAmount: upsellTotal, // Mantido por retrocompatibilidade com painéis anti
 
       if (isOfflinePayment) {
           await setDoc(newOrderRef, orderData);
-          if (!isWaiterMode) trackMetaPurchase(orderId, orderData);
+          if (!isWaiterMode) {
+            trackGooglePurchase({ ...orderData, id: orderId });
+            trackMetaPurchase(orderId, orderData);
+          }
 
           // Se for pagamento na entrega (offline), não tem webhook. Engatilhamos a recompensa agora!
           triggerWeb3Reward();
