@@ -1,3 +1,4 @@
+import { getStorePublicOrigin } from '../utils/domainHelper';
 import React, { useState, useEffect } from 'react';
 import { FaFacebook, FaInstagram, FaRegChartBar } from 'react-icons/fa6';
 import { Target, Megaphone, CheckCircle, X, Loader2, Plus, MapPin, DollarSign, Users, ShoppingBag, Zap, RefreshCw, ExternalLink } from 'lucide-react';
@@ -150,7 +151,7 @@ export default function MetaAdsDashboard({ storeId, products, storeStatus, setti
 
         setIsSubmitting(true);
 
-        const domain = storeStatus?.customDomain ? `https://${storeStatus.customDomain}` : `https://${storeId}.velodelivery.com.br`;
+        const domain = getStorePublicOrigin(storeId, storeStatus?.customDomain);
         const safeSlug = product.name.toString().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9 -]/g, '').replace(/\s+/g, '-');
         const productUrl = `${domain}/p/${safeSlug}`;
 
