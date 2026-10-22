@@ -442,6 +442,8 @@ export default async function handler(req, res) {
           "macanudorex.com.br": "macanudorex",
           "ngconveniencia.com.br": "ng",
           "filial.convenienciasantaisabel.com.br": "filialsantaisabel",
+          "monteverde.mercadomv.com.br": "mercadomonteverde",
+          "sacogrande.mercadomv.com.br": "mercadomonteverdesacogrande",
        };
         storeId = domainMap[cleanHost] || cleanHost.split('.')[0];
     }
