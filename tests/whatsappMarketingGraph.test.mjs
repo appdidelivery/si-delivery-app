@@ -63,7 +63,8 @@ test('operator diagnosis is authenticated, read-only, and never sends messages',
   assert.match(handler, /req\.method !== 'GET'/);
   assert.match(handler, /assertStoreAccess\(req\.user, statusStoreId\)/);
   assert.match(handler, /Cache-Control', 'private, no-store'/);
-  assert.doesNotMatch(handler, /await fetch\(|sendMessageToMeta\(|enqueueJourney\(/);
+  assert.doesNotMatch(handler, /sendMessageToMeta\(|enqueueJourney\(|method:\s*'POST'/);
+  assert.match(handler, /const response = await fetch\(url/);
   assert.doesNotMatch(handler, /apiToken:/);
   const app = readFileSync(new URL('../src/App.jsx', import.meta.url), 'utf8');
   assert.match(app, /path="\/admin\/marketing-automation"/);
