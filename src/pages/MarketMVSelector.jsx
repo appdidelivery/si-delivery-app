@@ -78,6 +78,9 @@ export default function MarketMVSelector() {
         <meta name="description" content="Compre online no Mercado MV. Escolha a unidade Monte Verde ou Saco Grande em Florianópolis e confira produtos, preços e entregas." />
         <meta property="og:title" content="Mercado MV | Escolha sua unidade" />
         <meta property="og:description" content="Duas unidades em Florianópolis. Escolha a sua e faça seu pedido online." />
+        <meta property="og:image" content="https://res.cloudinary.com/dud8fzi5r/image/upload/c_pad,w_1200,h_630,b_white,f_jpg,q_85/v1790159685/zz8ipv2xka9fudxcvgvu.jpg" />
+        <meta name="twitter:card" content="summary_large_image" />
+        <meta name="twitter:image" content="https://res.cloudinary.com/dud8fzi5r/image/upload/c_pad,w_1200,h_630,b_white,f_jpg,q_85/v1790159685/zz8ipv2xka9fudxcvgvu.jpg" />
         <link rel="canonical" href="https://www.mercadomv.com.br/" />
       </Helmet>
       <div className="mx-auto max-w-5xl px-5 py-12 sm:py-20">
