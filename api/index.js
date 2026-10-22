@@ -14,6 +14,8 @@ import crypto from 'crypto'; // <-- OBRIGATÓRIO PARA A CAPI DA META
 import { fetchGeminiWithRetry } from '../lib/gemini.js';
 import { scheduleJourneyRequest } from '../server/journeyQueue.js';
 import { marketingMessagesEndpoint } from '../lib/whatsappMarketingGraph.js';
+import { hasAuthorizedCsiMarketingConsent } from '../lib/csiMarketingEligibility.js';
+import { hasValidCsiMarketingRecord } from '../lib/whatsappConsentCapture.js';
 import { handleOccasionLifecycle } from '../server/lifecycleDispatch.js';
 import { handleFootballRadar } from '../server/footballRadar.js';
 import { handleFootballAlert } from '../server/footballAlerts.js';
@@ -1437,9 +1439,10 @@ const aiResponse = await fetchGeminiWithRetry(`https://generativelanguage.google
                             return Number.isFinite(parsed) ? parsed : 0;
                         };
 
-                        const blockedSnap = await db.collection('blocked_contacts')
-                            .where('storeId', '==', journeyStoreId)
-                            .limit(2000).get();
+                        const [blockedSnap, explicitConsentSnap] = await Promise.all([
+                            db.collection('blocked_contacts').where('storeId', '==', journeyStoreId).limit(2000).get(),
+                            db.collection('whatsapp_marketing_consents').where('storeId', '==', journeyStoreId).limit(3000).get()
+                        ]);
 
                         const blockedPhones = new Set();
                         blockedSnap.forEach(d => {
@@ -1447,8 +1450,15 @@ const aiResponse = await fetchGeminiWithRetry(`https://generativelanguage.google
                             if (phone) blockedPhones.add(phone);
                         });
 
+                        const explicitConsents = new Map();
+                        explicitConsentSnap.forEach(d => {
+                            const phone = normalizeJourneyPhone(d.data().phone);
+                            if (phone && hasValidCsiMarketingRecord(d.data())) explicitConsents.set(phone, d.data());
+                        });
+
                         const canReceiveMarketing = (phone, source = {}) =>
-                            !blockedPhones.has(phone) && hasEligibleMarketingConsent(source, true);
+                            !blockedPhones.has(phone) &&
+                            hasAuthorizedCsiMarketingConsent(source, explicitConsents.get(phone));
 
                         const sendJourneyTemplate = async ({ phone, templateCandidates, stage, sourceId, sourceType }) => {
                             if (await isMarketingOptedOut(db, journeyStoreId, phone)) {
