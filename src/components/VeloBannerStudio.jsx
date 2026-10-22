@@ -44,7 +44,7 @@ export default function VeloBannerStudio({ products = [], store, onExport }) {
   const [ready, setReady] = useState(false);
   const canvasRef = useRef(null);
   const product = products.find(p => String(p.id) === productId);
-  const imageUrl = firstUrl(product?.imageUrl, product?.image, product?.photoUrl, product?.images?.[0]?.url, product?.images?.[0]);
+  const imageUrl = firstUrl(product?.imageUrl, product?.imageURL, product?.image, product?.photoUrl, product?.photo, product?.thumbnailUrl, product?.images?.[0]?.url, product?.images?.[0], product?.imageUrls?.[0]);
   const logoUrl = firstUrl(store?.storeLogoUrl, store?.logoUrl, store?.logo);
   const original = Number(product?.price || 0);
   const promo = Number(product?.promotionalPrice || product?.promoPrice || 0);
@@ -74,7 +74,7 @@ export default function VeloBannerStudio({ products = [], store, onExport }) {
       ctx.globalAlpha = 1;
       rounded(ctx, 32, 30, 310, 60, 16, accent);
       ctx.fillStyle = '#101010'; ctx.font = '900 29px Arial';
-      ctx.textAlign = 'center'; ctx.fillText((headline || LABELS[campaign]).slice(0, 28), 187, 70, 292);
+      ctx.textAlign = 'center'; ctx.fillText((headline && !/^\\s*\\d+\\s*%\\s*$/.test(headline) ? headline : LABELS[campaign]).slice(0, 28), 187, 70, 292);
       ctx.textAlign = 'left';
       const name = String(product?.name || 'Selecione um produto').slice(0, 55);
       const size = fitText(ctx, name, 430, 49);
@@ -115,7 +115,7 @@ export default function VeloBannerStudio({ products = [], store, onExport }) {
       if (product && !photo) missing.push('A foto do produto não pôde ser carregada.');
       if (logoUrl && !logo) missing.push('A logo oficial não pôde ser carregada.');
       if (!logoUrl) missing.push('A loja não possui logo cadastrada.');
-      if (missing.length) setWarning(missing.join(' ') + ' Confira permissões CORS das imagens.');
+      if (missing.length) setWarning(missing.join(' ') + ' Verifique o endereço da foto no cadastro e o acesso externo à imagem.');
       setReady(true);
     }
     draw();
@@ -134,7 +134,7 @@ export default function VeloBannerStudio({ products = [], store, onExport }) {
   }
   return <section className="space-y-4 rounded-2xl border bg-white p-5">
     <h2 className="text-xl font-bold">Estúdio de banners Velo</h2>
-    <p className="text-sm text-slate-600">Arte completa com foto original do produto, logo oficial da loja e preço do catálogo.</p>
+    <p className="text-sm text-slate-600">Prévia técnica com dados do catálogo. A geração de cenários criativos por IA ainda não está disponível.</p>
     <label className="block">Produto
       <select className="mt-1 w-full rounded border p-2" value={productId} onChange={e => setProductId(e.target.value)}>
         <option value="">Selecione um produto</option>
