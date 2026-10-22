@@ -567,6 +567,52 @@ export default async function handler(req, res) {
     }
 
     // BUILD VERSION (SEM CACHE) - usado pelo atualizador automático do painel
+    // Read-only marketing diagnostic. Uses the Firebase identity verified by the
+    // global auth middleware; intentionally never calls Meta or queues messages.
+    if (path === '/api/marketing-automation-status') {
+        res.setHeader('Cache-Control', 'private, no-store');
+        if (req.method !== 'GET') return res.status(405).json({ error: 'Método não permitido.' });
+        const statusStoreId = String(req.query?.storeId || 'csi');
+        if (statusStoreId !== 'csi') return res.status(403).json({ error: 'Piloto exclusivo da CSI.' });
+        await assertStoreAccess(req.user, statusStoreId);
+        const day = brazilDayKey();
+        const [settingsDoc, usageDoc] = await Promise.all([
+            db.collection('settings').doc(statusStoreId).get(),
+            db.collection('whatsapp_marketing_daily_usage').doc(statusStoreId + '_' + day).get()
+        ]);
+        const wa = settingsDoc.data()?.integrations?.whatsapp || {};
+        const nativeConnected = Boolean(wa.phoneNumberId && wa.apiToken);
+        const journey = wa.journeyAutomation || {};
+        const lifecycle = wa.lifecycleAutomation || {};
+        const football = wa.footballAutomation || {};
+        return res.status(200).json({
+            success: true, storeId: statusStoreId, localDate: day, readOnly: true,
+            nativeCloudApi: nativeConnected ? 'credentials_present' : 'not_configured',
+            journeys: {
+                codeEnabled: nativeConnected && journey.enabled !== false,
+                explicitlyEnabled: journey.enabled === true,
+                disabled: journey.enabled === false,
+                dailyLimit: Math.max(1, Math.min(50, Number(journey.dailyLimit) || 20)),
+                stages: ['abandoned_cart_30m', 'post_sale_30m', 'second_purchase']
+            },
+            retention: {
+                codeEnabled: nativeConnected && lifecycle.enabled !== false,
+                explicitlyEnabled: lifecycle.enabled === true,
+                disabled: lifecycle.enabled === false,
+                dailyLimit: Math.max(1, Math.min(20, Number(lifecycle.dailyLimit) || 20)),
+                slots: ['wed', 'fri', 'sat', 'sun']
+            },
+            football: {
+                explicitlyEnabled: football.enabled === true,
+                policyCleared: football.policyClearedForThisStore === true,
+                templateConfigured: Boolean(football.approvedTemplateName)
+            },
+            attemptsToday: Number(usageDoc.data()?.attempted || 0),
+            deliveryConfirmed: false,
+            note: 'Configuração de leitura. A presença de credenciais e flags não prova aprovação de template, execução do cron nem entrega.'
+        });
+    }
+
     if (path === '/api/whatsapp-embedded-signup') {
         return handleMetaWhatsAppSignup(req, res, { db, admin });
     }
