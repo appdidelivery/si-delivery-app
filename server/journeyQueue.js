@@ -1,4 +1,5 @@
 import { marketingMessagesEndpoint } from '../lib/whatsappMarketingGraph.js';
+import { hasAuthorizedCsiMarketingConsent } from '../lib/csiMarketingEligibility.js';
 import admin from 'firebase-admin';
 import { QueueClient, send } from '@vercel/queue';
 import { hasEligibleMarketingConsent, isMarketingOptedOut, reserveMarketingAttempt } from '../lib/whatsappMarketingGuard.js';
@@ -53,7 +54,9 @@ async function canReceiveJourneyMarketing(phone, source = {}) {
   const normalized = normalizePhone(phone);
   if (!normalized) return false;
 
-  if (!hasEligibleMarketingConsent(source, true)) return false;
+  const consentSnap = await db.collection('whatsapp_marketing_consents')
+    .doc(`${CSI_STORE_ID}_${normalized}`).get();
+  if (!hasAuthorizedCsiMarketingConsent(source, consentSnap.data())) return false;
   const blockedSnap = await db.collection('blocked_contacts').doc(`${CSI_STORE_ID}_${normalized}`).get();
   return !blockedSnap.exists;
 }
@@ -65,16 +68,19 @@ async function sendJourneyTemplate({ phone, templateCandidates, stage, sourceId,
     return { ok: false, reason: 'unsubscribed' };
   }
 
+  const settingsDoc = await db.collection('settings').doc(CSI_STORE_ID).get();
+  const waConfig = settingsDoc.data()?.integrations?.whatsapp;
+  if (waConfig?.journeyAutomation?.enabled === false) {
+    return { ok: false, reason: 'journey_disabled' };
+  }
+  if (!waConfig?.phoneNumberId || !waConfig?.apiToken) {
+    throw new Error('WhatsApp oficial da CSI não configurado.');
+  }
+
   const reserved = await reserveMarketingAttempt(db, {
     storeId: CSI_STORE_ID, phone: normalized, type: stage, dailyLimit: 20
   });
   if (!reserved.allowed) return { ok: false, reason: reserved.reason };
-
-  const settingsDoc = await db.collection('settings').doc(CSI_STORE_ID).get();
-  const waConfig = settingsDoc.data()?.integrations?.whatsapp;
-  if (!waConfig?.phoneNumberId || !waConfig?.apiToken) {
-    throw new Error('WhatsApp oficial da CSI não configurado.');
-  }
 
   const endpoint = marketingMessagesEndpoint(waConfig.phoneNumberId);
   const safePhone = `55${normalized}`;

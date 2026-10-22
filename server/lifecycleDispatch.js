@@ -1,4 +1,6 @@
 import { marketingMessagesEndpoint } from '../lib/whatsappMarketingGraph.js';
+import { hasAuthorizedCsiMarketingConsent } from '../lib/csiMarketingEligibility.js';
+import { hasValidCsiMarketingRecord } from '../lib/whatsappConsentCapture.js';
 import admin from 'firebase-admin';
 import crypto from 'node:crypto';
 import {
@@ -101,12 +103,14 @@ export async function handleOccasionLifecycle(req, res, slot) {
     return res.status(200).json({ success: true, skipped: 'templates_incomplete' });
   }
 
-  const [ordersSnap, blockedSnap, lifecycleSnap] = await Promise.all([
+  const [ordersSnap, blockedSnap, lifecycleSnap, consentSnap] = await Promise.all([
     db.collection('orders').where('storeId', '==', storeId).limit(5000).get(),
     db.collection('blocked_contacts').where('storeId', '==', storeId).limit(2000).get(),
-    db.collection('whatsapp_lifecycle_contacts').where('storeId', '==', storeId).limit(3000).get()
+    db.collection('whatsapp_lifecycle_contacts').where('storeId', '==', storeId).limit(3000).get(),
+    db.collection('whatsapp_marketing_consents').where('storeId', '==', storeId).limit(3000).get()
   ]);
   const blocked = new Set(blockedSnap.docs.map(d => normalizeMarketingPhone(d.data().phone)).filter(Boolean));
+  const explicitConsents = new Map(consentSnap.docs.map(d => [normalizeMarketingPhone(d.data().phone), d.data()]));
   const previousByHash = new Map(lifecycleSnap.docs.map(d => [d.id, d.data()]));
   const deniedStatuses = new Set(['canceled','cancelado','cancelled','refunded','estornado']);
   const customers = new Map();
@@ -122,10 +126,12 @@ export async function handleOccasionLifecycle(req, res, slot) {
     if (purchasedAt > entry.lastOrderAtMs) {
       entry.lastOrderAtMs = purchasedAt;
       entry.customerName = order.customerName || order.customer?.name || 'Cliente';
-      entry.optedIn = hasMarketingOptIn(order);
-      // Bebidas alcoólicas: um contato sem confirmação de maioridade não é elegível.
-      entry.adultConfirmed = order.alcoholMarketingAgeConfirmed === true ||
-        order.customer?.alcoholMarketingAgeConfirmed === true;
+      const verifiedConsent = hasValidCsiMarketingRecord(explicitConsents.get(phone));
+      entry.optedIn = hasAuthorizedCsiMarketingConsent(order, explicitConsents.get(phone));
+      // Consentimento verificado no WhatsApp inclui maioridade expressa (18+).
+      entry.adultConfirmed = (order.alcoholMarketingAgeConfirmed === true ||
+        order.customer?.alcoholMarketingAgeConfirmed === true || verifiedConsent) &&
+        order.whatsappMarketingOptOut !== true && order.marketingOptOut !== true;
     }
     customers.set(phone, entry);
   });

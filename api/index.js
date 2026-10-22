@@ -14,6 +14,9 @@ import crypto from 'crypto'; // <-- OBRIGATÓRIO PARA A CAPI DA META
 import { fetchGeminiWithRetry } from '../lib/gemini.js';
 import { scheduleJourneyRequest } from '../server/journeyQueue.js';
 import { marketingMessagesEndpoint } from '../lib/whatsappMarketingGraph.js';
+import { hasAuthorizedCsiMarketingConsent } from '../lib/csiMarketingEligibility.js';
+import { analyzeCsiMarketingReadiness } from '../lib/csiMarketingReadiness.js';
+import { hasValidCsiMarketingRecord } from '../lib/whatsappConsentCapture.js';
 import { handleOccasionLifecycle } from '../server/lifecycleDispatch.js';
 import { handleFootballRadar } from '../server/footballRadar.js';
 import { handleFootballAlert } from '../server/footballAlerts.js';
@@ -585,6 +588,70 @@ export default async function handler(req, res) {
         const journey = wa.journeyAutomation || {};
         const lifecycle = wa.lifecycleAutomation || {};
         const football = wa.footballAutomation || {};
+        let readiness = null;
+        let templateAudit = null;
+        let diagnosticError = null;
+        if (String(req.query?.details || '') === '1') {
+            try {
+                const collections = [
+                    ['abandoned_carts', 2500],
+                    ['orders', 5000],
+                    ['whatsapp_marketing_consents', 3000],
+                    ['blocked_contacts', 2000],
+                    ['whatsapp_marketing_optouts', 2000],
+                    ['whatsapp_lifecycle_contacts', 3000]
+                ];
+                const results = await Promise.all(collections.map(([name, limit]) =>
+                    db.collection(name).where('storeId', '==', statusStoreId).limit(limit).get()
+                ));
+                const named = results.map(snap => snap.docs.map(doc => ({ ...doc.data(), id: doc.id })));
+                readiness = analyzeCsiMarketingReadiness({
+                    carts:named[0], orders:named[1], consents:named[2],
+                    blocked:named[3], optouts:named[4], lifecycle:named[5],
+                    secondPurchaseAfterDays:Math.max(2,Math.min(30,Number(journey.secondPurchaseAfterDays)||7)),
+                    secondPurchaseMaxAgeDays:Math.max(8,Math.min(60,Number(journey.secondPurchaseMaxAgeDays)||30))
+                });
+                readiness.partialScan = results.some((snap, i) => snap.size >= collections[i][1]);
+            } catch (error) {
+                console.warn('[Marketing Readiness CSI] Não foi possível completar análise local:', error?.message);
+                diagnosticError = 'Não foi possível consultar todos os registros agregados. Verifique os logs da Vercel.';
+            }
+            const wabaId = String(wa.wabaId || wa.whatsappBusinessAccountId || '');
+            const templateNames = [
+                'velo_carrinho_bebidas','1_velo_pos_venda_bebidas','velo_pos_venda_bebidas',
+                'velo_segunda_compra_bebidas','velo_retencao_30_bebidas',
+                'velo_retencao_60_bebidas','velo_retencao_90_bebidas',
+                'velo_momentos_bebidas'
+            ];
+            templateAudit = {source:'unknown', templates:templateNames.map(name=>({name,status:'UNKNOWN'}))};
+            if (/^[0-9]{6,30}$/.test(wabaId) && wa.apiToken) {
+                try {
+                    const url = 'https://graph.facebook.com/v25.0/' + wabaId +
+                        '/message_templates?fields=name,status,language,category&limit=100';
+                    const response = await fetch(url, {
+                        headers:{Authorization:'Bearer '+wa.apiToken},
+                        signal:AbortSignal.timeout(7000)
+                    });
+                    if (response.ok) {
+                        const payload = await response.json();
+                        const templates = Array.isArray(payload.data) ? payload.data : [];
+                        templateAudit = {
+                            source:'meta', partial:!!payload.paging?.next,
+                            templates:templateNames.map(name=>{
+                                const found = templates.find(t=>t.name===name && t.language==='pt_BR');
+                                return {name,status:found?.status || (payload.paging?.next?'UNKNOWN':'NOT_FOUND')};
+                            })
+                        };
+                    } else {
+                        templateAudit.source = 'meta_unavailable';
+                    }
+                } catch {
+                    templateAudit.source = 'meta_unavailable';
+                }
+            } else {
+                templateAudit.source = 'waba_not_available';
+            }
+        }
         return res.status(200).json({
             success: true, storeId: statusStoreId, localDate: day, readOnly: true,
             nativeCloudApi: nativeConnected ? 'credentials_present' : 'not_configured',
@@ -608,6 +675,7 @@ export default async function handler(req, res) {
                 templateConfigured: Boolean(football.approvedTemplateName)
             },
             attemptsToday: Number(usageDoc.data()?.attempted || 0),
+            readiness, templateAudit, diagnosticError,
             deliveryConfirmed: false,
             note: 'Configuração de leitura. A presença de credenciais e flags não prova aprovação de template, execução do cron nem entrega.'
         });
@@ -1437,9 +1505,10 @@ const aiResponse = await fetchGeminiWithRetry(`https://generativelanguage.google
                             return Number.isFinite(parsed) ? parsed : 0;
                         };
 
-                        const blockedSnap = await db.collection('blocked_contacts')
-                            .where('storeId', '==', journeyStoreId)
-                            .limit(2000).get();
+                        const [blockedSnap, explicitConsentSnap] = await Promise.all([
+                            db.collection('blocked_contacts').where('storeId', '==', journeyStoreId).limit(2000).get(),
+                            db.collection('whatsapp_marketing_consents').where('storeId', '==', journeyStoreId).limit(3000).get()
+                        ]);
 
                         const blockedPhones = new Set();
                         blockedSnap.forEach(d => {
@@ -1447,8 +1516,15 @@ const aiResponse = await fetchGeminiWithRetry(`https://generativelanguage.google
                             if (phone) blockedPhones.add(phone);
                         });
 
+                        const explicitConsents = new Map();
+                        explicitConsentSnap.forEach(d => {
+                            const phone = normalizeJourneyPhone(d.data().phone);
+                            if (phone && hasValidCsiMarketingRecord(d.data())) explicitConsents.set(phone, d.data());
+                        });
+
                         const canReceiveMarketing = (phone, source = {}) =>
-                            !blockedPhones.has(phone) && hasEligibleMarketingConsent(source, true);
+                            !blockedPhones.has(phone) &&
+                            hasAuthorizedCsiMarketingConsent(source, explicitConsents.get(phone));
 
                         const sendJourneyTemplate = async ({ phone, templateCandidates, stage, sourceId, sourceType }) => {
                             if (await isMarketingOptedOut(db, journeyStoreId, phone)) {

@@ -15,6 +15,10 @@ on:
       - 'tests/whatsappConsentCapture.test.js'
       - 'tests/whatsappMarketingGraph.test.mjs'
       - 'lib/whatsappMarketingGraph.js'
+      - 'lib/csiMarketingEligibility.js'
+      - 'lib/csiMarketingReadiness.js'
+      - 'tests/csiMarketingReadiness.test.mjs'
+      - 'src/pages/MarketingAutomationStatus.jsx'
       - 'tests/whatsappLeadAudience.test.js'
       - 'tests/csiOccasionTemplate.test.js'
       - 'tests/footballFixtures.test.js'
@@ -43,6 +47,8 @@ jobs:
           node --check api/whatsapp-audience.js
           node --check server/journeyQueue.js
           node --check lib/whatsappMarketingGraph.js
+          node --check lib/csiMarketingEligibility.js
+          node --check lib/csiMarketingReadiness.js
           node --check lib/whatsappMarketingGuard.js
           node --check lib/marketingBatchSelection.js
           node --check lib/lifecycleSchedule.js
@@ -55,4 +61,4 @@ jobs:
           node --check lib/whatsappConsentCapture.js
           node -e "JSON.parse(require('fs').readFileSync('vercel.json','utf8'))"
       - name: Marketing opt-in and quota tests
-        run: node --test tests/whatsappMarketingGuard.test.js tests/lifecycleSchedule.test.js tests/footballFixtures.test.js tests/csiOccasionTemplate.test.js tests/whatsappLeadAudience.test.js tests/whatsappConsentCapture.test.js tests/whatsappMarketingGraph.test.mjs
+        run: node --test tests/whatsappMarketingGuard.test.js tests/lifecycleSchedule.test.js tests/footballFixtures.test.js tests/csiOccasionTemplate.test.js tests/whatsappLeadAudience.test.js tests/whatsappConsentCapture.test.js tests/whatsappMarketingGraph.test.mjs tests/csiMarketingReadiness.test.mjs
