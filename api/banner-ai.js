@@ -159,7 +159,8 @@ async function generateCreative(apiKey,product,merchant,campaign,template,headli
   });
   const result = await response.json().catch(()=>({}));
   if (!response.ok) {
-    console.error('[Velo Banner IA]',response.status,result?.error?.code||'',result?.error?.message?.slice(0,200)||'');
+    console.error('[Velo Banner IA]',response.status,result?.error?.code||'',result?.error?.message?.slice(0,200)||'',
+      'org',response.headers.get('openai-organization')||'unknown','requestId',response.headers.get('x-request-id')||'');
     if (result?.error?.code === 'credit_balance_exhausted' || result?.error?.code === 'insufficient_quota') {
       throw failure(402,'A conta da API OpenAI está sem créditos. Adicione saldo em platform.openai.com/settings/organization/billing/ e desative a recarga automática se desejar controlar os gastos.');
     }
@@ -203,6 +204,22 @@ export default async function handler(req,res) {
     if (action==='quota') {
       const s=await usageRef.get(),count=Number(s.data()?.count||0);
       return res.status(200).json({remaining:Math.max(0,MAX_DAILY-count),limit:MAX_DAILY});
+    }
+    if (action==='diagnostics') {
+      const email=String(user.email||'').trim().toLowerCase();
+      if (!TRUSTED_ADMINS.has(email) && user.admin!==true && user.superAdmin!==true) {
+        throw failure(403,'Diagnóstico de faturamento disponível apenas para a administração da Velo.');
+      }
+      if (!process.env.OPENAI_API_KEY) throw failure(503,'Chave da API de imagens não configurada.');
+      const check=await fetch('https://api.openai.com/v1/models',{
+        headers:{Authorization:'Bearer '+process.env.OPENAI_API_KEY},signal:AbortSignal.timeout(15000)
+      });
+      const org=check.headers.get('openai-organization')||'';
+      const project=check.headers.get('openai-project')||'';
+      const requestId=check.headers.get('x-request-id')||'';
+      console.info('[Velo Banner API credit diagnostics]',check.status,org,project,requestId);
+      return res.status(200).json({keyValid:check.ok,organization:org||null,project:project||null,
+        status:check.status,requestId,help:check.ok?'Compare a organização acima com a organização que recebeu os créditos no faturamento da OpenAI.':'A API não validou a chave. Verifique a chave da Vercel.'});
     }
     if (typeof productId!=='string' || !productId || productId.length>140 || productId.includes('/')) throw failure(400,'Selecione um produto válido.');
     const productSnap=await db.collection('products').doc(productId).get();
