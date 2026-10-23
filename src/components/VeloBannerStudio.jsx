@@ -280,6 +280,23 @@ export default function VeloBannerStudio({products=[],store}) {
       </button>
       <span className="text-xs text-slate-500">Formato Velo: 1200 × 400 px • A visualização não consome crédito.</span>
     </div>
+    <div className="flex flex-wrap items-center gap-3">
+      <button type="button" onClick={checkConnection} disabled={checkingConnection}
+        className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 disabled:opacity-50">
+        {checkingConnection?'Verificando conexão...':'🔍 Conferir a organização da chave (grátis)'}
+      </button>
+      <a href="https://platform.openai.com/settings/organization/general" target="_blank" rel="noopener noreferrer"
+        className="text-xs font-semibold text-indigo-700 underline">Ver minha organização na OpenAI ↗</a>
+    </div>
+    {diagnostic&&<div role="status" className="space-y-1 rounded-lg border border-indigo-100 bg-indigo-50 p-3 text-sm text-slate-700">
+      {diagnostic.error?<p>{diagnostic.error}</p>:<>
+        <p>Chave OpenAI: <strong>{diagnostic.keyValid?'Válida':'Não validada'}</strong></p>
+        {diagnostic.organization&&<p>Organização da chamada: <strong>{diagnostic.organization}</strong></p>}
+        {diagnostic.organizations?.length>0&&diagnostic.organizations.map(item=><p key={item.id}>{item.name||'Organização'}: <strong>{item.id}</strong></p>)}
+        {!diagnostic.organization&&!diagnostic.organizations?.length&&<p>Não foi possível identificar a organização na resposta da API.</p>}
+        <p>Compare este ID com a organização que recebeu o crédito na OpenAI. Nenhuma imagem é gerada nesse diagnóstico.</p>
+      </>}
+    </div>}
     {error&&<div role="alert" className="space-y-2 rounded-xl bg-red-50 p-3 text-sm font-semibold text-red-700">
       <p>{error}</p>
       {error.toLowerCase().includes('créditos')&&<div className="flex flex-wrap items-center gap-3">
