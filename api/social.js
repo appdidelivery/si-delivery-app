@@ -68,14 +68,15 @@ async function fetchMarketMVLogo() {
 export default async function handler(req, res) {
     const host = req.headers['x-forwarded-host'] || req.headers.host || '';
     const cleanHost = host.toLowerCase().trim().replace(/^www\./, '');
+    if (cleanHost === 'ngconveniencia.com.br') {
+        return res.status(410).json({error:'Loja indisponível.'});
+    }
     const isMarketMVHub = cleanHost === 'mercadomv.com.br';
     
     const domainMap = {
         "convenienciasantaisabel.com.br": "csi",
         "encantolilas.app.br": "encantolilas",
-        "macanudorex.com.br": "macanudorex",
-        "ngconveniencia.com.br": "ng",
-        "coelhoscuca.com.br": "coelhoscuca",
+        "macanudorex.com.br": "macanudorex",        "coelhoscuca.com.br": "coelhoscuca",
         "monteverde.mercadomv.com.br": "mercadomonteverde",
         "sacogrande.mercadomv.com.br": "mercadomonteverdesacogrande"
     };
