@@ -219,12 +219,20 @@ export default async function handler(req,res) {
         throw failure(403,'Diagnóstico de faturamento disponível apenas para a administração da Velo.');
       }
       if (!process.env.OPENAI_API_KEY) throw failure(503,'Chave da API de imagens não configurada.');
-      const check=await fetch('https://api.openai.com/v1/models',{
-        headers:openAIHeaders(process.env.OPENAI_API_KEY),signal:AbortSignal.timeout(15000)
-      });
+      const [check, defaultCheck]=await Promise.all([
+        fetch('https://api.openai.com/v1/models',{
+          headers:openAIHeaders(process.env.OPENAI_API_KEY),signal:AbortSignal.timeout(15000)
+        }),
+        fetch('https://api.openai.com/v1/models',{
+          headers:{Authorization:'Bearer '+process.env.OPENAI_API_KEY},signal:AbortSignal.timeout(15000)
+        })
+      ]);
       const org=check.headers.get('openai-organization')||'';
       const project=check.headers.get('openai-project')||'';
       const requestId=check.headers.get('x-request-id')||'';
+      const defaultOrg=defaultCheck.headers.get('openai-organization')||'';
+      const defaultProject=defaultCheck.headers.get('openai-project')||'';
+      const defaultRequestId=defaultCheck.headers.get('x-request-id')||'';
       let organizations=[];
       try {
         const account=await fetch('https://api.openai.com/v1/me',{
@@ -243,11 +251,20 @@ export default async function handler(req,res) {
         const errorBody = await check.json().catch(()=>({}));
         apiError = String(errorBody?.error?.code || errorBody?.error?.message || 'API não validou a organização selecionada').slice(0,200);
       }
-      console.info('[Velo Banner API credit diagnostics]',check.status,'configured',configuredOrganization||'none','response',org||'none',project,requestId,apiError||'');
+      let defaultApiError=null;
+      if (!defaultCheck.ok) {
+        const body=await defaultCheck.json().catch(()=>({}));
+        defaultApiError=String(body?.error?.code||body?.error?.message||'Erro de autenticação').slice(0,150);
+      }
+      console.info('[Velo Banner API credit diagnostics]',check.status,'configured',configuredOrganization||'none','response',org||'none',project,requestId,apiError||'','defaultStatus',defaultCheck.status,'defaultOrg',defaultOrg||'none','defaultProject',defaultProject||'none','defaultRequestId',defaultRequestId,'defaultError',defaultApiError||'');
       return res.status(200).json({keyValid:check.ok,organization:org||null,configuredOrganization,
         organizationMatches: Boolean(check.ok && configuredOrganization && org === configuredOrganization),
         organizations,project:project||null,status:check.status,requestId,apiError,
-        help:check.ok?'Chave aceita com a organização selecionada para cobrança; a geração ainda precisa ser validada.':'A chave não conseguiu usar a organização selecionada; crie uma chave no projeto Personal ou ajuste o acesso.'});
+        defaultKeyValid:defaultCheck.ok,defaultStatus:defaultCheck.status,defaultOrganization:defaultOrg||null,
+        defaultProject:defaultProject||null,defaultApiError,
+        help:check.ok?'Chave aceita para a organização Personal. Se os créditos forem reconhecidos, será possível gerar.':defaultCheck.ok?
+          'A chave funciona sem selecionar a organização Personal, mas falha ao selecioná-la. Isso indica uma chave emitida em outra organização/projeto; crie uma chave dentro do projeto Personal.':
+          'A chave está inválida mesmo sem selecionar organização. Verifique a chave salva na Vercel.'});
     }
     if (typeof productId!=='string' || !productId || productId.length>140 || productId.includes('/')) throw failure(400,'Selecione um produto válido.');
     const productSnap=await db.collection('products').doc(productId).get();
