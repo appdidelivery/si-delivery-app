@@ -140,6 +140,8 @@ export default function VeloBannerStudio({products=[],store}) {
   const [error,setError]=useState('');
   const [message,setMessage]=useState('');
   const [remaining,setRemaining]=useState(null);
+  const [diagnostic,setDiagnostic]=useState(null);
+  const [checkingConnection,setCheckingConnection]=useState(false);
   const [art,setArt]=useState(null);
   const [rendered,setRendered]=useState(false);
   const canvasRef=useRef(null);
@@ -204,6 +206,16 @@ export default function VeloBannerStudio({products=[],store}) {
       setMessage('Criativo gerado! Confira a arte antes de baixar ou publicar.');
     }catch(e){setError(e.message||'Falha ao gerar o banner.');}
     finally{setBusy('');}
+  }
+  async function checkConnection() {
+    setCheckingConnection(true);
+    setDiagnostic(null);
+    try {
+      const result=await callApi({action:'diagnostics'});
+      setDiagnostic(result);
+    } catch(e) {
+      setDiagnostic({error:e.message});
+    } finally {setCheckingConnection(false);}
   }
   function download() {
     if(!rendered||!canvasRef.current)return;
@@ -270,9 +282,23 @@ export default function VeloBannerStudio({products=[],store}) {
     </div>
     {error&&<div role="alert" className="space-y-2 rounded-xl bg-red-50 p-3 text-sm font-semibold text-red-700">
       <p>{error}</p>
-      {error.toLowerCase().includes('créditos')&&<a href="https://platform.openai.com/settings/organization/billing/overview" target="_blank" rel="noopener noreferrer" className="inline-block font-bold underline">
-        Consultar saldo da API OpenAI ↗
-      </a>}
+      {error.toLowerCase().includes('créditos')&&<div className="flex flex-wrap items-center gap-3">
+        <a href="https://platform.openai.com/settings/organization/billing/overview" target="_blank" rel="noopener noreferrer" className="inline-block font-bold underline">
+          Consultar saldo da API OpenAI ↗
+        </a>
+        <button type="button" onClick={checkConnection} disabled={checkingConnection}
+          className="rounded-lg border border-red-300 bg-white px-3 py-2 text-sm font-semibold text-red-800 disabled:opacity-50">
+          {checkingConnection?'Conferindo chave...':'Verificar a conta da chave (grátis)'}
+        </button>
+      </div>}
+      {diagnostic&&<div className="space-y-1 rounded-lg bg-white p-3 text-sm text-slate-700">
+        {diagnostic.error?<p>{diagnostic.error}</p>:<>
+          <p>Chave OpenAI: <strong>{diagnostic.keyValid?'Válida':'Não validada'}</strong></p>
+          {diagnostic.organization?<p>Organização da chave: <strong>{diagnostic.organization}</strong></p>:<p>A OpenAI não informou o identificador da organização na resposta.</p>}
+          {diagnostic.project&&<p>Projeto da chave: {diagnostic.project}</p>}
+          <p>Compare a organização indicada com a exibida no <a href="https://platform.openai.com/settings/organization/general" target="_blank" rel="noopener noreferrer" className="underline">painel da OpenAI</a>. Nenhuma geração é cobrada nessa verificação.</p>
+        </>}
+      </div>}
     </div>}
     {message&&<p role="status" className="rounded-xl bg-emerald-50 p-3 text-sm font-semibold text-emerald-800">{message}</p>}
     {art?<div className="space-y-4">
