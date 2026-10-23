@@ -1,6 +1,6 @@
 import { initMetaPixel, trackMetaEvent, trackMetaPurchase, getMetaContext } from '../utils/metaPixel.js';
 import { getGoogleTrackingConfig, trackGooglePurchase } from '../utils/googlePurchase.js';
-import { buildBeginCheckoutPayload } from '../utils/checkoutTracking.js';
+import { buildBeginCheckoutPayload, buildAddToCartPayload } from '../utils/checkoutTracking.js';
 import React, { useState, useEffect, useRef, Suspense } from 'react';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import { db } from '../services/firebase';
@@ -2177,8 +2177,10 @@ export default function Home() {
       if (window.fbq) { 
           trackMetaEvent(marketingSettings?.integrations?.meta?.pixelId, 'AddToCart', { content_name: p.name, content_ids: [p.id], value: finalPricePerUnit, currency: 'BRL' });
       }
-      if (window.gtag) { 
-          window.gtag('event', 'add_to_cart', { currency: 'BRL', value: finalPricePerUnit, items:[{ item_id: p.id, item_name: p.name, price: finalPricePerUnit, quantity: quantity }] }); 
+      if (typeof window.gtag === 'function') {
+          const { ga4Id } = getGoogleTrackingConfig(marketingSettings?.integrations, storeSettings);
+          const payload = buildAddToCartPayload(p, quantity, finalPricePerUnit, ga4Id);
+          if (payload) window.gtag('event', 'add_to_cart', payload);
       }
 
       // 3. TERCEIRO: Atualizamos o carrinho marcando a flag do Upsell
