@@ -120,7 +120,9 @@ function getFacts(product) {
     description:String(product.description||'').slice(0,280),original,sellingPrice,hasPromo,percentage};
 }
 function buildPrompt({facts,merchant,campaign,template,headline}) {
-  const customHeadline = /^\s*\d+\s*%\s*$/.test(headline) && !facts.hasPromo ? '' : headline;
+  const unsafePriceClaim = /\d[\d.,]*\s*(?:reais?|r\$)|r\$\s*\d/i.test(headline);
+  const unsafePercentClaim = /\d+\s*%/.test(headline) && !facts.hasPromo;
+  const customHeadline = unsafePriceClaim || unsafePercentClaim ? '' : headline;
   return [
     'You are a top Brazilian advertising art director creating the premium DESIGN ELEMENTS of one complete 3:1 promotional banner for a real delivery retailer.',
     'Exact identity: merchant '+String(merchant.name||'Loja').slice(0,100)+'.',
@@ -181,7 +183,7 @@ async function uploadBanner(db,storeId,productId,body,user) {
   await storage.file(filename).save(raw,{resumable:false,contentType:'image/jpeg',metadata:{cacheControl:'public, max-age=86400',metadata:{firebaseStorageDownloadTokens:token}}});
   const imageUrl='https://firebasestorage.googleapis.com/v0/b/'+storage.name+'/o/'+encodeURIComponent(filename)+'?alt=media&token='+token;
   const banner=await db.collection('banners').add({
-    storeId,imageUrl,linkTo:'',order:Date.now(),isActive:true,
+    storeId,imageUrl,linkTo:'',order:-Date.now(),isActive:true,
     productId,campaign:body.campaign,template:body.template,
     source:'velo-banner-ai',createdBy:user.uid,createdAt:admin.firestore.FieldValue.serverTimestamp()
   });
