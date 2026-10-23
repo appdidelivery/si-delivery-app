@@ -581,6 +581,47 @@ export default async function handler(req, res) {
     }
 
     // BUILD VERSION (SEM CACHE) - usado pelo atualizador automático do painel
+    // A WABA pode ser vinculada somente após conferir o telefone ativo pela Meta.
+    // Não troca nem expõe credenciais ou Phone Number ID.
+    if (path === '/api/csi-whatsapp-waba-link') {
+        res.setHeader('Cache-Control', 'private, no-store');
+        if (req.method !== 'POST') return res.status(405).json({error:'Método não permitido.'});
+        await assertStoreAccess(req.user, 'csi');
+        const wabaId = String(req.body?.wabaId || '').trim();
+        if (!/^[0-9]{6,30}$/.test(wabaId)) return res.status(400).json({success:false,error:'WABA ID inválido. Use apenas números.'});
+        const ref = db.collection('settings').doc('csi');
+        const before = (await ref.get()).data()?.integrations?.whatsapp || {};
+        if (!before.phoneNumberId || !before.apiToken) return res.status(409).json({success:false,error:'Cloud API nativa não está configurada.'});
+        const oldId = String(before.wabaId || before.whatsappBusinessAccountId || '');
+        if (oldId && oldId !== wabaId) return res.status(409).json({success:false,error:'Já existe outra WABA vinculada. Nenhuma alteração foi feita.'});
+        let verified = false, paginated = false;
+        try {
+            const resp = await fetch('https://graph.facebook.com/v25.0/' + wabaId + '/phone_numbers?fields=id&limit=100', {
+                headers:{Authorization:'Bearer ' + before.apiToken}, signal:AbortSignal.timeout(8000)
+            });
+            if (!resp.ok) {
+                console.warn('[CSI WABA] A Meta recusou a conferência', {status:resp.status});
+                return res.status(422).json({success:false,error:'Não foi possível confirmar esta WABA usando a conta atual. Verifique whatsapp_business_management e o acesso ao WhatsApp Manager.'});
+            }
+            const obj = await resp.json();
+            verified = Array.isArray(obj.data) && obj.data.some(item => String(item.id) === String(before.phoneNumberId));
+            paginated = Boolean(obj.paging?.next);
+        } catch(error) {
+            console.warn('[CSI WABA] Erro na consulta de verificação', error?.message);
+            return res.status(503).json({success:false,error:'Meta indisponível para validação. A conexão continua inalterada.'});
+        }
+        if (!verified) return res.status(422).json({success:false,error:paginated
+            ? 'Há números adicionais nesta WABA. Não foi possível verificar o número ativo nesta página.'
+            : 'Esta WABA não contém o número ativo da Santa Isabel. A conexão foi preservada.'});
+        const current = (await ref.get()).data()?.integrations?.whatsapp || {};
+        if (String(current.phoneNumberId) !== String(before.phoneNumberId) ||
+            String(current.wabaId || current.whatsappBusinessAccountId || '') !== oldId) {
+            return res.status(409).json({success:false,error:'A integração mudou durante a validação. Atualize a página.'});
+        }
+        if (!oldId) await ref.update({'integrations.whatsapp.wabaId':wabaId});
+        return res.status(200).json({success:true,verified:true,message:'WABA validada e associada ao número ativo. Credenciais preservadas.'});
+    }
+
     // Read-only marketing diagnostic. Uses the Firebase identity verified by the
     // global auth middleware; intentionally never calls Meta or queues messages.
     if (path === '/api/marketing-automation-status') {
@@ -590,15 +631,17 @@ export default async function handler(req, res) {
         if (statusStoreId !== 'csi') return res.status(403).json({ error: 'Piloto exclusivo da CSI.' });
         await assertStoreAccess(req.user, statusStoreId);
         const day = brazilDayKey();
-        const [settingsDoc, usageDoc] = await Promise.all([
+        const [settingsDoc, usageDoc, storeDoc] = await Promise.all([
             db.collection('settings').doc(statusStoreId).get(),
-            db.collection('whatsapp_marketing_daily_usage').doc(statusStoreId + '_' + day).get()
+            db.collection('whatsapp_marketing_daily_usage').doc(statusStoreId + '_' + day).get(),
+            db.collection('stores').doc(statusStoreId).get()
         ]);
         const wa = settingsDoc.data()?.integrations?.whatsapp || {};
         const nativeConnected = Boolean(wa.phoneNumberId && wa.apiToken);
         const journey = wa.journeyAutomation || {};
         const lifecycle = wa.lifecycleAutomation || {};
         const football = wa.footballAutomation || {};
+        const niche = storeDoc.exists ? getMarketingNicheProfile(storeDoc.data() || {}) : {key:'unknown'};
         let readiness = null;
         let templateAudit = null;
         let receiptAudit = null;
@@ -681,8 +724,10 @@ export default async function handler(req, res) {
         return res.status(200).json({
             success: true, storeId: statusStoreId, localDate: day, readOnly: true,
             nativeCloudApi: nativeConnected ? 'credentials_present' : 'not_configured',
+            wabaConfigured: Boolean(wa.wabaId || wa.whatsappBusinessAccountId),
             journeys: {
-                codeEnabled: nativeConnected && journey.enabled !== false,
+                codeEnabled: nativeConnected && journey.enabled !== false && niche.key === 'beverage',
+                nicheMatch: niche.key === 'beverage',
                 explicitlyEnabled: journey.enabled === true,
                 disabled: journey.enabled === false,
                 dailyLimit: Math.max(1, Math.min(50, Number(journey.dailyLimit) || 20)),
