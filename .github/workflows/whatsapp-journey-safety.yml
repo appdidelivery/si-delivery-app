@@ -22,6 +22,7 @@ on:
       - 'lib/csiMarketingConsentInvite.js'
       - 'lib/csiConsentReceiptSummary.js'
       - 'tests/csiConsentReceiptSummary.test.mjs'
+      - 'tests/csiWabaLink.test.mjs'
       - 'src/pages/MarketingAutomationStatus.jsx'
       - 'tests/whatsappLeadAudience.test.js'
       - 'tests/csiOccasionTemplate.test.js'
@@ -67,4 +68,4 @@ jobs:
           node --check lib/whatsappConsentCapture.js
           node -e "JSON.parse(require('fs').readFileSync('vercel.json','utf8'))"
       - name: Marketing opt-in and quota tests
-        run: node --test tests/whatsappMarketingGuard.test.js tests/lifecycleSchedule.test.js tests/footballFixtures.test.js tests/csiOccasionTemplate.test.js tests/whatsappLeadAudience.test.js tests/whatsappConsentCapture.test.js tests/whatsappMarketingGraph.test.mjs tests/csiMarketingReadiness.test.mjs tests/csiConsentButtons.test.mjs tests/csiConsentReceiptSummary.test.mjs
+        run: node --test tests/whatsappMarketingGuard.test.js tests/lifecycleSchedule.test.js tests/footballFixtures.test.js tests/csiOccasionTemplate.test.js tests/whatsappLeadAudience.test.js tests/whatsappConsentCapture.test.js tests/whatsappMarketingGraph.test.mjs tests/csiMarketingReadiness.test.mjs tests/csiConsentButtons.test.mjs tests/csiConsentReceiptSummary.test.mjs tests/csiWabaLink.test.mjs
