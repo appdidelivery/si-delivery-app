@@ -179,7 +179,7 @@ export default function MarketingAutomationStatus() {
               </div>
               <p className="text-xs text-amber-900">O sistema valida se a WABA realmente contém o Phone Number ID já conectado antes de salvar. Não altera o token, mensagens nem a Cloud API.</p>
             </div>}
-            {wabaResult && <p role="status" className="rounded-xl bg-green-50 p-3 text-green-800 text-sm">{wabaResult}</p>
+            {wabaResult && <p role="status" className="rounded-xl bg-green-50 p-3 text-green-800 text-sm">{wabaResult}</p>}
             <p className="text-sm text-slate-600">{status.templateAudit.source === 'meta'
               ? 'Status consultado na conta WhatsApp Business.'
               : status.templateAudit.source === 'waba_not_available'
