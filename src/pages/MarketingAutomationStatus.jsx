@@ -20,6 +20,9 @@ export default function MarketingAutomationStatus() {
   const [checking, setChecking] = useState(false);
   const [inviting, setInviting] = useState(false);
   const [inviteResult, setInviteResult] = useState(null);
+  const [wabaInput, setWabaInput] = useState('');
+  const [wabaBusy, setWabaBusy] = useState(false);
+  const [wabaResult, setWabaResult] = useState(null);
   const refresh = async (deep = false) => {
     setError('');
     setChecking(true);
@@ -53,6 +56,28 @@ export default function MarketingAutomationStatus() {
     } catch(e) {
       setError(e.message);
     } finally { setInviting(false); }
+  };
+  const linkWaba = async () => {
+    if (wabaBusy || !/^[0-9]{6,30}$/.test(wabaInput.trim())) {
+      setError('Informe o WABA ID numérico, encontrado nas Configurações da Meta.');
+      return;
+    }
+    if (!window.confirm('Verificar na Meta se a WABA informada contém o número da Santa Isabel? Apenas o identificador será salvo após validação; token e telefone permanecem inalterados.')) return;
+    setWabaBusy(true);
+    setError('');
+    setWabaResult(null);
+    try {
+      const resp = await authenticatedFetch('/api/csi-whatsapp-waba-link', {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({wabaId:wabaInput.trim()})
+      });
+      const data = await resp.json();
+      if (!resp.ok || !data.verified) throw new Error(data.error || 'Não foi possível validar a WABA.');
+      setWabaResult(data.message);
+      setWabaInput('');
+      await refresh(true);
+    } catch(err) { setError(err.message); }
+    finally { setWabaBusy(false); }
   };
   useEffect(() => { void refresh(); }, []);
 
@@ -138,6 +163,23 @@ export default function MarketingAutomationStatus() {
           </section>}
           {status?.templateAudit && <section className="rounded-2xl border border-slate-200 bg-white p-5 space-y-3">
             <h2 className="text-xl font-black text-slate-900">Templates oficiais da Meta</h2>
+            {status.templateAudit.source === 'waba_not_available' && <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 space-y-3">
+              <p className="text-sm font-bold text-amber-950">Falta identificar a conta WhatsApp Business (WABA) da Santa Isabel.</p>
+              <p className="text-sm text-amber-900">Em Meta Business Suite → Configurações → Contas → Contas do WhatsApp, copie o ID da conta que contém o número já ativo. Não use o ID do telefone nem o ID do aplicativo.</p>
+              <div className="flex flex-wrap items-center gap-2">
+                <input aria-label="ID da conta WhatsApp Business (WABA)" type="text"
+                  inputMode="numeric" pattern="[0-9]*" value={wabaInput}
+                  onChange={event=>setWabaInput(event.target.value.replace(/[^0-9]/g,''))}
+                  placeholder="WABA ID — somente números"
+                  className="min-w-0 flex-1 rounded-xl border border-amber-300 bg-white px-3 py-3 text-sm text-slate-900" />
+                <button onClick={linkWaba} disabled={wabaBusy || !/^[0-9]{6,30}$/.test(wabaInput)}
+                  className="rounded-xl bg-blue-700 px-4 py-3 text-sm font-bold text-white disabled:opacity-50">
+                  {wabaBusy?'Validando na Meta...':'Verificar e vincular WABA'}
+                </button>
+              </div>
+              <p className="text-xs text-amber-900">O sistema valida se a WABA realmente contém o Phone Number ID já conectado antes de salvar. Não altera o token, mensagens nem a Cloud API.</p>
+            </div>}
+            {wabaResult && <p role="status" className="rounded-xl bg-green-50 p-3 text-green-800 text-sm">{wabaResult}</p>
             <p className="text-sm text-slate-600">{status.templateAudit.source === 'meta'
               ? 'Status consultado na conta WhatsApp Business.'
               : status.templateAudit.source === 'waba_not_available'
@@ -159,7 +201,9 @@ export default function MarketingAutomationStatus() {
               detail="Presença de identificação e credencial da Meta; não confirma entrega." />
             <Metric title="Carrinho abandonado / pós-venda / segunda compra"
               enabled={status.journeys.codeEnabled}
-              detail={status.journeys.explicitlyEnabled
+              detail={status.journeys.nicheMatch === false
+                ? 'O cron exige classificação da loja como bebidas; essa condição não foi confirmada. Revisar o cadastro da loja.'
+                : status.journeys.explicitlyEnabled
                 ? 'Habilitação explícita no Firestore.'
                 : status.journeys.disabled ? 'Desabilitada no Firestore.' : 'Sem flag explícita: o código atual habilita por padrão quando há credenciais.'} />
             <Metric title="Retenção 30/60/90 e ocasiões"
