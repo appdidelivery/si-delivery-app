@@ -294,6 +294,9 @@ export default function VeloBannerStudio({products=[],store}) {
         {diagnostic.configuredOrganization&&<p>Organização definida para o faturamento da Velo: <strong>{diagnostic.configuredOrganization}</strong></p>}
         {diagnostic.organization&&<p>Organização confirmada pela OpenAI: <strong>{diagnostic.organization}</strong></p>}
         {diagnostic.apiError&&<p className="font-semibold text-red-700">Resposta da OpenAI: {diagnostic.apiError}</p>}
+        {typeof diagnostic.defaultKeyValid==='boolean'&&<p>Chave sem forçar organização: <strong>{diagnostic.defaultKeyValid?'Aceita pela API':'Não autorizada'}</strong></p>}
+        {diagnostic.defaultOrganization&&<p>Organização padrão informada pela OpenAI: <strong>{diagnostic.defaultOrganization}</strong></p>}
+        {diagnostic.defaultApiError&&<p>Erro da chave sem organização: <strong>{diagnostic.defaultApiError}</strong></p>}
         {diagnostic.organizations?.length>0&&diagnostic.organizations.map(item=><p key={item.id}>{item.name||'Organização'}: <strong>{item.id}</strong></p>)}
         {!diagnostic.organization&&!diagnostic.organizations?.length&&<p>Não foi possível identificar a organização na resposta da API.</p>}
         <p>{diagnostic.help||'Compare este ID com a organização que recebeu os créditos. Nenhuma imagem é gerada nesse diagnóstico.'}</p>
