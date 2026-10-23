@@ -84,6 +84,12 @@ export default async function middleware(request) {
 
     const host = request.headers.get('host') || '';
     const cleanHost = host.toLowerCase().trim().replace(/^www\./, '');
+    if (cleanHost === 'ngconveniencia.com.br') {
+        return new Response('Loja indisponível.', {
+            status: 410,
+            headers: {'content-type':'text/plain; charset=utf-8','cache-control':'no-store'},
+        });
+    }
     const isMarketMVHub = cleanHost === 'mercadomv.com.br';
 
     // --- REGRA DE FALLBACK/REDIRECIONAMENTO LIMPO ---
@@ -106,9 +112,7 @@ export default async function middleware(request) {
             "convenienciasantaisabel.com.br": "csi",
             "csi.com.br": "csi",
             "encantolilas.app.br": "encantolilas",
-            "macanudorex.com.br": "macanudorex",
-            "ngconveniencia.com.br": "ng",
-            "filial.convenienciasantaisabel.com.br": "filialsantaisabel",
+            "macanudorex.com.br": "macanudorex",            "filial.convenienciasantaisabel.com.br": "filialsantaisabel",
             "coelhoscuca.com.br": "coelhoscuca",
             "monteverde.mercadomv.com.br": "mercadomonteverde",
             "sacogrande.mercadomv.com.br": "mercadomonteverdesacogrande",
