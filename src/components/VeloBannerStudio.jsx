@@ -294,8 +294,11 @@ export default function VeloBannerStudio({products=[],store}) {
       {diagnostic&&<div className="space-y-1 rounded-lg bg-white p-3 text-sm text-slate-700">
         {diagnostic.error?<p>{diagnostic.error}</p>:<>
           <p>Chave OpenAI: <strong>{diagnostic.keyValid?'Válida':'Não validada'}</strong></p>
-          {diagnostic.organization?<p>Organização da chave: <strong>{diagnostic.organization}</strong></p>:<p>A OpenAI não informou o identificador da organização na resposta.</p>}
-          {diagnostic.project&&<p>Projeto da chave: {diagnostic.project}</p>}
+          {diagnostic.organization?<p>Organização que atende a chamada: <strong>{diagnostic.organization}</strong></p>:<p>O cabeçalho da resposta não informou a organização utilizada.</p>}
+          {diagnostic.organizations?.length>0&&<div><p className="font-semibold">Organizações vinculadas à chave:</p>
+            {diagnostic.organizations.map(item=><p key={item.id}>{item.name||'Organização'}: <strong>{item.id}</strong></p>)}
+          </div>}
+          {diagnostic.project&&<p>Projeto da chamada: {diagnostic.project}</p>}
           <p>Compare a organização indicada com a exibida no <a href="https://platform.openai.com/settings/organization/general" target="_blank" rel="noopener noreferrer" className="underline">painel da OpenAI</a>. Nenhuma geração é cobrada nessa verificação.</p>
         </>}
       </div>}
