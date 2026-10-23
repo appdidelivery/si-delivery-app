@@ -12,7 +12,6 @@ import WifiPortal from './pages/WifiPortal'; // <-- NOVO: Rota de Captura Wi-Fi 
 // Seus componentes de página
 import Home from './pages/Home';
 import Admin from './pages/Admin';
-import AdminBannerStudio from './pages/AdminBannerStudio';
 import WhatsAppMetaConnect from './pages/WhatsAppMetaConnect';
 import MarketingAutomationStatus from './pages/MarketingAutomationStatus';
 import Tracking from './pages/Tracking';
@@ -163,7 +162,7 @@ function App() {
             <Route path="/driver/:storeId/:orderId" element={<DriverPanel />} />
             <Route path="/parceiro/:partnerId" element={<InfluencerDashboard />} />
             <Route path="/admin/mvp" element={<VeloLeanEngine />} />
-            <Route path="/admin/banners/gerador" element={<ProtectedRoute user={currentUser}><AdminBannerStudio /></ProtectedRoute>} />
+            <Route path="/admin/banners/gerador" element={<Navigate to="/admin" replace />} />
 
             <Route
               path="/admin"
