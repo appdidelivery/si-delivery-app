@@ -15,6 +15,33 @@ function openAIHeaders(key) {
   if (projectId && /^proj_[A-Za-z0-9_-]{6,100}$/.test(projectId)) headers['OpenAI-Project'] = projectId;
   return headers;
 }
+
+// Chaves vinculadas a projetos podem rejeitar um cabeçalho de organização
+// que não corresponde ao projeto emissor. A validação não gera imagens.
+async function resolvedOpenAIHeaders(key) {
+  const configured = openAIHeaders(key);
+  const check = await fetch('https://api.openai.com/v1/models',{
+    headers: configured,signal:AbortSignal.timeout(15000)
+  });
+  if (check.ok) return configured;
+  const detail = await check.json().catch(()=>({}));
+  const code = detail?.error?.code || '';
+  if (code === 'mismatched_organization') {
+    const scoped = {Authorization:'Bearer '+key};
+    const unscopedCheck = await fetch('https://api.openai.com/v1/models',{
+      headers:scoped,signal:AbortSignal.timeout(15000)
+    });
+    if (unscopedCheck.ok) {
+      console.info('[Velo Banner IA] OpenAI project key accepted without forced organization header.');
+      return scoped;
+    }
+    const unscopedDetail=await unscopedCheck.json().catch(()=>({}));
+    if (unscopedDetail?.error?.code === 'invalid_api_key') throw failure(401,'A chave OpenAI salva na Vercel está inválida. Confira se foi copiada integralmente.');
+    throw failure(403,'A chave não pode ser usada com a organização Personal configurada. Ela também não passou na verificação sem organização. Confira o projeto emissor da chave.');
+  }
+  if (code === 'invalid_api_key') throw failure(401,'A chave OpenAI cadastrada na Vercel foi recusada por ser inválida.');
+  throw failure(503,'A OpenAI não confirmou a autorização da chave. Tente o diagnóstico gratuito antes de gerar.');
+}
 const STYLE_GUIDE = {
   varejo: 'Premium Brazilian supermarket campaign, vivid green-and-yellow retail energy, realistic studio lighting, subtle branded sale shapes, luxurious editorial food photography.',
   moderno: 'Refined luxury e-commerce advertising, deep navy, cool electric reflections, sleek typography-safe negative space, glossy high-end photographic art direction.',
@@ -147,7 +174,7 @@ function buildPrompt({facts,merchant,campaign,template,headline}) {
     'Avoid mockup frames, empty white blocks, UI rectangles and generic placeholder shapes. Deliver strong distinctive visual art in the product category.'
   ].filter(Boolean).join('\n');
 }
-async function generateCreative(apiKey,product,merchant,campaign,template,headline) {
+async function generateCreative(apiKey,requestHeaders,product,merchant,campaign,template,headline) {
   const photo = await readImage(productPhoto(product),'produto');
   const logo = await readImage(storeLogo(merchant),'logo da loja');
   const facts = getFacts(product);
@@ -163,7 +190,7 @@ async function generateCreative(apiKey,product,merchant,campaign,template,headli
   form.append('image[]',new Blob([photo.buffer],{type:photo.mime}),'produto.'+(photo.mime==='image/png'?'png':photo.mime==='image/webp'?'webp':'jpg'));
   form.append('image[]',new Blob([logo.buffer],{type:logo.mime}),'logo.'+(logo.mime==='image/png'?'png':logo.mime==='image/webp'?'webp':'jpg'));
   const response = await fetch('https://api.openai.com/v1/images/edits',{
-    method:'POST',headers:openAIHeaders(apiKey),body:form,signal:AbortSignal.timeout(102000)
+    method:'POST',headers:requestHeaders,body:form,signal:AbortSignal.timeout(102000)
   });
   const result = await response.json().catch(()=>({}));
   if (!response.ok) {
@@ -284,6 +311,8 @@ export default async function handler(req,res) {
     if (!process.env.OPENAI_API_KEY) throw failure(503,'Chave OpenAI não configurada no servidor');
     // Check all required original assets BEFORE charging quota.
     await Promise.all([readImage(productPhoto(product),'produto'),readImage(storeLogo(merchant),'logo da loja')]);
+    // Resolve a organização da chave sem consumir geração ou cota diária.
+    const requestHeaders = await resolvedOpenAIHeaders(process.env.OPENAI_API_KEY);
     await db.runTransaction(async tx=>{
       const snapshot=await tx.get(usageRef);
       const count=Number(snapshot.data()?.count||0);
@@ -291,7 +320,7 @@ export default async function handler(req,res) {
       tx.set(usageRef,{storeId,day,count:count+1,updatedAt:fb.firestore.FieldValue.serverTimestamp()},{merge:true});
     });
     try {
-      const result=await generateCreative(process.env.OPENAI_API_KEY,product,merchant,campaign,template,String(req.body?.headline||'').slice(0,65));
+      const result=await generateCreative(process.env.OPENAI_API_KEY,requestHeaders,product,merchant,campaign,template,String(req.body?.headline||'').slice(0,65));
       const s=await usageRef.get();
       return res.status(200).json({...result,remaining:Math.max(0,MAX_DAILY-Number(s.data()?.count||1))});
     } catch(err) {
