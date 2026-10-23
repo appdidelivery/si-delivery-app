@@ -7,6 +7,14 @@ const CAMPAIGNS = new Set(['oferta', 'desconto', 'lancamento', 'combo']);
 const TEMPLATES = new Set(['varejo', 'moderno', 'vibrante']);
 const TRUSTED_ADMINS = new Set(['appdedelivery@gmail.com', 'appdidelivery@gmail.com', 'projetosdiego.l@gmail.com']);
 const BYTES_MAX = 6 * 1024 * 1024;
+function openAIHeaders(key) {
+  const headers = { Authorization: 'Bearer ' + key };
+  const organizationId = process.env.OPENAI_ORGANIZATION_ID;
+  if (organizationId && /^org-[A-Za-z0-9_-]{10,80}$/.test(organizationId)) headers['OpenAI-Organization'] = organizationId;
+  const projectId = process.env.OPENAI_PROJECT_ID;
+  if (projectId && /^proj_[A-Za-z0-9_-]{6,100}$/.test(projectId)) headers['OpenAI-Project'] = projectId;
+  return headers;
+}
 const STYLE_GUIDE = {
   varejo: 'Premium Brazilian supermarket campaign, vivid green-and-yellow retail energy, realistic studio lighting, subtle branded sale shapes, luxurious editorial food photography.',
   moderno: 'Refined luxury e-commerce advertising, deep navy, cool electric reflections, sleek typography-safe negative space, glossy high-end photographic art direction.',
@@ -155,14 +163,14 @@ async function generateCreative(apiKey,product,merchant,campaign,template,headli
   form.append('image[]',new Blob([photo.buffer],{type:photo.mime}),'produto.'+(photo.mime==='image/png'?'png':photo.mime==='image/webp'?'webp':'jpg'));
   form.append('image[]',new Blob([logo.buffer],{type:logo.mime}),'logo.'+(logo.mime==='image/png'?'png':logo.mime==='image/webp'?'webp':'jpg'));
   const response = await fetch('https://api.openai.com/v1/images/edits',{
-    method:'POST',headers:{Authorization:'Bearer '+apiKey},body:form,signal:AbortSignal.timeout(102000)
+    method:'POST',headers:openAIHeaders(apiKey),body:form,signal:AbortSignal.timeout(102000)
   });
   const result = await response.json().catch(()=>({}));
   if (!response.ok) {
     console.error('[Velo Banner IA]',response.status,result?.error?.code||'',result?.error?.message?.slice(0,200)||'',
       'org',response.headers.get('openai-organization')||'unknown','requestId',response.headers.get('x-request-id')||'');
     if (result?.error?.code === 'credit_balance_exhausted' || result?.error?.code === 'insufficient_quota') {
-      throw failure(402,'A conta da API OpenAI está sem créditos. Adicione saldo em platform.openai.com/settings/organization/billing/ e desative a recarga automática se desejar controlar os gastos.');
+      throw failure(402,'A OpenAI informou saldo esgotado na organização usada pela solicitação. Confira se a chave é do projeto da organização que recebeu os créditos (Personal). Não compre mais créditos antes de verificar esse vínculo.');
     }
     if (response.status === 429) throw failure(503,'O limite temporário de solicitações à OpenAI foi atingido. Aguarde um pouco e tente novamente.');
     if (response.status === 402) throw failure(402,'A API OpenAI recusou a solicitação por uma pendência de faturamento. Verifique o saldo e os dados de pagamento.');
@@ -212,7 +220,7 @@ export default async function handler(req,res) {
       }
       if (!process.env.OPENAI_API_KEY) throw failure(503,'Chave da API de imagens não configurada.');
       const check=await fetch('https://api.openai.com/v1/models',{
-        headers:{Authorization:'Bearer '+process.env.OPENAI_API_KEY},signal:AbortSignal.timeout(15000)
+        headers:openAIHeaders(process.env.OPENAI_API_KEY),signal:AbortSignal.timeout(15000)
       });
       const org=check.headers.get('openai-organization')||'';
       const project=check.headers.get('openai-project')||'';
@@ -229,10 +237,17 @@ export default async function handler(req,res) {
             .filter(item=>item.id.startsWith('org-')).slice(0,10);
         }
       }catch {}
-      console.info('[Velo Banner API credit diagnostics]',check.status,org,project,requestId);
-      return res.status(200).json({keyValid:check.ok,organization:org||null,organizations,
-        project:project||null,status:check.status,requestId,
-        help:check.ok?'Compare a organização vinculada à chave com a organização que recebeu os créditos no faturamento da OpenAI.':'A API não validou a chave. Verifique a chave da Vercel.'});
+      const configuredOrganization = process.env.OPENAI_ORGANIZATION_ID || null;
+      let apiError = null;
+      if (!check.ok) {
+        const errorBody = await check.json().catch(()=>({}));
+        apiError = String(errorBody?.error?.code || errorBody?.error?.message || 'API não validou a organização selecionada').slice(0,200);
+      }
+      console.info('[Velo Banner API credit diagnostics]',check.status,'configured',configuredOrganization||'none','response',org||'none',project,requestId,apiError||'');
+      return res.status(200).json({keyValid:check.ok,organization:org||null,configuredOrganization,
+        organizationMatches: Boolean(check.ok && configuredOrganization && org === configuredOrganization),
+        organizations,project:project||null,status:check.status,requestId,apiError,
+        help:check.ok?'Chave aceita com a organização selecionada para cobrança; a geração ainda precisa ser validada.':'A chave não conseguiu usar a organização selecionada; crie uma chave no projeto Personal ou ajuste o acesso.'});
     }
     if (typeof productId!=='string' || !productId || productId.length>140 || productId.includes('/')) throw failure(400,'Selecione um produto válido.');
     const productSnap=await db.collection('products').doc(productId).get();
