@@ -2,9 +2,7 @@ const DOMAIN_MAP = {
     "convenienciasantaisabel.com.br": "csi",
     "csi.com.br": "csi",
     "encantolilas.app.br": "encantolilas",
-    "macanudorex.com.br": "macanudorex",
-    "ngconveniencia.com.br": "ng",
-    "filial.convenienciasantaisabel.com.br": "filialsantaisabel",
+    "macanudorex.com.br": "macanudorex",    "filial.convenienciasantaisabel.com.br": "filialsantaisabel",
     "coelhoscuca.com.br": "coelhoscuca",
     "monteverde.mercadomv.com.br": "mercadomonteverde",
     "sacogrande.mercadomv.com.br": "mercadomonteverdesacogrande",
@@ -29,6 +27,10 @@ const normalizeLogoUrl = (rawLogo, host, size) => {
 
 export default async function handler(req, res) {
     const host = req.headers['x-forwarded-host'] || req.headers.host || '';
+    const cleanHost = host.toLowerCase().trim().replace(/^www\./, '');
+    if (cleanHost === 'ngconveniencia.com.br') {
+        return res.status(410).json({error:'Loja indisponível.'});
+    }
     const storeId = resolveStoreId(host);
 
     const isMarketHub = host.toLowerCase().replace(/^www\./, '') === 'mercadomv.com.br';
