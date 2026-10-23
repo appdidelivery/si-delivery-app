@@ -6269,9 +6269,9 @@ if (replyPayload.type === 'text' && replyPayload.text?.body) {
                                 if (saasInvoiceId !== 'avulsa') {
                                     const invoice = faturasHistorico.find(f => f.id === saasInvoiceId);
                                     const raw = invoice?.amount ?? invoice?.total;
-                                    const amountString = String(raw ?? '').trim().replace(/^R\\$\\s*/i, '').replace(/\\s/g, '');
+                                    const amountString = String(raw ?? '').trim().replace(/^R\$\s*/i, '').replace(/\s/g, '');
                                     const expected = typeof raw === 'number' ? raw : Number(
-                                        amountString.includes(',') ? amountString.replace(/\\./g, '').replace(',', '.') : amountString
+                                        amountString.includes(',') ? amountString.replace(/\./g, '').replace(',', '.') : amountString
                                     );
                                     if (!invoice || !['PENDENTE', 'pendente'].includes(invoice.status) ||
                                         !Number.isFinite(expected) || expected <= 0 ||
