@@ -265,7 +265,12 @@ export default function VeloBannerStudio({products=[],store}) {
       </button>
       <span className="text-xs text-slate-500">Formato Velo: 1200 × 400 px • A visualização não consome crédito.</span>
     </div>
-    {error&&<p role="alert" className="rounded-xl bg-red-50 p-3 text-sm font-semibold text-red-700">{error}</p>}
+    {error&&<div role="alert" className="space-y-2 rounded-xl bg-red-50 p-3 text-sm font-semibold text-red-700">
+      <p>{error}</p>
+      {error.toLowerCase().includes('créditos')&&<a href="https://platform.openai.com/settings/organization/billing/overview" target="_blank" rel="noopener noreferrer" className="inline-block font-bold underline">
+        Consultar saldo da API OpenAI ↗
+      </a>}
+    </div>}
     {message&&<p role="status" className="rounded-xl bg-emerald-50 p-3 text-sm font-semibold text-emerald-800">{message}</p>}
     {art?<div className="space-y-4">
       <p className="text-sm font-bold text-slate-900">Sua arte gerada para {art.facts.name}</p>
