@@ -290,11 +290,13 @@ export default function VeloBannerStudio({products=[],store}) {
     </div>
     {diagnostic&&<div role="status" className="space-y-1 rounded-lg border border-indigo-100 bg-indigo-50 p-3 text-sm text-slate-700">
       {diagnostic.error?<p>{diagnostic.error}</p>:<>
-        <p>Chave OpenAI: <strong>{diagnostic.keyValid?'Válida':'Não validada'}</strong></p>
-        {diagnostic.organization&&<p>Organização da chamada: <strong>{diagnostic.organization}</strong></p>}
+        <p>Chave OpenAI na organização selecionada: <strong>{diagnostic.keyValid?'Autorizada':'Não autorizada'}</strong></p>
+        {diagnostic.configuredOrganization&&<p>Organização definida para o faturamento da Velo: <strong>{diagnostic.configuredOrganization}</strong></p>}
+        {diagnostic.organization&&<p>Organização confirmada pela OpenAI: <strong>{diagnostic.organization}</strong></p>}
+        {diagnostic.apiError&&<p className="font-semibold text-red-700">Resposta da OpenAI: {diagnostic.apiError}</p>}
         {diagnostic.organizations?.length>0&&diagnostic.organizations.map(item=><p key={item.id}>{item.name||'Organização'}: <strong>{item.id}</strong></p>)}
         {!diagnostic.organization&&!diagnostic.organizations?.length&&<p>Não foi possível identificar a organização na resposta da API.</p>}
-        <p>Compare este ID com a organização que recebeu o crédito na OpenAI. Nenhuma imagem é gerada nesse diagnóstico.</p>
+        <p>{diagnostic.help||'Compare este ID com a organização que recebeu os créditos. Nenhuma imagem é gerada nesse diagnóstico.'}</p>
       </>}
     </div>}
     {error&&<div role="alert" className="space-y-2 rounded-xl bg-red-50 p-3 text-sm font-semibold text-red-700">
