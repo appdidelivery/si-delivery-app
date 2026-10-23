@@ -147,8 +147,8 @@ export default function VeloBannerStudio({products=[],store}) {
   const promo=product?effectivePromoPrice(product):0;
   const original=Number(product?.catalogBasePrice??product?.price??0);
   const discountValid=original>0&&promo>0&&promo<original;
-  const misleadingPriceCall=/\\d[\\d.,]*\\s*(?:reais?|r\\$)|r\\$\\s*\\d/i.test(headline);
-  const misleadingPercentCall=/\\d+\\s*%/.test(headline)&&!discountValid;
+  const misleadingPriceCall=/\d[\d.,]*\s*(?:reais?|r\$)|r\$\s*\d/i.test(headline);
+  const misleadingPercentCall=/\d+\s*%/.test(headline)&&!discountValid;
   const filteredHeadline=misleadingPriceCall||misleadingPercentCall?'':headline;
   const callApi=useCallback(async(body)=>{
     const user=auth.currentUser;
