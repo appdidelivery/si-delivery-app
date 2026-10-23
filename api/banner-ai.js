@@ -158,7 +158,11 @@ async function generateCreative(apiKey,product,merchant,campaign,template,headli
   const result = await response.json().catch(()=>({}));
   if (!response.ok) {
     console.error('[Velo Banner IA]',response.status,result?.error?.code||'',result?.error?.message?.slice(0,200)||'');
-    if ([402,429].includes(response.status)) throw failure(503,'O serviço de imagens não tem saldo ou está temporariamente limitado. Verifique o faturamento da API OpenAI.');
+    if (result?.error?.code === 'credit_balance_exhausted' || result?.error?.code === 'insufficient_quota') {
+      throw failure(402,'A conta da API OpenAI está sem créditos. Adicione saldo em platform.openai.com/settings/organization/billing/ e desative a recarga automática se desejar controlar os gastos.');
+    }
+    if (response.status === 429) throw failure(503,'O limite temporário de solicitações à OpenAI foi atingido. Aguarde um pouco e tente novamente.');
+    if (response.status === 402) throw failure(402,'A API OpenAI recusou a solicitação por uma pendência de faturamento. Verifique o saldo e os dados de pagamento.');
     if ([400,403].includes(response.status)) throw failure(502,'O serviço de imagem não aceitou os arquivos ou a configuração da conta. Verifique as imagens e a permissão para geração.');
     throw failure(502,'O serviço de geração de imagens falhou. Nenhuma geração foi descontada.');
   }
