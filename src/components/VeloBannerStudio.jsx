@@ -147,6 +147,9 @@ export default function VeloBannerStudio({products=[],store}) {
   const promo=product?effectivePromoPrice(product):0;
   const original=Number(product?.catalogBasePrice??product?.price??0);
   const discountValid=original>0&&promo>0&&promo<original;
+  const misleadingPriceCall=/\\d[\\d.,]*\\s*(?:reais?|r\\$)|r\\$\\s*\\d/i.test(headline);
+  const misleadingPercentCall=/\\d+\\s*%/.test(headline)&&!discountValid;
+  const filteredHeadline=misleadingPriceCall||misleadingPercentCall?'':headline;
   const callApi=useCallback(async(body)=>{
     const user=auth.currentUser;
     if(!user)throw new Error('Entre novamente no painel de gestão.');
@@ -193,10 +196,10 @@ export default function VeloBannerStudio({products=[],store}) {
         callApi({action:'asset',kind:'logo',productId})
       ]);
       setBusy('A IA está criando um anúncio exclusivo para este produto...');
-      const result=await callApi({action:'generate',productId,campaign,template,headline:headline.trim()});
+      const result=await callApi({action:'generate',productId,campaign,template,headline:filteredHeadline.trim()});
       if(!result.image||!result.facts)throw new Error('A geração não devolveu os dados completos.');
       setArt({scene:result.image,productPhoto:photo.dataUrl,logo:logo.dataUrl,
-        facts:result.facts,storeName:store.name,productId,campaign,template,headline});
+        facts:result.facts,storeName:store.name,productId,campaign,template,headline:filteredHeadline});
       setRemaining(result.remaining);
       setMessage('Criativo gerado! Confira a arte antes de baixar ou publicar.');
     }catch(e){setError(e.message||'Falha ao gerar o banner.');}
@@ -257,7 +260,7 @@ export default function VeloBannerStudio({products=[],store}) {
     <label className="block text-sm font-semibold text-slate-700">Chamada opcional
       <input className="mt-2 w-full rounded-xl border border-slate-300 p-3" maxLength={38} value={headline} onChange={e=>change(setHeadline,e.target.value)} placeholder="Ex.: Refresque seu dia!"/>
     </label>
-    {headline.trim().match(/^\d+\s*%$/)&&!discountValid&&<p className="text-sm text-amber-700">A chamada percentual será ignorada: não há desconto ativo confirmado para este produto.</p>}
+    {(misleadingPriceCall||misleadingPercentCall)&&<p className="text-sm text-amber-700">A chamada com valor ou porcentagem será ignorada: o banner exibirá apenas o preço e descontos confirmados no cadastro.</p>}
     <div className="flex flex-wrap items-center gap-3">
       <button type="button" disabled={!product||Boolean(busy)||remaining===0}
         onClick={generate} className="rounded-xl bg-indigo-700 px-6 py-3 font-bold text-white shadow-sm hover:bg-indigo-800 disabled:cursor-not-allowed disabled:opacity-50">
