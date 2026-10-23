@@ -217,9 +217,22 @@ export default async function handler(req,res) {
       const org=check.headers.get('openai-organization')||'';
       const project=check.headers.get('openai-project')||'';
       const requestId=check.headers.get('x-request-id')||'';
+      let organizations=[];
+      try {
+        const account=await fetch('https://api.openai.com/v1/me',{
+          headers:{Authorization:'Bearer '+process.env.OPENAI_API_KEY},signal:AbortSignal.timeout(12000)
+        });
+        if(account.ok) {
+          const profile=await account.json();
+          organizations=(Array.isArray(profile?.orgs?.data)?profile.orgs.data:[])
+            .map(item=>({id:String(item.id||'').slice(0,90),name:String(item.title||'').slice(0,100)}))
+            .filter(item=>item.id.startsWith('org-')).slice(0,10);
+        }
+      }catch {}
       console.info('[Velo Banner API credit diagnostics]',check.status,org,project,requestId);
-      return res.status(200).json({keyValid:check.ok,organization:org||null,project:project||null,
-        status:check.status,requestId,help:check.ok?'Compare a organização acima com a organização que recebeu os créditos no faturamento da OpenAI.':'A API não validou a chave. Verifique a chave da Vercel.'});
+      return res.status(200).json({keyValid:check.ok,organization:org||null,organizations,
+        project:project||null,status:check.status,requestId,
+        help:check.ok?'Compare a organização vinculada à chave com a organização que recebeu os créditos no faturamento da OpenAI.':'A API não validou a chave. Verifique a chave da Vercel.'});
     }
     if (typeof productId!=='string' || !productId || productId.length>140 || productId.includes('/')) throw failure(400,'Selecione um produto válido.');
     const productSnap=await db.collection('products').doc(productId).get();
