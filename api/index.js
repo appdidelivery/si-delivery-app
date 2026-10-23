@@ -391,6 +391,13 @@ async function resolveSubscriptionAmount({ storeId, invoiceId, plan, cycle }) {
             }
         }
         if (!Number.isFinite(value) || value <= 0) throw new Error('Valor da fatura inválido.');
+        const store = storeDoc.data() || {};
+        const catalogBase = PLAN_PRICES[store.plan]?.monthly || PLAN_PRICES.start.monthly;
+        const configuredBase = Number(store.billingBasePrice);
+        const minimumBase = Math.max(catalogBase, Number.isFinite(configuredBase) && configuredBase > 0 ? configuredBase : 0);
+        if (value + 0.001 < minimumBase) {
+            throw new Error('Fatura desatualizada após mudança de plano. Solicite atualização da fatura antes de pagar.');
+        }
         return value;
     }
     const normalizedCycle = cycle === 'semestral' ? 'semestral' : 'monthly';
@@ -1202,7 +1209,11 @@ export default async function handler(req, res) {
                     const extraCost = extraOrders * 0.25;
                     const isCortesia = storeData.billingStatus === 'gratis_vitalicio';
                     
-                    const totalFatura = 49.90 + extraCost;
+                    // Usa o valor vigente do plano e os adicionais registrados pela loja.
+                    const catalogBase = PLAN_PRICES[storeData.plan]?.monthly || PLAN_PRICES.start.monthly;
+                    const configuredBase = Number(storeData.billingBasePrice);
+                    const basePrice = Math.max(catalogBase, Number.isFinite(configuredBase) && configuredBase > 0 ? configuredBase : 0);
+                    const totalFatura = basePrice + extraCost;
                     const statusFatura = isCortesia ? 'ISENTO' : 'PENDENTE';
 
                     const novaFatura = {
@@ -1214,9 +1225,9 @@ export default async function handler(req, res) {
                         createdAt: brazilTime.toISOString(),
                         isAuto: true,
                         breakdown: {
-                            basePlan: 49.90,
+                            basePlan: basePrice,
                             extraOrdersCost: extraCost,
-                            discount: isCortesia ? (49.90 + extraCost) : 0
+                            discount: isCortesia ? totalFatura : 0
                         }
                     };
 
@@ -6153,11 +6164,12 @@ if (replyPayload.type === 'text' && replyPayload.text?.body) {
                     console.log(`[VeloPay Webhook] Recebido aviso para TXID: ${txid}. Validando autenticidade com a Efí...`);
                     
                     let statusOficial;
+                    let chargeDetails;
                     let infoAdicionaisEfi = null; // 🛡️ CRÍTICO: Vamos guardar os dados da loja aqui
 
                     try {
                         // 🚨 A MÁGICA DA CORREÇÃO: Pegamos os detalhes completos DIRETO do servidor da Efí!
-                        const chargeDetails = await gerencianet.pixDetailCharge({ txid });
+                        chargeDetails = await gerencianet.pixDetailCharge({ txid });
                         statusOficial = chargeDetails.status;
                         infoAdicionaisEfi = chargeDetails.infoAdicionais; // AQUI estão as tags 'storeId' e 'invoiceId'
                     } catch (efiErr) {
@@ -6234,30 +6246,50 @@ if (replyPayload.type === 'text' && replyPayload.text?.body) {
                                 
                                 const storeRef = db.collection('stores').doc(saasStoreId);
                                 const storeDoc = await storeRef.get();
-                                let faturasHistorico = storeDoc.data()?.faturasHistorico || [];
+                                if (!storeDoc.exists) {
+                                    console.error('[SaaS Webhook] Loja inexistente', { saasStoreId, txid });
+                                    continue;
+                                }
+                                const storeData = storeDoc.data() || {};
+                                let faturasHistorico = storeData.faturasHistorico || [];
+                                const catalogBase = PLAN_PRICES[storeData.plan]?.monthly || PLAN_PRICES.start.monthly;
+                                const configuredBase = Number(storeData.billingBasePrice);
+                                const minimumBase = Math.max(catalogBase, Number.isFinite(configuredBase) && configuredBase > 0 ? configuredBase : 0);
 
-                                // Uma fatura identificada só pode ser quitada pelo valor integral.
-                                // Não altera a loja quando o Pix recebido não corresponde à fatura.
-                                if (saasInvoiceId && saasInvoiceId !== 'avulsa') {
+                                // Compara o dinheiro recebido (Pix da Efí), não apenas o valor solicitado.
+                                const paidPix = Array.isArray(chargeDetails?.pix) ? chargeDetails.pix : [];
+                                const received = paidPix.length
+                                    ? paidPix.reduce((sum, item) => sum + Number(String(item.valor).replace(',', '.')), 0)
+                                    : Number(String(chargeDetails?.valor?.original ?? '').replace(',', '.'));
+                                if (!Number.isFinite(received) || received <= 0 || !saasInvoiceId) {
+                                    console.error('[SaaS Webhook] Pix sem valor ou identificação válida', { saasStoreId, txid });
+                                    continue;
+                                }
+
+                                if (saasInvoiceId !== 'avulsa') {
                                     const invoice = faturasHistorico.find(f => f.id === saasInvoiceId);
                                     const raw = invoice?.amount ?? invoice?.total;
-                                    const expected = typeof raw === 'number' ? raw :
-                                        Number(String(raw ?? '').replace(/^R\\$\\s*/i, '').replace(/\\./g, '').replace(',', '.'));
-                                    const received = Number(chargeDetails.valor?.original);
+                                    const amountString = String(raw ?? '').trim().replace(/^R\\$\\s*/i, '').replace(/\\s/g, '');
+                                    const expected = typeof raw === 'number' ? raw : Number(
+                                        amountString.includes(',') ? amountString.replace(/\\./g, '').replace(',', '.') : amountString
+                                    );
                                     if (!invoice || !['PENDENTE', 'pendente'].includes(invoice.status) ||
                                         !Number.isFinite(expected) || expected <= 0 ||
-                                        !Number.isFinite(received) || Math.round(received * 100) !== Math.round(expected * 100)) {
+                                        expected + 0.001 < minimumBase ||
+                                        Math.round(received * 100) !== Math.round(expected * 100)) {
                                         console.error('[SaaS Webhook] Valor/status da fatura divergente; baixa recusada', { saasStoreId, saasInvoiceId, txid });
                                         continue;
                                     }
-                                }
-                                
-                                faturasHistorico = faturasHistorico.map(fatura => {
-                                    if (fatura.id === saasInvoiceId || ((!saasInvoiceId || saasInvoiceId === 'avulsa') && (fatura.status === 'PENDENTE' || fatura.status === 'pendente'))) {
-                                        return { ...fatura, status: 'PAGO' };
+                                    faturasHistorico = faturasHistorico.map(fatura =>
+                                        fatura.id === saasInvoiceId ? { ...fatura, status: 'PAGO' } : fatura
+                                    );
+                                } else {
+                                    // Cobranças avulsas não podem quitar todas as faturas pendentes.
+                                    if (received + 0.001 < minimumBase) {
+                                        console.error('[SaaS Webhook] Pix avulso inferior ao plano vigente', { saasStoreId, txid });
+                                        continue;
                                     }
-                                    return fatura;
-                                });
+                                }
 
                                 const batch = db.batch();
                                 
