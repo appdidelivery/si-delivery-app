@@ -143,10 +143,6 @@
       "destination": "/api/index"
     },
     {
-      "source": "/api/banner-ai",
-      "destination": "/api/banner-ai"
-    },
-    {
       "source": "/api/(.*)",
       "destination": "/api/index"
     },
@@ -236,9 +232,6 @@
           "initialDelaySeconds": 0
         }
       ]
-    },
-    "api/banner-ai.js": {
-      "maxDuration": 120
     }
   }
 }
