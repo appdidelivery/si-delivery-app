@@ -3,6 +3,8 @@ on:
   pull_request:
     paths:
       - 'api/index.js'
+      - 'lib/whatsappReplyRecipient.js'
+      - 'tests/whatsappReplyRecipient.test.mjs'
       - 'api/whatsapp-audience.js'
       - 'server/journeyQueue.js'
       - 'server/lifecycleDispatch.js'
@@ -22,7 +24,7 @@ on:
       - 'lib/csiMarketingConsentInvite.js'
       - 'lib/csiConsentReceiptSummary.js'
       - 'tests/csiConsentReceiptSummary.test.mjs'
-      - 'tests/csiWabaLink.test.mjs'
+      - 'tests/csiWabaLink.test.mjs tests/whatsappReplyRecipient.test.mjs'
       - 'src/pages/MarketingAutomationStatus.jsx'
       - 'tests/whatsappLeadAudience.test.js'
       - 'tests/csiOccasionTemplate.test.js'
@@ -52,6 +54,7 @@ jobs:
           node --check api/whatsapp-audience.js
           node --check server/journeyQueue.js
           node --check lib/whatsappMarketingGraph.js
+          node --check lib/whatsappReplyRecipient.js
           node --check lib/csiMarketingEligibility.js
           node --check lib/csiMarketingReadiness.js
           node --check lib/csiMarketingConsentInvite.js
