@@ -14,6 +14,7 @@ import crypto from 'crypto'; // <-- OBRIGATÓRIO PARA A CAPI DA META
 import { fetchGeminiWithRetry } from '../lib/gemini.js';
 import { scheduleJourneyRequest } from '../server/journeyQueue.js';
 import { marketingMessagesEndpoint } from '../lib/whatsappMarketingGraph.js';
+import { normalizeWhatsAppReplyRecipient } from '../lib/whatsappReplyRecipient.js';
 import { hasAuthorizedCsiMarketingConsent } from '../lib/csiMarketingEligibility.js';
 import { buildCsiConsentInvite, CSI_CONSENT_BUTTON_YES, CSI_CONSENT_BUTTON_NO } from '../lib/csiMarketingConsentInvite.js';
 import { analyzeCsiMarketingReadiness } from '../lib/csiMarketingReadiness.js';
@@ -3294,28 +3295,15 @@ const aiResponse = await fetchGeminiWithRetry(`https://generativelanguage.google
             // --- INÍCIO: LÓGICA PARA RESPOSTA LIVRE NO CHAT ---
             if (action === 'chat_reply') {
                 if (!toPhone) return res.status(400).json({ error: 'Telefone é obrigatório' });
-                
-                let cleanPhone = String(toPhone).replace(/\D/g, '');
-                if (cleanPhone.length >= 10 && cleanPhone.length <= 11) cleanPhone = `55${cleanPhone}`;
 
-                // --- MÁGICA DA META: RESOLVE O BUG DO 9º DÍGITO DO BRASIL ---
-                if (cleanPhone.startsWith('55') && cleanPhone.length === 13) {
-                    const ddd = parseInt(cleanPhone.substring(2, 4));
-                    if (ddd > 28) {
-                        cleanPhone = cleanPhone.substring(0, 4) + cleanPhone.substring(5);
-                    }
-                }
-                // -----------------------------------------------------------
-                // --- MÁGICA DA META: RESOLVE O BUG DO 9º DÍGITO DO BRASIL ---
-                // A Meta Cloud API exige que DDDs acima de 28 NÃO tenham o 9º dígito.
-                if (cleanPhone.startsWith('55') && cleanPhone.length === 13) {
-                    const ddd = parseInt(cleanPhone.substring(2, 4));
-                    if (ddd > 28) {
-                        // Remove o número '9' (que fica na posição 4: 55 DDD [9] XXXX-XXXX)
-                        cleanPhone = cleanPhone.substring(0, 4) + cleanPhone.substring(5);
-                    }
-                }
-                // -----------------------------------------------------------
+                // Mantém o wa_id originado na Meta sem remover/inserir o 9º dígito.
+                // Números nacionais só recebem +55 quando não têm código de país.
+                // Destinatário inválido é recusado localmente, antes de chamar a Meta.
+                const cleanPhone = normalizeWhatsAppReplyRecipient(toPhone);
+                if (!cleanPhone) return res.status(400).json({
+                    success: false,
+                    error: 'Número de WhatsApp inválido. Informe DDD e telefone, ou o identificador internacional completo.'
+                });
 
                 let textBody = dynamicParams?.text || '';
                 let mediaUrl = dynamicParams?.mediaUrl || null;
