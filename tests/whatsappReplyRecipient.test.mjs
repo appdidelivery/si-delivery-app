@@ -12,6 +12,8 @@ test('preserves Brazilian Meta wa_id with or without ninth digit, without guessi
 
 test('adds +55 country code only to Brazilian national numbers with DDD', () => {
   assert.equal(normalizeWhatsAppReplyRecipient('51987654321'), '5551987654321');
+  assert.equal(normalizeWhatsAppReplyRecipient('11987654321'), '5511987654321');
+  assert.equal(normalizeWhatsAppReplyRecipient('12987654321'), '5512987654321');
   assert.equal(normalizeWhatsAppReplyRecipient('(51) 8765-4321'), '555187654321');
   assert.equal(normalizeWhatsAppReplyRecipient('+55 (51) 98765-4321'), '5551987654321');
   assert.equal(normalizeWhatsAppReplyRecipient('55987654321'), '5555987654321'); // DDD 55.
