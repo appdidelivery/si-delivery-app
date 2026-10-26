@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { normalizeWhatsAppReplyRecipient } from '../lib/whatsappReplyRecipient.js';
+import { normalizeWhatsAppReplyRecipient, resolveWhatsAppChatRecipient, matchesWhatsAppChatSearch } from '../lib/whatsappReplyRecipient.js';
 
 test('preserves Brazilian Meta wa_id with or without ninth digit, without guessing', () => {
   assert.equal(normalizeWhatsAppReplyRecipient('5551987654321'), '5551987654321');
@@ -42,4 +42,36 @@ test('chat_reply uses validated recipient and has no DDD-based digit removal', (
   assert.match(handler, /to: cleanPhone/);
   assert.doesNotMatch(handler, /substring\(0, 4\).*substring\(5\)/s);
   assert.doesNotMatch(handler, /triggerFailover\(/);
+});
+
+test('chat search matches complete +55 number and local DDD, as well as names', () => {
+  assert.equal(matchesWhatsAppChatSearch('5548988722970', '48988722970', 'Cliente'), true);
+  assert.equal(matchesWhatsAppChatSearch('+55 (48) 98872-2970', '48988722970', 'Cliente'), true);
+  assert.equal(matchesWhatsAppChatSearch('48988722970', '48988722970', 'Cliente'), true);
+  assert.equal(matchesWhatsAppChatSearch('98872', '48988722970', 'Cliente'), true);
+  assert.equal(matchesWhatsAppChatSearch('Glenda', '48988722970', 'Glenda'), true);
+  assert.equal(matchesWhatsAppChatSearch('5511999999999', '48988722970', 'Cliente'), false);
+});
+
+test('reply takes original incoming Meta wa_id, not reconstructed chat display key', () => {
+  const messages = [
+    { direction: 'inbound', from: '554888722970', receivedAt: { seconds: 1750000000 } },
+    { direction: 'outbound', to: '554898722970', receivedAt: { seconds: 1750000200 } },
+    { direction: 'inbound', from: '5548988722970', receivedAt: { seconds: 1750000500 } },
+  ];
+  assert.equal(resolveWhatsAppChatRecipient(messages), '5548988722970');
+  assert.equal(resolveWhatsAppChatRecipient([messages[0]]), '554888722970');
+  assert.equal(resolveWhatsAppChatRecipient([{ direction: 'outbound', to: '5548988722970' }]), null);
+  assert.equal(resolveWhatsAppChatRecipient([]), null);
+});
+
+test('visual chat only sends to original inbound wa_id, never a synthetic 55 + display key', () => {
+  const code = readFileSync(new URL('../src/components/AdminChat.jsx', import.meta.url), 'utf8');
+  assert.match(code, /matchesWhatsAppChatSearch\(chatSearchTerm, chat\.phone, getDisplayName\(chat\.phone\)\)/);
+  const media = code.slice(code.indexOf('const sendMediaMessage = async'), code.indexOf('const handleSendReply = async'));
+  const text = code.slice(code.indexOf('const handleSendReply = async'), code.indexOf('const handleSendReply = async') + 2200);
+  assert.match(media, /resolveWhatsAppChatRecipient\(chats\[activeChat\]\?\.msgs\)/);
+  assert.match(text, /resolveWhatsAppChatRecipient\(chats\[activeChat\]\?\.msgs\)/);
+  assert.doesNotMatch(media, /const safePhone = `55\$\{cleanActiveChat\}`/);
+  assert.doesNotMatch(text, /const safePhone = `55\$\{cleanActiveChat\}`/);
 });
