@@ -55,12 +55,12 @@ test('chat search matches complete +55 number and local DDD, as well as names', 
 
 test('reply takes original incoming Meta wa_id, not reconstructed chat display key', () => {
   const messages = [
-    { direction: 'inbound', from: '55488722970', receivedAt: { seconds: 1750000000 } },
+    { direction: 'inbound', from: '554888722970', receivedAt: { seconds: 1750000000 } },
     { direction: 'outbound', to: '554898722970', receivedAt: { seconds: 1750000200 } },
     { direction: 'inbound', from: '5548988722970', receivedAt: { seconds: 1750000500 } },
   ];
   assert.equal(resolveWhatsAppChatRecipient(messages), '5548988722970');
-  assert.equal(resolveWhatsAppChatRecipient([messages[0]]), '55488722970');
+  assert.equal(resolveWhatsAppChatRecipient([messages[0]]), '554888722970');
   assert.equal(resolveWhatsAppChatRecipient([{ direction: 'outbound', to: '5548988722970' }]), null);
   assert.equal(resolveWhatsAppChatRecipient([]), null);
 });
