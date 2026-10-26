@@ -5,6 +5,7 @@ import { useStore } from '../context/StoreContext';
 import { Search, MoreVertical, Paperclip, Mic, Send, User, CheckCheck, Reply, X, Square, Image as ImageIcon, Trash2, Edit3, Save, Info, Phone, ArrowLeft, Store, Loader2, Plus, Bell, BellOff, Megaphone, Package, ShoppingCart, MapPin, Ban, DownloadCloud, BarChart3, Trophy } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { authenticatedFetch } from '../utils/apiAuth';
+import { resolveWhatsAppChatRecipient, matchesWhatsAppChatSearch } from '../../lib/whatsappReplyRecipient.js';
 
 // 1. Helper de segurança fora do componente para não ser recriado
 const safeEncode = (text) => {
@@ -585,11 +586,7 @@ export default function AdminChat({ canManageSound = false }) {
         return Object.values(chats)
             .filter(chat => filterUnread ? chat.unreadCount > 0 : true) 
             .filter(chat => {
-                if (!chatSearchTerm) return true;
-                const searchLower = chatSearchTerm.toLowerCase();
-                const contactName = getDisplayName(chat.phone).toLowerCase();
-                const contactPhone = chat.phone.toLowerCase();
-                return contactName.includes(searchLower) || contactPhone.includes(searchLower);
+                return matchesWhatsAppChatSearch(chatSearchTerm, chat.phone, getDisplayName(chat.phone));
             })
             .sort((a, b) => {
                 const lastMsgA = a.msgs[a.msgs.length - 1];
@@ -1029,9 +1026,11 @@ export default function AdminChat({ canManageSound = false }) {
    const sendMediaMessage = async (mediaUrl, type) => {
         if (!activeChat) return;
 
-        let cleanActiveChat = activeChat.replace(/\D/g, '');
-        if (cleanActiveChat.startsWith('55')) cleanActiveChat = cleanActiveChat.substring(2);
-        const safePhone = `55${cleanActiveChat}`;
+        const safePhone = resolveWhatsAppChatRecipient(chats[activeChat]?.msgs);
+        if (!safePhone) {
+            alert('Não há uma mensagem recebida válida para identificar o destinatário oficial. Peça ao cliente para enviar uma mensagem primeiro.');
+            return;
+        }
 
         try {
             const response = await authenticatedFetch('/api/whatsapp-send', {
@@ -1072,13 +1071,14 @@ export default function AdminChat({ canManageSound = false }) {
 
     const handleSendReply = async () => {
         if (!replyText.trim() || !activeChat) return;
+        const safePhone = resolveWhatsAppChatRecipient(chats[activeChat]?.msgs);
+        if (!safePhone) {
+            alert('Não há uma mensagem recebida válida para identificar o destinatário oficial. Peça ao cliente para enviar uma mensagem primeiro.');
+            return;
+        }
         setLoadingSend(true);
 
         try {
-            let cleanActiveChat = activeChat.replace(/\D/g, '');
-            if (cleanActiveChat.startsWith('55')) cleanActiveChat = cleanActiveChat.substring(2);
-            
-            const safePhone = `55${cleanActiveChat}`;
 
             const response = await authenticatedFetch('/api/whatsapp-send', {
                 method: 'POST',
