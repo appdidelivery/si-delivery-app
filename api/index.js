@@ -410,6 +410,12 @@ async function resolveSubscriptionAmount({ storeId, invoiceId, plan, cycle }) {
 // INÍCIO DO ROTEADOR CENTRAL (O MAESTRO DA SUA API)
 // ============================================================================
 export default async function handler(req, res) {
+    // Restringe apenas os hosts da NG Conveniência, sem afetar os demais tenants.
+    const requestHost = String(req.headers['x-forwarded-host'] || req.headers.host || '').toLowerCase().trim().replace(/^www\./, '');
+    if (['ngconveniencia.com.br', 'ng.velodelivery.com.br', 'ngconveniencia.velodelivery.com.br'].includes(requestHost)) {
+        res.setHeader('Cache-Control', 'no-store');
+        return res.status(410).json({ error: 'Loja indisponível.' });
+    }
     // Consolidated endpoints: preserve public URLs while reducing Vercel Hobby function count.
     const consolidatedPath = req.url.split('?')[0];
     const consolidatedHandlers = {

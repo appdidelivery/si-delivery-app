@@ -68,7 +68,7 @@ async function fetchMarketMVLogo() {
 export default async function handler(req, res) {
     const host = req.headers['x-forwarded-host'] || req.headers.host || '';
     const cleanHost = host.toLowerCase().trim().replace(/^www\./, '');
-    if (cleanHost === 'ngconveniencia.com.br') {
+    if (['ngconveniencia.com.br', 'ng.velodelivery.com.br', 'ngconveniencia.velodelivery.com.br'].includes(cleanHost)) {
         return res.status(410).json({error:'Loja indisponível.'});
     }
     const isMarketMVHub = cleanHost === 'mercadomv.com.br';

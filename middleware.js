@@ -84,7 +84,8 @@ export default async function middleware(request) {
 
     const host = request.headers.get('host') || '';
     const cleanHost = host.toLowerCase().trim().replace(/^www\./, '');
-    if (cleanHost === 'ngconveniencia.com.br') {
+    const retiredNGPath = /^\/(?:loja|wpp)\/(?:ng|ngconveniencia)(?:\/|$)/i.test(url.pathname);
+    if (['ngconveniencia.com.br', 'ng.velodelivery.com.br', 'ngconveniencia.velodelivery.com.br'].includes(cleanHost) || retiredNGPath) {
         return new Response('Loja indisponível.', {
             status: 410,
             headers: {'content-type':'text/plain; charset=utf-8','cache-control':'no-store'},
