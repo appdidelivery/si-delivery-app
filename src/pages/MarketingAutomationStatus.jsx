@@ -128,7 +128,7 @@ export default function MarketingAutomationStatus() {
               <p className="font-bold text-slate-900">{name}</p>
               <p className="mt-1 text-lg font-black text-green-700">Aptos: {data.eligibleNow}</p>
               <p className="text-sm text-slate-600">
-                Examinados: {data.examined} · Sem autorização/18+: {data.missingConsentOrAdult} ·
+                Examinados: {data.examined} · Sem telefone válido: {data.missingPhone} · Sem autorização/18+: {data.missingConsentOrAdult} ·
                 Bloqueados: {data.blocked} · Já tratados: {data.alreadySent} · Ainda fora da janela: {data.notDue}
               </p>
             </div>)}
