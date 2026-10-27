@@ -1,6 +1,7 @@
 import { initMetaPixel, trackMetaEvent, trackMetaPurchase, getMetaContext } from '../utils/metaPixel.js';
 import { getGoogleTrackingConfig, trackGooglePurchase } from '../utils/googlePurchase.js';
 import { buildBeginCheckoutPayload, buildAddToCartPayload } from '../utils/checkoutTracking.js';
+import { buildCsiCheckoutConsent, buildCsiOptInWhatsAppUrl } from '../utils/csiMarketingOptIn.js';
 import React, { useState, useEffect, useRef, Suspense } from 'react';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import { db } from '../services/firebase';
@@ -731,6 +732,9 @@ export default function Home() {
     city: '', state: '', cpf: '', birthDate: '', cardNumber: '', cardExpiration: '', cardCvv: '',
     recipientName: '', recipientPhone: '', giftMessage: '', isAnonymous: false, scheduledDate: '', scheduledTime: ''
   });
+  // Opt-in não é pré-marcado nem recuperado do cache do cliente.
+  const [csiMarketingOptIn, setCsiMarketingOptIn] = useState(false);
+  const [csiAdultConfirmed, setCsiAdultConfirmed] = useState(false);
   const [useSavedAddress, setUseSavedAddress] = useState(false);
   const[showLastOrders, setShowLastOrders] = useState(false);
   const[lastOrders, setLastOrders] = useState([]);
@@ -766,6 +770,9 @@ export default function Home() {
     slogan: 'Os melhores produtos entregues na sua casa.',
     name: 'Minha Loja'
   });
+
+  // Abre apenas um rascunho que o próprio cliente deve enviar.
+  const csiOptInLink = storeId === 'csi' ? buildCsiOptInWhatsAppUrl(storeSettings?.whatsapp) : null;
 
   // 🚨 BLINDAGEM MESTRA DE CACHE E LOGÍSTICA
   useEffect(() => {
@@ -2498,6 +2505,9 @@ const upsellTotal = sanitizedCart.filter(i => i.isUpsell === true).reduce((acc, 
         customerName: customer.name || "", 
         customerAddress: isWaiterMode ? `Mesa ${tableNumber}` : (isPickup ? "Retirada no Balcão" : (fullAddress || "")), 
         customerPhone: customer.phone || "",
+        ...(storeId === 'csi' && !isWaiterMode && !tableSession
+          ? buildCsiCheckoutConsent({ storeId, marketingOptIn: csiMarketingOptIn, adultConfirmed: csiAdultConfirmed })
+          : {}),
         customerCpf: "", // <--- CPF LIMPO SALVO AQUI
         paymentMethod: customer.payment || "", 
         paymentStatus: isOfflinePayment ? 'pending_on_delivery' : 'pending',
@@ -3998,6 +4008,12 @@ alert("Pagamento recusado pelo Mercado Pago. Tente outro cartão ou entre em con
 
       <main className="px-6 mb-20 mt-8 min-h-[80vh]">
         <h2 className="sr-only">Catálogo de Produtos</h2>
+        {storeId === 'csi' && csiOptInLink && (
+          <a href={csiOptInLink} target="_blank" rel="noopener noreferrer"
+            className="mb-5 block rounded-2xl border border-green-200 bg-green-50 p-4 text-sm font-bold text-green-900 underline-offset-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-green-700">
+            Tenho 18 anos ou mais e quero receber novidades e ofertas da Conveniência Santa Isabel no WhatsApp
+          </a>
+        )}
         {layoutTheme === 'grid' ? (
             <div className="grid grid-cols-2 gap-4">
                 <AnimatePresence>
@@ -4789,6 +4805,28 @@ alert("Pagamento recusado pelo Mercado Pago. Tente outro cartão ou entre em con
                       </div>
                   )}
 
+                  {storeId === 'csi' && !isWaiterMode && !tableSession && (
+                    <section className="my-5 rounded-2xl border border-green-200 bg-green-50 p-4" aria-label="Preferências de ofertas pelo WhatsApp">
+                      <p className="mb-3 text-sm font-black text-green-900">Receber novidades da Santa Isabel? (opcional)</p>
+                      <label className="flex cursor-pointer items-start gap-3 text-sm text-slate-800">
+                        <input type="checkbox" className="mt-1 h-5 w-5 shrink-0 accent-green-700"
+                          checked={csiMarketingOptIn}
+                          onChange={event => { setCsiMarketingOptIn(event.target.checked); if (!event.target.checked) setCsiAdultConfirmed(false); }} />
+                        <span>Quero receber ofertas e novidades da Conveniência Santa Isabel pelo WhatsApp. Posso cancelar a qualquer momento respondendo PARAR.</span>
+                      </label>
+                      {csiMarketingOptIn && (
+                        <label className="mt-3 flex cursor-pointer items-start gap-3 text-sm text-slate-800">
+                          <input type="checkbox" className="mt-1 h-5 w-5 shrink-0 accent-green-700"
+                            checked={csiAdultConfirmed}
+                            onChange={event => setCsiAdultConfirmed(event.target.checked)} />
+                          <span>Confirmo que tenho 18 anos ou mais.</span>
+                        </label>
+                      )}
+                      {csiMarketingOptIn && !csiAdultConfirmed && (
+                        <p className="mt-2 text-xs font-medium text-amber-800">A autorização de promoções só será registrada após a confirmação de maioridade.</p>
+                      )}
+                    </section>
+                  )}
                   {!isWaiterMode && (
                       <>
                           <p className="font-black text-xs text-slate-400 uppercase mt-4 ml-4 tracking-widest">Pagamento:</p>
