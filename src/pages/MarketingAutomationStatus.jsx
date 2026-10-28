@@ -23,6 +23,36 @@ export default function MarketingAutomationStatus() {
   const [wabaInput, setWabaInput] = useState('');
   const [wabaBusy, setWabaBusy] = useState(false);
   const [wabaResult, setWabaResult] = useState(null);
+  const [controlBusy, setControlBusy] = useState(false);
+  const [controlResult, setControlResult] = useState('');
+  const [policyConfirmed, setPolicyConfirmed] = useState(false);
+  const changePilot = async (action) => {
+    if (controlBusy) return;
+    if (action === 'activate' && !policyConfirmed) {
+      setError('Confirme a revisão das condições de consentimento, maioridade e localização antes de ativar.');
+      return;
+    }
+    const question = action === 'activate'
+      ? 'Ativar automações oficiais da Santa Isabel para clientes com consentimento e 18+, com teto compartilhado de 10 tentativas/dia? Isso poderá enviar mensagens automaticamente a clientes elegíveis.'
+      : 'Pausar as jornadas e a retenção da Santa Isabel? Mensagens já aceitas pela Meta não podem ser retiradas.';
+    if (!window.confirm(question)) return;
+    setControlBusy(true);
+    setError('');
+    setControlResult('');
+    try {
+      const response = await authenticatedFetch('/api/csi-marketing-control', {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({action, regulatoryReviewConfirmed:action==='activate' && policyConfirmed})
+      });
+      const data = await response.json();
+      if (!response.ok || !data.success) throw new Error(data.error || 'Não foi possível alterar o piloto.');
+      setControlResult(data.message || 'Configuração atualizada.');
+      setPolicyConfirmed(false);
+      await refresh(true);
+    } catch(err) { setError(err.message); }
+    finally { setControlBusy(false); }
+  };
+
   const refresh = async (deep = false) => {
     setError('');
     setChecking(true);
@@ -97,6 +127,37 @@ export default function MarketingAutomationStatus() {
               {checking ? 'Analisando elegibilidade...' : 'Verificar bloqueios e templates (sem enviar)'}
             </button>
           </div>
+          <section className="rounded-2xl border border-amber-200 bg-white p-5 space-y-3">
+            <h2 className="font-black text-lg text-slate-900">Controle do piloto oficial — Santa Isabel</h2>
+            <p className="text-sm text-slate-700">
+              Categoria cadastrada: <strong>{status?.storeNiche || status?.seoCategory || 'não informada'}</strong>.
+              Jornadas: <strong>{status?.journeys?.codeEnabled ? 'ativas' : 'pausadas/pendentes'}</strong>.
+              Retenção: <strong>{status?.retention?.codeEnabled ? 'ativa' : 'pausada/pendente'}</strong>.
+            </p>
+            <p className="text-sm text-slate-700">
+              A ativação corrige a categoria para Conveniência, valida novamente os templates da Meta e
+              libera apenas clientes com aceite e confirmação de 18 anos, respeitando descadastros e
+              limite compartilhado de 10 tentativas por dia. Não altera tokens, WABA nem telefone ativo.
+            </p>
+            <label className="flex items-start gap-3 text-sm text-slate-700">
+              <input type="checkbox" className="mt-1" checked={policyConfirmed}
+                onChange={e => setPolicyConfirmed(e.target.checked)} />
+              <span>Confirmei os requisitos aplicáveis de consentimento, maioridade, localização no Brasil e conformidade da loja com a política da Meta para mensagens sobre bebidas alcoólicas.</span>
+            </label>
+            <div className="flex flex-wrap gap-3">
+              <button type="button" onClick={() => changePilot('activate')}
+                disabled={controlBusy || checking || !policyConfirmed || status?.journeys?.codeEnabled === true && status?.retention?.codeEnabled === true}
+                className="rounded-xl bg-emerald-700 px-4 py-3 font-bold text-white disabled:opacity-50">
+                {controlBusy?'Salvando...':'Corrigir categoria e ativar piloto (10/dia)'}
+              </button>
+              <button type="button" onClick={() => changePilot('pause')} disabled={controlBusy || checking}
+                className="rounded-xl bg-slate-700 px-4 py-3 font-bold text-white disabled:opacity-50">
+                Pausar automações
+              </button>
+            </div>
+            {controlResult && <p role="status" className="rounded-xl bg-green-50 p-3 text-green-900">{controlResult}</p>}
+            <p className="text-xs text-slate-500">Este controle não envia mensagens de teste nem convites. A execução depende das filas, horários e demais bloqueios; acompanhe os recibos de entrega.</p>
+          </section>
           {error && <p role="alert" className="rounded-xl bg-red-50 p-4 text-red-700">{error}</p>}
           <section className="rounded-2xl border border-blue-200 bg-blue-50 p-5 space-y-3">
             <h2 className="font-black text-blue-950 text-lg">Pedir autorização de promoções pelo WhatsApp</h2>
