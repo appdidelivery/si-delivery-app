@@ -629,6 +629,101 @@ export default async function handler(req, res) {
         return res.status(200).json({success:true,verified:true,message:'WABA validada e associada ao número ativo. Credenciais preservadas.'});
     }
 
+
+    // Opt-in-only CSI pilot switch. No messages are sent by this endpoint.
+    // Activation is a separate authenticated user action; it never changes tokens,
+    // sender phone, WABA or the messaging integration itself.
+    if (path === '/api/csi-marketing-control') {
+        res.setHeader('Cache-Control', 'private, no-store');
+        if (req.method !== 'POST') return res.status(405).json({success:false,error:'Método não permitido.'});
+        await assertStoreAccess(req.user, 'csi');
+        const action = String(req.body?.action || '');
+        if (!['activate','pause'].includes(action)) {
+            return res.status(400).json({success:false,error:'Ação inválida.'});
+        }
+        const settingsRef = db.collection('settings').doc('csi');
+        const storeRef = db.collection('stores').doc('csi');
+
+        if (action === 'pause') {
+            await db.runTransaction(async tx => {
+                const snap = await tx.get(settingsRef);
+                if (!snap.exists) throw Object.assign(new Error('Configuração da CSI não encontrada.'), {statusCode:404});
+                tx.update(settingsRef, {
+                    'integrations.whatsapp.journeyAutomation.enabled': false,
+                    'integrations.whatsapp.lifecycleAutomation.enabled': false
+                });
+            });
+            return res.status(200).json({success:true,enabled:false,message:'Automações da Santa Isabel pausadas. Nenhuma credencial alterada.'});
+        }
+
+        if (req.body?.regulatoryReviewConfirmed !== true) {
+            return res.status(400).json({success:false,error:'Confirme a revisão de idade, localização, consentimento e conformidade antes de ativar.'});
+        }
+        const [settingsSnap, storeSnap] = await Promise.all([settingsRef.get(),storeRef.get()]);
+        if (!settingsSnap.exists || !storeSnap.exists) {
+            return res.status(404).json({success:false,error:'Loja ou configuração CSI ausente.'});
+        }
+        const wa = settingsSnap.data()?.integrations?.whatsapp || {};
+        const wabaId = String(wa.wabaId || wa.whatsappBusinessAccountId || '');
+        const phoneId = String(wa.phoneNumberId || '');
+        if (!wa.apiToken || !/^[0-9]{6,30}$/.test(wabaId) || !/^[0-9]{6,30}$/.test(phoneId)) {
+            return res.status(409).json({success:false,error:'Vincule a WABA e confirme a Cloud API oficial antes da ativação.'});
+        }
+
+        // Verify the official approved templates again at activation time.
+        const requiredTemplates = [
+            'velo_carrinho_bebidas','1_velo_pos_venda_bebidas',
+            'velo_segunda_compra_bebidas','velo_retencao_30_bebidas',
+            'velo_retencao_60_bebidas','velo_retencao_90_bebidas'
+        ];
+        let approved = new Set();
+        try {
+            const response = await fetch('https://graph.facebook.com/v25.0/' + wabaId +
+                '/message_templates?fields=name,status,language&limit=100', {
+                headers:{Authorization:'Bearer '+wa.apiToken},
+                signal:AbortSignal.timeout(8000)
+            });
+            if (!response.ok) return res.status(422).json({success:false,error:'Meta não confirmou os templates. Nenhuma automação foi ativada.'});
+            const body = await response.json();
+            approved = new Set((Array.isArray(body.data)?body.data:[])
+                .filter(t=>t.status==='APPROVED' && t.language==='pt_BR').map(t=>t.name));
+        } catch {
+            return res.status(503).json({success:false,error:'Falha ao consultar templates na Meta. Nenhuma automação foi ativada.'});
+        }
+        const missing = requiredTemplates.filter(name=>!approved.has(name));
+        if (missing.length) {
+            return res.status(422).json({success:false,error:'Há templates obrigatórios não aprovados.',missingTemplates:missing});
+        }
+
+        // Atomically fix CSI's known niche and explicitly enable a small,
+        // consent-only daily pilot. A queue worker rechecks enabled at dispatch.
+        await db.runTransaction(async tx => {
+            const [freshSettings,freshStore] = await Promise.all([tx.get(settingsRef),tx.get(storeRef)]);
+            if (!freshSettings.exists || !freshStore.exists) {
+                throw Object.assign(new Error('A configuração mudou. Atualize e tente novamente.'),{statusCode:409});
+            }
+            const current = freshSettings.data()?.integrations?.whatsapp || {};
+            if (String(current.phoneNumberId || '')!==phoneId ||
+                String(current.wabaId || current.whatsappBusinessAccountId || '')!==wabaId ||
+                current.apiToken!==wa.apiToken) {
+                throw Object.assign(new Error('A integração Meta mudou. Atualize antes de ativar.'),{statusCode:409});
+            }
+            tx.update(storeRef,{storeNiche:'conveniencia',seoCategory:'conveniencia'});
+            tx.update(settingsRef,{
+                'integrations.whatsapp.journeyAutomation.enabled':true,
+                'integrations.whatsapp.journeyAutomation.dailyLimit':10,
+                'integrations.whatsapp.lifecycleAutomation.enabled':true,
+                'integrations.whatsapp.lifecycleAutomation.dailyLimit':10,
+                'integrations.whatsapp.regulatedMarketingReviewedAt':admin.firestore.FieldValue.serverTimestamp(),
+                'integrations.whatsapp.marketingPilotActivatedAt':admin.firestore.FieldValue.serverTimestamp()
+            });
+        });
+        return res.status(200).json({
+            success:true,enabled:true,dailyLimit:10,
+            message:'Categoria da CSI corrigida; piloto de jornadas e retenção ativado para clientes autorizados e adultos. Limite de 10 tentativas/dia.'
+        });
+    }
+
     // Read-only marketing diagnostic. Uses the Firebase identity verified by the
     // global auth middleware; intentionally never calls Meta or queues messages.
     if (path === '/api/marketing-automation-status') {
@@ -730,10 +825,12 @@ export default async function handler(req, res) {
         }
         return res.status(200).json({
             success: true, storeId: statusStoreId, localDate: day, readOnly: true,
+            storeNiche: String(storeDoc.data()?.storeNiche || ''),
+            seoCategory: String(storeDoc.data()?.seoCategory || ''),
             nativeCloudApi: nativeConnected ? 'credentials_present' : 'not_configured',
             wabaConfigured: Boolean(wa.wabaId || wa.whatsappBusinessAccountId),
             journeys: {
-                codeEnabled: nativeConnected && journey.enabled !== false && niche.key === 'beverage',
+                codeEnabled: nativeConnected && journey.enabled === true && niche.key === 'beverage',
                 nicheMatch: niche.key === 'beverage',
                 explicitlyEnabled: journey.enabled === true,
                 disabled: journey.enabled === false,
@@ -741,7 +838,7 @@ export default async function handler(req, res) {
                 stages: ['abandoned_cart_30m', 'post_sale_30m', 'second_purchase']
             },
             retention: {
-                codeEnabled: nativeConnected && lifecycle.enabled !== false,
+                codeEnabled: nativeConnected && lifecycle.enabled === true,
                 explicitlyEnabled: lifecycle.enabled === true,
                 disabled: lifecycle.enabled === false,
                 dailyLimit: Math.max(1, Math.min(20, Number(lifecycle.dailyLimit) || 20)),
@@ -1568,7 +1665,7 @@ const aiResponse = await fetchGeminiWithRetry(`https://generativelanguage.google
                     const journeyWa = journeySettings.integrations?.whatsapp;
                     const journeyProfile = getMarketingNicheProfile(journeyStoreData);
                     const journeyConfig = journeyWa?.journeyAutomation || {};
-                    const journeyEnabled = journeyConfig.enabled !== false && journeyProfile.key === 'beverage';
+                    const journeyEnabled = journeyConfig.enabled === true && journeyProfile.key === 'beverage';
 
                     if (journeyEnabled && journeyWa?.phoneNumberId && journeyWa?.apiToken) {
                         const GRAPH_API_URL = marketingMessagesEndpoint(journeyWa.phoneNumberId);
