@@ -34,5 +34,5 @@ test('Journey summary reflects beverage category gate from production cron',()=>
   const begin=api.indexOf("if (path === '/api/marketing-automation-status')");
   const handler=api.slice(begin,api.indexOf("if (path === '/api/whatsapp-embedded-signup')",begin));
   assert.match(handler,/nicheMatch: niche\.key === 'beverage'/);
-  assert.match(handler,/nativeConnected && journey\.enabled !== false && niche\.key === 'beverage'/);
+  assert.match(handler,/nativeConnected && journey\.enabled === true && niche\.key === 'beverage'/);
 });
