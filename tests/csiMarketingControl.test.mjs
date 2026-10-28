@@ -17,7 +17,7 @@ test('Pilot switch is authenticated, CSI-only, and never sends messages directly
   assert.match(control,/assertStoreAccess\(req\.user, 'csi'\)/);
   assert.match(control,/regulatoryReviewConfirmed !== true/);
   assert.doesNotMatch(control,/\/messages\b|csi_consent_invite|sendJourneyTemplate/);
-  assert.match(control,/No message|No messages|No messages are sent/i);
+  assert.doesNotMatch(control,/sendViaEvolutionAPI\(|sendMessageToMeta\(|\/messages\b/);
 });
 
 test('Activation requires official credentials and rechecks approved Meta templates',()=>{
@@ -34,10 +34,10 @@ test('Activation transaction fixes CSI niche, enables limited pilot, and pause d
   assert.match(control,/tx\.update\(storeRef,\{storeNiche:'conveniencia',seoCategory:'conveniencia'\}\)/);
   assert.match(control,/'integrations\.whatsapp\.journeyAutomation\.dailyLimit':10/);
   assert.match(control,/'integrations\.whatsapp\.lifecycleAutomation\.dailyLimit':10/);
-  assert.match(control,/'integrations\.whatsapp\.journeyAutomation\.enabled':false/);
-  assert.match(control,/'integrations\.whatsapp\.lifecycleAutomation\.enabled':false/);
-  assert.match(control,/'integrations\.whatsapp\.journeyAutomation\.enabled':true/);
-  assert.match(control,/'integrations\.whatsapp\.lifecycleAutomation\.enabled':true/);
+  assert.match(control,/'integrations\.whatsapp\.journeyAutomation\.enabled'\s*:\s*false/);
+  assert.match(control,/'integrations\.whatsapp\.lifecycleAutomation\.enabled'\s*:\s*false/);
+  assert.match(control,/'integrations\.whatsapp\.journeyAutomation\.enabled'\s*:\s*true/);
+  assert.match(control,/'integrations\.whatsapp\.lifecycleAutomation\.enabled'\s*:\s*true/);
   assert.doesNotMatch(control,/'integrations\.whatsapp\.(apiToken|phoneNumberId|wabaId)'\s*:/);
 });
 
