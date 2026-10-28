@@ -70,7 +70,7 @@ async function sendJourneyTemplate({ phone, templateCandidates, stage, sourceId,
 
   const settingsDoc = await db.collection('settings').doc(CSI_STORE_ID).get();
   const waConfig = settingsDoc.data()?.integrations?.whatsapp;
-  if (waConfig?.journeyAutomation?.enabled === false) {
+  if (waConfig?.journeyAutomation?.enabled !== true) {
     return { ok: false, reason: 'journey_disabled' };
   }
   if (!waConfig?.phoneNumberId || !waConfig?.apiToken) {

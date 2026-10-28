@@ -63,7 +63,7 @@ export async function handleOccasionLifecycle(req, res, slot) {
 
   const wa = settingsDoc.data()?.integrations?.whatsapp || {};
   const cfg = wa.lifecycleAutomation || {};
-  if (cfg.enabled === false || !wa.phoneNumberId || !wa.apiToken) {
+  if (cfg.enabled !== true || !wa.phoneNumberId || !wa.apiToken) {
     return res.status(200).json({ success: true, skipped: 'disabled_or_meta_missing' });
   }
 

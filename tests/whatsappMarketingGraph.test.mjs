@@ -30,7 +30,7 @@ test('30/60/90 lifecycle and sports campaigns use supported Graph API', () => {
   assert.match(lifecycle, /marketingMessagesEndpoint\(wa\.phoneNumberId\)/);
   assert.match(football, /marketingMessagesEndpoint\(wa\.phoneNumberId\)/);
   assert.doesNotMatch(lifecycle + football, /graph\.facebook\.com\/v19\.0/);
-  assert.match(lifecycle, /cfg\.enabled === false/);
+  assert.match(lifecycle, /cfg\.enabled !== true/);
   assert.match(lifecycle, /reserveMarketingAttempt/);
 });
 
