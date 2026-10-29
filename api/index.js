@@ -1417,7 +1417,7 @@ export default async function handler(req, res) {
                     const waConfig = settingsData.integrations?.whatsapp;
                     
                     if (waConfig && waConfig.phoneNumberId && waConfig.apiToken && waConfig.autoAbandonedCart) {
-                        const GRAPH_API_URL = `https://graph.facebook.com/v19.0/${waConfig.phoneNumberId}/messages`;
+                        const GRAPH_API_URL = `https://graph.facebook.com/v25.0/${waConfig.phoneNumberId}/messages`;
                         
                         // FORMATANDO NÚMERO (Apenas garantindo o código 55 do Brasil)
                         let rawPhone = String(data.customerPhone).replace(/\D/g, '');
@@ -1533,7 +1533,7 @@ const aiResponse = await fetchGeminiWithRetry(`https://generativelanguage.google
                             const waConfig = settingsData.integrations?.whatsapp;
 
                             if (waConfig && waConfig.phoneNumberId && waConfig.apiToken) {
-                                const GRAPH_API_URL = `https://graph.facebook.com/v19.0/${waConfig.phoneNumberId}/messages`;
+                                const GRAPH_API_URL = `https://graph.facebook.com/v25.0/${waConfig.phoneNumberId}/messages`;
 
                                 const firstName = oData.customerName ? oData.customerName.split(' ')[0] : 'Cliente';
                                 const firstProductName = (oData.items && oData.items[0]) ? oData.items[0].name : 'pedido';
@@ -1957,7 +1957,7 @@ const aiResponse = await fetchGeminiWithRetry(`https://generativelanguage.google
                 };
 
                 if (waConfig && waConfig.phoneNumberId && waConfig.apiToken && lData.phone) {
-                    const GRAPH_API_URL = `https://graph.facebook.com/v19.0/${waConfig.phoneNumberId}/messages`;
+                    const GRAPH_API_URL = `https://graph.facebook.com/v25.0/${waConfig.phoneNumberId}/messages`;
                     
                     let cleanPhone = String(lData.phone).replace(/\D/g, '');
                     if (cleanPhone.length >= 10 && !cleanPhone.startsWith('55')) cleanPhone = `55${cleanPhone}`;
@@ -2421,7 +2421,7 @@ const aiResponse = await fetchGeminiWithRetry(`https://generativelanguage.google
             }
 
             const { phoneNumberId, apiToken } = waConfig;
-            const GRAPH_API_URL = `https://graph.facebook.com/v19.0/${phoneNumberId}/messages`;
+            const GRAPH_API_URL = `https://graph.facebook.com/v25.0/${phoneNumberId}/messages`;
 
             // --- 🛡️ MOTOR DE FAILOVER INTELIGENTE ---
             const triggerFailover = async (cleanPhone, messageText, metaErrorDetails) => {
@@ -2450,7 +2450,7 @@ const aiResponse = await fetchGeminiWithRetry(`https://generativelanguage.google
             };
 
             const sendMessageToMeta = async (recipientPhone, template, languageCode = 'pt_BR', variables = [], options = {}) => {
-                const allowFailover = options.allowFailover !== false;
+                const allowFailover = storeId !== 'csi' && options.allowFailover !== false; // CSI: somente Cloud API oficial
                 let cleanPhone = String(recipientPhone).replace(/\D/g, '');
                 if (cleanPhone.startsWith('55')) cleanPhone = cleanPhone.substring(2);
                 cleanPhone = `55${cleanPhone}`;
@@ -3333,13 +3333,12 @@ const aiResponse = await fetchGeminiWithRetry(`https://generativelanguage.google
                 const templateVariables = req.body.variables || []; // Captura variáveis dinâmicas
                 if (!templateName || !toPhone) return res.status(400).json({ error: 'Template e telefone são obrigatórios' });
                 
-                // Formatação do número
-                let cleanPhone = String(toPhone).replace(/\D/g, '');
-                if (cleanPhone.startsWith('55')) cleanPhone = cleanPhone.substring(2);
-                const safePhone = `55${cleanPhone}`;
+                // O wa_id informado pela Meta tem precedência: não acrescentar/remover dígitos.
+                const safePhone = normalizeWhatsAppReplyRecipient(toPhone);
+                if (!safePhone) return res.status(400).json({ success:false, error:'Destinatário inválido: informe DDD e telefone válidos.' });
 
-                // Usa a função sendMessageToMeta atualizada
-                const metaResponse = await sendMessageToMeta(safePhone, templateName, 'pt_BR', templateVariables);
+                // CSI usa exclusivamente a Cloud API; nunca Evolution como fallback.
+                const metaResponse = await sendMessageToMeta(safePhone, templateName, 'pt_BR', templateVariables, { allowFailover: storeId !== 'csi' });
                 
                 if (metaResponse.ok) {
                     // Registra a mensagem no banco para aparecer no painel do lojista (agora mostrando as variáveis também)
@@ -3368,7 +3367,7 @@ const aiResponse = await fetchGeminiWithRetry(`https://generativelanguage.google
                 const { address, description, email, website } = req.body;
                 
                 try {
-                    const response = await fetch(`https://graph.facebook.com/v19.0/${phoneNumberId}/whatsapp_business_profile`, {
+                    const response = await fetch(`https://graph.facebook.com/v25.0/${phoneNumberId}/whatsapp_business_profile`, {
                         method: 'POST',
                         headers: {
                             'Authorization': `Bearer ${apiToken}`,
@@ -3408,7 +3407,7 @@ const aiResponse = await fetchGeminiWithRetry(`https://generativelanguage.google
                     error: 'Número de WhatsApp inválido. Informe DDD e telefone, ou o identificador internacional completo.'
                 });
 
-                let textBody = dynamicParams?.text || '';
+                let textBody = typeof dynamicParams?.text === 'string' ? dynamicParams.text : '';
                 let mediaUrl = dynamicParams?.mediaUrl || null;
 
                 // Detecta automaticamente se o texto contém um link de imagem
@@ -3421,6 +3420,7 @@ const aiResponse = await fetchGeminiWithRetry(`https://generativelanguage.google
                 }
 
                 let mediaType = dynamicParams?.mediaType || 'image';
+                if (!mediaUrl && !textBody.trim()) return res.status(400).json({ success:false, error:'Mensagem vazia.' });
 
                 // 1. Monta o Payload para a Meta API
                 let payload = {
@@ -3463,8 +3463,49 @@ const aiResponse = await fetchGeminiWithRetry(`https://generativelanguage.google
                         });
                     }
 
-                    // 4. Se deu tudo certo
-                    return res.status(200).json({ success: true, message_id: data.messages?.[0]?.id });
+                    // A Meta aceitou a requisição, mas a entrega só é confirmada
+                    // pelo webhook. Grava no servidor com ID idempotente, sem
+                    // depender do navegador ou duplicar a mensagem no painel.
+                    const metaMessageId = data.messages?.[0]?.id || null;
+                    let trackingWarning = null;
+                    if (metaMessageId) {
+                        try {
+                            const messageDocId = 'meta_' + crypto.createHash('sha256').update(metaMessageId).digest('hex');
+                            const outboundRef = db.collection('whatsapp_inbound').doc(messageDocId);
+                            await db.runTransaction(async tx => {
+                                const prior = await tx.get(outboundRef);
+                                const fields = {
+                                    storeId,
+                                    to: cleanPhone,
+                                    text: textBody,
+                                    mediaUrl: mediaUrl || null,
+                                    mediaType: mediaUrl ? mediaType : null,
+                                    metaMessageId,
+                                    direction: 'outbound',
+                                    source: 'chat_reply',
+                                    status: 'sent',
+                                    sentAt: admin.firestore.FieldValue.serverTimestamp(),
+                                    receivedAt: admin.firestore.FieldValue.serverTimestamp()
+                                };
+                                // Nunca rebaixa delivered/read se o recibo chegou antes.
+                                if (!prior.exists || !prior.data()?.deliveryStatus) fields.deliveryStatus = 'accepted';
+                                tx.set(outboundRef, fields, { merge: true });
+                            });
+                        } catch (logError) {
+                            // Não devolver erro de envio: o Meta já aceitou, e repetir
+                            // poderia enviar mensagens duplicadas ao mesmo cliente.
+                            console.error('[chat_reply] Falha no registro do WAMID:', logError?.message);
+                            trackingWarning = 'Meta aceitou a mensagem, mas o registro do histórico falhou.';
+                        }
+                    } else {
+                        trackingWarning = 'A Meta não retornou identificador para rastrear a entrega.';
+                    }
+                    return res.status(200).json({
+                        success: true,
+                        message_id: metaMessageId,
+                        delivery_status: 'accepted',
+                        ...(trackingWarning ? { tracking_warning: trackingWarning } : {})
+                    });
 
                 } catch (error) {
                     console.error("❌ Erro interno no servidor ao chamar Meta:", error);
@@ -3766,7 +3807,7 @@ const aiResponse = await fetchGeminiWithRetry(`https://generativelanguage.google
                                         // 3. Responde o cliente confirmando o bônus
                                         const apiTok = setSnap.docs[0].data()?.integrations?.whatsapp?.apiToken;
                                         if (apiTok) {
-                                            await fetch(`https://graph.facebook.com/v19.0/${phoneNumberId}/messages`, {
+                                            await fetch(`https://graph.facebook.com/v25.0/${phoneNumberId}/messages`, {
                                                 method: 'POST', headers: { 'Authorization': `Bearer ${apiTok}`, 'Content-Type': 'application/json' },
                                                 body: JSON.stringify({ messaging_product: "whatsapp", recipient_type: "individual", to: message.from, type: "text", text: { body: "🎉 Bônus Autoverificado! R$ 5,00 foram adicionados na sua Carteira Digital para o seu próximo pedido." } })
                                             });
@@ -3822,7 +3863,7 @@ const aiResponse = await fetchGeminiWithRetry(`https://generativelanguage.google
                                         if (mediaObj && mediaObj.id && apiToken) {
                                             try {
                                                 // 1. Pega a URL temporária da Meta
-                                                const metaRes = await fetch(`https://graph.facebook.com/v19.0/${mediaObj.id}`, {
+                                                const metaRes = await fetch(`https://graph.facebook.com/v25.0/${mediaObj.id}`, {
                                                     headers: { 'Authorization': `Bearer ${apiToken}` }
                                                 });
                                                 const metaData = await metaRes.json();
@@ -3910,7 +3951,7 @@ const aiResponse = await fetchGeminiWithRetry(`https://generativelanguage.google
                                         }, { merge: true });
                                         if (apiToken) {
                                             try {
-                                                await fetch(`https://graph.facebook.com/v19.0/${phoneNumberId}/messages`, {
+                                                await fetch(`https://graph.facebook.com/v25.0/${phoneNumberId}/messages`, {
                                                     method: 'POST',
                                                     headers: { Authorization: `Bearer ${apiToken}`, 'Content-Type': 'application/json' },
                                                     body: JSON.stringify({
@@ -3958,7 +3999,7 @@ const aiResponse = await fetchGeminiWithRetry(`https://generativelanguage.google
                                             await batch.commit();
                                             if(apiToken && phoneNumberId){
                                                 try{
-                                                    const ack=await fetch(`https://graph.facebook.com/v19.0/${phoneNumberId}/messages`,{
+                                                    const ack=await fetch(`https://graph.facebook.com/v25.0/${phoneNumberId}/messages`,{
                                                         method:'POST',
                                                         headers:{Authorization:`Bearer ${apiToken}`,'Content-Type':'application/json'},
                                                         body:JSON.stringify({messaging_product:'whatsapp',to:message.from,type:'text',
@@ -4689,7 +4730,7 @@ const paymentsStr = acceptedList.length > 0 ? acceptedList.join('\n') : 'Consult
                                                         
                                                         if (isolatedPixCode) {
                                                             // Manda o texto base (instruções) "por fora" da estrutura principal
-                                                            await fetch(`https://graph.facebook.com/v19.0/${phoneNumberId}/messages`, {
+                                                            await fetch(`https://graph.facebook.com/v25.0/${phoneNumberId}/messages`, {
                                                                 method: 'POST', headers: { 'Authorization': `Bearer ${apiToken}`, 'Content-Type': 'application/json' },
                                                                 body: JSON.stringify({ messaging_product: "whatsapp", recipient_type: "individual", to: message.from, type: "text", text: { body: pixMsg } })
                                                             });
@@ -5017,7 +5058,7 @@ if (replyPayload.type === 'text' && replyPayload.text?.body) {
 
                                             const fetchPayload = { messaging_product: "whatsapp", recipient_type: "individual", to: message.from, ...replyPayload };
 
-                                            const metaRes = await fetch(`https://graph.facebook.com/v19.0/${phoneNumberId}/messages`, {
+                                            const metaRes = await fetch(`https://graph.facebook.com/v25.0/${phoneNumberId}/messages`, {
                                                 method: 'POST', headers: { 'Authorization': `Bearer ${apiToken}`, 'Content-Type': 'application/json' },
                                                 body: JSON.stringify(fetchPayload)
                                             });
@@ -5688,14 +5729,14 @@ if (replyPayload.type === 'text' && replyPayload.text?.body) {
                     
                     // Função auxiliar para tentar enviar a mensagem
                     const sendToMeta = async (targetPhone) => {
-                        const resInstrucoes = await fetch(`https://graph.facebook.com/v19.0/${waConfig.phoneNumberId}/messages`, {
+                        const resInstrucoes = await fetch(`https://graph.facebook.com/v25.0/${waConfig.phoneNumberId}/messages`, {
                             method: 'POST', headers: { 'Authorization': `Bearer ${waConfig.apiToken}`, 'Content-Type': 'application/json' },
                             body: JSON.stringify({ messaging_product: "whatsapp", recipient_type: "individual", to: targetPhone, type: "text", text: { body: msgPixInstrucoes } })
                         });
                         
                         if (!resInstrucoes.ok) return false; // Falhou (provavelmente 9º dígito ou janela 24h)
 
-                        await fetch(`https://graph.facebook.com/v19.0/${waConfig.phoneNumberId}/messages`, {
+                        await fetch(`https://graph.facebook.com/v25.0/${waConfig.phoneNumberId}/messages`, {
                             method: 'POST', headers: { 'Authorization': `Bearer ${waConfig.apiToken}`, 'Content-Type': 'application/json' },
                             body: JSON.stringify({ messaging_product: "whatsapp", recipient_type: "individual", to: targetPhone, type: "text", text: { body: pixCodigo } })
                         });
