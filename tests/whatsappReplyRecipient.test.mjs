@@ -75,3 +75,30 @@ test('visual chat only sends to original inbound wa_id, never a synthetic 55 + d
   assert.doesNotMatch(media, /const safePhone = `55\$\{cleanActiveChat\}`/);
   assert.doesNotMatch(text, /const safePhone = `55\$\{cleanActiveChat\}`/);
 });
+
+test('CSI official Cloud API never fails over to Evolution and uses supported Graph version', () => {
+  const code = readFileSync(new URL('../api/index.js', import.meta.url), 'utf8');
+  const route = code.slice(code.indexOf("else if (path === '/api/whatsapp-send')"), code.indexOf("else if (path === '/api/export-global-chat')"));
+  assert.match(route, /const allowFailover = storeId !== 'csi'/);
+  assert.match(route, /const GRAPH_API_URL = `https:\/\/graph\.facebook\.com\/v25\.0\/\$\{phoneNumberId\}\/messages`/);
+  assert.match(route, /normalizeWhatsAppReplyRecipient\(toPhone\)/);
+});
+
+test('chat reply persists accepted WAMID on server and admin does not duplicate it', () => {
+  const code = readFileSync(new URL('../api/index.js', import.meta.url), 'utf8');
+  const begin = code.indexOf("if (action === 'chat_reply') {");
+  const end = code.indexOf('// --- FIM: LÓGICA PARA RESPOSTA LIVRE NO CHAT', begin);
+  const handler = code.slice(begin, end);
+  assert.match(handler, /db\.collection\('whatsapp_inbound'\)\.doc\(messageDocId\)/);
+  assert.match(handler, /db\.runTransaction\(async tx =>/);
+  assert.match(handler, /fields\.deliveryStatus = 'accepted'/);
+  assert.match(handler, /delivery_status: 'accepted'/);
+  assert.match(handler, /tracking_warning/);
+  assert.doesNotMatch(handler, /triggerFailover\(/);
+
+  const ui = readFileSync(new URL('../src/components/AdminChat.jsx', import.meta.url), 'utf8');
+  const media = ui.slice(ui.indexOf('const sendMediaMessage = async'), ui.indexOf('const handleSendReply = async'));
+  const reply = ui.slice(ui.indexOf('const handleSendReply = async'), ui.indexOf('const handleTakeOverChat = async'));
+  assert.doesNotMatch(media, /addDoc\(collection\(db, 'whatsapp_inbound'\)/);
+  assert.doesNotMatch(reply, /addDoc\(collection\(db, 'whatsapp_inbound'\)/);
+});
