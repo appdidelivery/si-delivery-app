@@ -1048,24 +1048,15 @@ export default function AdminChat({ canManageSound = false }) {
                 })
             });
 
-            if (response.ok) {
-                const data = await response.json();
-                await addDoc(collection(db, 'whatsapp_inbound'), {
-                    storeId: storeId,
-                    to: safePhone,
-                    text: '',
-                    mediaUrl: mediaUrl,
-                    mediaType: type,
-                    metaMessageId: data.message_id || null,
-                    deliveryStatus: 'sent',
-                    sentAt: serverTimestamp(),
-                    receivedAt: serverTimestamp(),
-                    status: 'sent',
-                    direction: 'outbound'
-                });
+            const data = await response.json();
+            if (!response.ok || !data.success) {
+                throw new Error(data?.metaDetails?.error?.message || data.error || 'A Meta recusou o arquivo.');
             }
+            if (data.tracking_warning) console.warn('[WhatsApp] Mensagem aceita; histórico pendente:', data.tracking_warning);
+            // O backend já grava a mensagem com o WAMID, sem cópia no navegador.
         } catch (error) {
             console.error('Erro ao enviar mídia:', error);
+            alert('Não foi possível enviar a mídia pelo WhatsApp oficial: ' + error.message);
         }
     };
 
@@ -1095,19 +1086,9 @@ export default function AdminChat({ canManageSound = false }) {
 
             // CHECAGEM RIGOROSA: Tem que ser Status 200 E success: true
             if (response.ok && data.success) {
-                await addDoc(collection(db, 'whatsapp_inbound'), {
-                    storeId: storeId,
-                    to: safePhone,
-                    text: replyText,
-                    metaMessageId: data.message_id || null,
-                    deliveryStatus: 'sent',
-                    sentAt: serverTimestamp(),
-                    receivedAt: serverTimestamp(),
-                    status: 'sent',
-                    direction: 'outbound',
-                    quotedMsg: replyingTo ? replyingTo.text : null
-                });
-
+                // A API oficial já gravou o envio e seu WAMID no Firestore.
+                // O webhook da Meta atualizará sent/delivered/read no mesmo registro.
+                if (data.tracking_warning) console.warn('[WhatsApp] Registro de entrega pendente:', data.tracking_warning);
                 let normalizedPhoneForSession = safePhone.replace(/\D/g, '');
                 if (normalizedPhoneForSession.startsWith('55')) normalizedPhoneForSession = normalizedPhoneForSession.substring(2);
                 if (normalizedPhoneForSession.length === 10) normalizedPhoneForSession = normalizedPhoneForSession.substring(0, 2) + '9' + normalizedPhoneForSession.substring(2);
