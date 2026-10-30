@@ -56,3 +56,16 @@ test('Dashboard activation requires human acknowledgement and pause is available
   assert.match(page,/Corrigir categoria e ativar piloto/);
   assert.match(page,/Pausar automações/);
 });
+
+test('Dashboard offers a read-only, explicit opt-in campaign audience preview',()=>{
+  const begin=page.indexOf('const previewAuthorizedAudience = async () =>');
+  const end=page.indexOf('const inviteRecent = async () =>',begin);
+  assert.ok(begin>0&&end>begin);
+  const preview=page.slice(begin,end);
+  assert.match(preview,/action: 'broadcast_preview'/);
+  assert.match(preview,/storeId: 'csi'/);
+  assert.doesNotMatch(preview,/action: 'broadcast'|csi_consent_invite|send_template/);
+  assert.match(page,/Consultar base autorizada \(sem enviar\)/);
+  assert.match(page,/campaignPreview\.eligibleCount/);
+  assert.match(page,/campaignPreview\.sendableNow/);
+});
