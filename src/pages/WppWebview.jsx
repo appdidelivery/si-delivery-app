@@ -6,6 +6,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { ShoppingCart, X, Plus, Minus, Search, Camera } from 'lucide-react';
 import { Carousel } from 'react-responsive-carousel';
 import "react-responsive-carousel/lib/styles/carousel.min.css";
+import { normalizeBrazilianCheckoutPhone } from '../utils/csiMarketingOptIn.js';
 
 // Fórmula de Haversine para Frete por KM
 const calculateDistance = (lat1, lon1, lat2, lon2) => {
@@ -286,7 +287,8 @@ export default function WppWebview() {
   // Finalização do Pedido
   const finalizeOrder = async () => {
       if (submitLock.current) return;
-      if (!customer.name || !customer.phone) return alert("Preencha seu nome e WhatsApp.");
+      const checkoutPhone = normalizeBrazilianCheckoutPhone(customer.phone);
+      if (!customer.name?.trim() || !checkoutPhone) return alert("Informe seu nome e um WhatsApp válido com DDD para concluir o pedido.");
       if (deliveryMethod === 'delivery' && (!customer.street || !customer.number)) return alert("Preencha o endereço de entrega (CEP).");
       if (!customer.payment) return alert("Selecione uma forma de pagamento.");
       if (cart.length === 0) return alert("Carrinho vazio!");
@@ -303,7 +305,7 @@ export default function WppWebview() {
           const oData = {
               customerName: customer.name, 
               customerAddress: addr, 
-              customerPhone: customer.phone,
+              customerPhone: checkoutPhone,
               whatsappMarketingOptIn: customer.whatsappMarketingOptIn === true,
                 alcoholMarketingAgeConfirmed: customer.alcoholMarketingAgeConfirmed === true,
               marketingOptInAt: customer.whatsappMarketingOptIn === true ? new Date().toISOString() : null,
@@ -312,7 +314,7 @@ export default function WppWebview() {
               // --- INÍCIO: CORREÇÃO FISCAL FOCUS NFE ---
               customer: {
                   name: customer.name,
-                  phone: customer.phone,
+                  phone: checkoutPhone,
                   document: '', // Garantia contra crash na emissão
                   address: addr,
                   street: customer.street || '',
@@ -361,7 +363,7 @@ export default function WppWebview() {
           // Função auxiliar para abater o saldo da carteira
           const deductCashback = async () => {
               if (cashbackDiscount > 0) {
-                  const cleanPhone = customer.phone.replace(/\D/g, '');
+                  const cleanPhone = checkoutPhone;
                   try { await updateDoc(doc(db, "wallets", `${slug}_${cleanPhone}`), { balance: increment(-cashbackDiscount) }); } catch(e){}
               }
           };
@@ -405,7 +407,7 @@ export default function WppWebview() {
                               email: `cliente_${orderRef.id.slice(-5)}@velodelivery.com.br`, 
                               first_name: firstName,
                               last_name: lastName,
-                              phone: customer.phone // TELEFONE PASSADO AQUI PARA O BOT DISPARAR
+                              phone: checkoutPhone // Número validado para atendimento
                           }
                       })
                   });
@@ -631,6 +633,25 @@ export default function WppWebview() {
 
                 <div className="space-y-3 mb-6">
                   <input type="text" value={customer.name} onChange={e => setCustomer({...customer, name: e.target.value})} placeholder="Seu Nome Completo *" className="w-full bg-[#1E293B] border border-slate-700 rounded-2xl p-4 text-sm font-bold outline-none focus:border-white" />
+                  <input
+                    type="tel"
+                    inputMode="tel"
+                    autoComplete="tel"
+                    aria-label="Seu WhatsApp com DDD"
+                    value={customer.phone}
+                    onChange={e => setCustomer(prev => ({
+                      ...prev,
+                      phone: e.target.value.slice(0, 24),
+                      // Uma autorização anterior nunca é transferida para outro telefone.
+                      whatsappMarketingOptIn: false,
+                      alcoholMarketingAgeConfirmed: false,
+                      footballAlertsOptIn: false,
+                    }))}
+                    placeholder="Seu WhatsApp com DDD *"
+                    maxLength={24}
+                    className="w-full bg-[#1E293B] border border-slate-700 rounded-2xl p-4 text-sm font-bold outline-none focus:border-white"
+                  />
+                  <p className="text-xs text-slate-400">Usaremos seu número para identificar o pedido. Ofertas são opcionais e exigem aceite abaixo.</p>
                   <label className="flex items-start gap-3 rounded-2xl border border-slate-700 bg-slate-800/60 p-4 cursor-pointer">
                       <input
                           type="checkbox"
