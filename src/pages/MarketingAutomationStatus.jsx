@@ -16,6 +16,9 @@ function Metric({ title, enabled, detail }) {
 
 export default function MarketingAutomationStatus() {
   const [status, setStatus] = useState(null);
+  const [campaignPreview, setCampaignPreview] = useState(null);
+  const [campaignPreviewBusy, setCampaignPreviewBusy] = useState(false);
+  const [campaignPreviewError, setCampaignPreviewError] = useState('');
   const [error, setError] = useState('');
   const [checking, setChecking] = useState(false);
   const [inviting, setInviting] = useState(false);
@@ -66,6 +69,26 @@ export default function MarketingAutomationStatus() {
     } catch (e) {
       setError(e.message);
     } finally { setChecking(false); }
+  };
+  // Consulta apenas quem já autorizou marketing, inclusive leads sem pedido.
+  // Nenhum disparo é feito: a ação invocada é broadcast_preview.
+  const previewAuthorizedAudience = async () => {
+    if (campaignPreviewBusy) return;
+    setCampaignPreviewBusy(true);
+    setCampaignPreviewError('');
+    try {
+      const response = await authenticatedFetch('/api/whatsapp-send', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'broadcast_preview', storeId: 'csi', maxRecipients: 20 })
+      });
+      const data = await response.json();
+      if (!response.ok || !data.success) throw new Error(data.error || 'Falha ao consultar a audiência autorizada.');
+      setCampaignPreview(data);
+    } catch (error) {
+      setCampaignPreview(null);
+      setCampaignPreviewError(error.message);
+    } finally { setCampaignPreviewBusy(false); }
   };
   const inviteRecent = async () => {
     if (checking || inviting) return;
@@ -171,6 +194,35 @@ export default function MarketingAutomationStatus() {
               <p>Conversas recentes encontradas: {inviteResult.recentConversations || 0}. Aceitação pela Meta não garante entrega ao celular; confirme os recibos no atendimento.</p>
               {inviteResult.truncated && <p className="font-bold text-amber-800">A consulta atingiu o limite de registros.</p>}
               {inviteResult.errors?.length > 0 && <p className="text-amber-800">Ocorreram erros de API. Consulte os logs de produção para detalhes.</p>}
+            </div>}
+          </section>
+          <section className="rounded-2xl border border-blue-200 bg-white p-5 space-y-3">
+            <h2 className="text-lg font-black text-slate-900">Campanhas para contatos autorizados</h2>
+            <p className="text-sm text-slate-600">
+              As jornadas acima dependem de carrinhos e pedidos. Esta consulta identifica
+              também os contatos que aceitaram ofertas diretamente no WhatsApp, mesmo
+              sem compra anterior. Nenhuma mensagem é enviada.
+            </p>
+            <button type="button" onClick={previewAuthorizedAudience} disabled={campaignPreviewBusy}
+              className="rounded-xl bg-blue-700 px-5 py-3 font-bold text-white disabled:opacity-50">
+              {campaignPreviewBusy ? 'Calculando audiência...' : 'Consultar base autorizada (sem enviar)'}
+            </button>
+            {campaignPreviewError && <p role="alert" className="text-sm text-red-700">{campaignPreviewError}</p>}
+            {campaignPreview && <div className="rounded-xl bg-slate-50 p-4 space-y-2 text-sm text-slate-700" role="status">
+              <p><strong>Autorizados para marketing: {campaignPreview.eligibleCount}</strong></p>
+              <p>Disponíveis neste lote: <strong>{campaignPreview.sendableNow}</strong> de até 20 ·
+                Tentativas restantes hoje: <strong>{campaignPreview.remainingToday}</strong></p>
+              <p>Consentimentos explícitos reconhecidos: <strong>{campaignPreview.explicitWhatsAppConsents}</strong> ·
+                Contatos somente pelo WhatsApp: <strong>{campaignPreview.onlyInboundLeads}</strong> ·
+                Bloqueados/descadastrados: <strong>{campaignPreview.blockedOrOptOut}</strong></p>
+              {campaignPreview.truncated && <p className="font-bold text-amber-800">
+                Consulta parcial: limite de varredura atingido. Não interpretar como total exato.
+              </p>}
+              <p className="text-xs text-slate-600">
+                Para eventual campanha, use Atendimento no painel administrativo → ícone de megafone →
+                prévia. Envie apenas modelos aprovados, com conformidade regulatória e revisão de destinatários.
+                A confirmação de entrega depende dos recibos da Meta.
+              </p>
             </div>}
           </section>
           {status?.diagnosticError && <p role="alert" className="rounded-xl bg-amber-50 p-4 text-amber-800">{status.diagnosticError}</p>}
