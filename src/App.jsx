@@ -12,6 +12,7 @@ import WifiPortal from './pages/WifiPortal'; // <-- NOVO: Rota de Captura Wi-Fi 
 // Seus componentes de página
 import Home from './pages/Home';
 import Admin from './pages/Admin';
+import BillingDueBanner from './components/BillingDueBanner';
 import WhatsAppMetaConnect from './pages/WhatsAppMetaConnect';
 import MarketingAutomationStatus from './pages/MarketingAutomationStatus';
 import Tracking from './pages/Tracking';
@@ -168,7 +169,10 @@ function App() {
               path="/admin"
               element={
                 <ProtectedRoute user={currentUser}>
-                  <Admin currentUser={currentUser} />
+                  <>
+                    <BillingDueBanner />
+                    <Admin currentUser={currentUser} />
+                  </>
                 </ProtectedRoute>
               }
             />
