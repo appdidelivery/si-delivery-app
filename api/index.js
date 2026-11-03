@@ -19,6 +19,7 @@ import { hasAuthorizedCsiMarketingConsent } from '../lib/csiMarketingEligibility
 import { buildCsiConsentInvite, CSI_CONSENT_BUTTON_YES, CSI_CONSENT_BUTTON_NO } from '../lib/csiMarketingConsentInvite.js';
 import { analyzeCsiMarketingReadiness } from '../lib/csiMarketingReadiness.js';
 import { summarizeCsiConsentReceipts, CSI_CONSENT_INVITE_SOURCES } from '../lib/csiConsentReceiptSummary.js';
+import { csiTestPhoneVariants, summarizeCsiReplyReceipts } from '../lib/csiReplyReceiptSummary.js';
 import { hasValidCsiMarketingRecord } from '../lib/whatsappConsentCapture.js';
 import { handleOccasionLifecycle } from '../server/lifecycleDispatch.js';
 import { handleFootballRadar } from '../server/footballRadar.js';
@@ -722,6 +723,31 @@ export default async function handler(req, res) {
             success:true,enabled:true,dailyLimit:10,
             message:'Categoria da CSI corrigida; piloto de jornadas e retenção ativado para clientes autorizados e adultos. Limite de 10 tentativas/dia.'
         });
+    }
+
+    // On-demand receipt lookup for one authorized CSI test recipient.
+    // POST carries the phone in the HTTPS body (never in URLs/request-path logs).
+    // Handler reads Firestore only; there are no Meta sends, queue writes or consent changes.
+    if (path === '/api/csi-whatsapp-receipt-check') {
+        res.setHeader('Cache-Control', 'private, no-store');
+        if (req.method !== 'POST') return res.status(405).json({success:false,error:'Método não permitido.'});
+        await assertStoreAccess(req.user, 'csi');
+        const candidates = csiTestPhoneVariants(req.body?.testPhone);
+        if (!candidates) return res.status(400).json({
+            success:false,error:'Informe número brasileiro completo com DDD (10 ou 11 dígitos).'
+        });
+        try {
+            const replySnap = await db.collection('whatsapp_inbound')
+                .where('to', 'in', candidates).limit(500).get();
+            const testReceipt = summarizeCsiReplyReceipts(
+                replySnap.docs.map(doc=>doc.data()),
+                {days:14,partialScan:replySnap.size>=500}
+            );
+            return res.status(200).json({success:true,readOnly:true,testReceipt});
+        } catch (error) {
+            console.warn('[CSI Reply Receipts] Consulta de leitura indisponível:', error?.message);
+            return res.status(503).json({success:false,error:'Não foi possível consultar os recibos agora.'});
+        }
     }
 
     // Read-only marketing diagnostic. Uses the Firebase identity verified by the
