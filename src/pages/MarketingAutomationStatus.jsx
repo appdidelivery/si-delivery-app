@@ -17,6 +17,10 @@ function Metric({ title, enabled, detail }) {
 export default function MarketingAutomationStatus() {
   const [status, setStatus] = useState(null);
   const [campaignPreview, setCampaignPreview] = useState(null);
+  const [testPhone, setTestPhone] = useState('');
+  const [testReceipt, setTestReceipt] = useState(null);
+  const [testReceiptBusy, setTestReceiptBusy] = useState(false);
+  const [testReceiptError, setTestReceiptError] = useState('');
   const [campaignPreviewBusy, setCampaignPreviewBusy] = useState(false);
   const [campaignPreviewError, setCampaignPreviewError] = useState('');
   const [error, setError] = useState('');
@@ -89,6 +93,29 @@ export default function MarketingAutomationStatus() {
       setCampaignPreview(null);
       setCampaignPreviewError(error.message);
     } finally { setCampaignPreviewBusy(false); }
+  };
+  // Read-only Cloud API status lookup. Never sends a WhatsApp message.
+  const verifyTestReply = async () => {
+    if (testReceiptBusy) return;
+    setTestReceiptBusy(true);
+    setTestReceipt(null);
+    setTestReceiptError('');
+    try {
+      const response = await authenticatedFetch(
+        '/api/marketing-automation-status?storeId=csi&testPhone=' +
+        encodeURIComponent(testPhone.trim().replace(/[^0-9]/g, '')),
+        { method:'GET', headers:{'Cache-Control':'no-cache'} }
+      );
+      const data = await response.json();
+      if (!response.ok || !data.success || data.testReceiptError) {
+        throw new Error(data.error || data.testReceiptError || 'Falha ao consultar recibos da Meta.');
+      }
+      setTestReceipt(data.testReceipt);
+    } catch (error) {
+      setTestReceiptError(error.message);
+    } finally {
+      setTestReceiptBusy(false);
+    }
   };
   const inviteRecent = async () => {
     if (checking || inviting) return;
@@ -254,6 +281,50 @@ export default function MarketingAutomationStatus() {
               <p className="mt-2 text-slate-500">{status.readiness.note}</p>
             </div>
           </section>}
+          <section className="rounded-2xl border border-slate-200 bg-white p-5 space-y-3">
+            <h2 className="text-xl font-black text-slate-900">Conferir entrega de uma mensagem de teste</h2>
+            <p className="text-sm text-slate-600">
+              Consulta somente respostas manuais do chat oficial da Santa Isabel nos últimos 14 dias.
+              Informe o telefone completo com DDD; nenhum WhatsApp será enviado.
+            </p>
+            <form onSubmit={event=>{event.preventDefault(); void verifyTestReply();}}
+              className="flex flex-col gap-2 sm:flex-row">
+              <input aria-label="Telefone autorizado de teste" type="tel" inputMode="tel"
+                autoComplete="off" value={testPhone}
+                onChange={event=>{setTestPhone(event.target.value);setTestReceipt(null);}}
+                placeholder="DDD + telefone da mensagem de teste"
+                className="min-w-0 flex-1 rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm"
+                required />
+              <button type="submit" disabled={testReceiptBusy}
+                className="rounded-xl bg-blue-700 px-5 py-3 font-bold text-white disabled:opacity-50">
+                {testReceiptBusy ? 'Conferindo...' : 'Consultar recibos (sem enviar)'}
+              </button>
+            </form>
+            {testReceiptError && <p role="alert" className="rounded-xl bg-amber-50 p-3 text-amber-900 text-sm">{testReceiptError}</p>}
+            {testReceipt && <div role="status" className="rounded-xl bg-slate-50 p-4 space-y-2 text-sm">
+              <p className="font-semibold text-slate-900">
+                {testReceipt.total === 0 ? 'Nenhuma resposta manual rastreada no período.' :
+                  `Respostas manuais localizadas: ${testReceipt.total}`}
+              </p>
+              <p className="text-slate-700">
+                Aceitas pela API: <strong>{testReceipt.apiAccepted}</strong> ·
+                Entregues: <strong>{testReceipt.delivered}</strong> ·
+                Lidas: <strong>{testReceipt.read}</strong> ·
+                Falhas: <strong>{testReceipt.failed}</strong> ·
+                Sem confirmação de entrega: <strong>{testReceipt.awaitingDelivery}</strong>
+              </p>
+              {testReceipt.latestAt && <p className="text-slate-700">
+                Último registro: {new Date(testReceipt.latestAt).toLocaleString('pt-BR')} ·
+                Estado: <strong>{testReceipt.latestStatus}</strong>
+              </p>}
+              {testReceipt.partialScan && <p className="font-semibold text-amber-800">
+                Limite da consulta atingido: o histórico pode estar incompleto.
+              </p>}
+              <p className="text-slate-600">
+                Um resultado vazio não prova que o envio falhou. Apenas os recibos delivered/read confirmam entrega.
+              </p>
+            </div>}
+          </section>
           {status?.receiptError && <p role="alert" className="rounded-xl bg-amber-50 p-4 text-amber-800">{status.receiptError}</p>}
           {status?.receiptAudit && <section className="rounded-2xl border border-slate-200 bg-white p-5 space-y-3">
             <h2 className="text-xl font-black text-slate-900">Entrega dos convites (últimas 48h)</h2>
