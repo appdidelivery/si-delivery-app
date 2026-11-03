@@ -49,5 +49,5 @@ test('receipt lookup is login and tenant protected, GET-only and does not send m
   assert.doesNotMatch(handler,/method:\s*'POST'|reserveMarketingAttempt\(|sendJourneyTemplate\(/);
   const ui=readFileSync(new URL('../src/pages/MarketingAutomationStatus.jsx',import.meta.url),'utf8');
   assert.match(ui,/Conferir entrega de uma mensagem de teste/);
-  assert.match(ui,/status\.testReceipt/);
+  assert.match(ui,/setTestReceipt\(data\.testReceipt\)/);
 });
