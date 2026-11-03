@@ -36,21 +36,23 @@ test('only CSI manual Cloud API replies count; a Meta acceptance is not delivery
   assert.ok(!JSON.stringify(s).includes('48988722970'));
   assert.ok(!JSON.stringify(s).includes('wamid.'));
 });
-test('receipt lookup is tenant protected, read-only, and never puts phone in the URL', () => {
+test('receipt lookup is tenant protected, read-only, and never puts phone in URL', () => {
   const api=readFileSync(new URL('../api/index.js', import.meta.url),'utf8');
   const start=api.indexOf("if (path === '/api/csi-whatsapp-receipt-check')");
   const end=api.indexOf("if (path === '/api/marketing-automation-status')",start);
   const handler=api.slice(start,end);
   assert.ok(start>0 && end>start);
-  assert.match(handler,/req\\.method !== 'POST'/);
-  assert.match(handler,/assertStoreAccess\\(req\\.user, 'csi'\\)/);
-  assert.match(handler,/csiTestPhoneVariants\\(req\\.body\\?\\.testPhone\\)/);
-  assert.match(handler,/summarizeCsiReplyReceipts/);
-  assert.match(handler,/\\.where\\('to', 'in', candidates\\)/);
-  assert.doesNotMatch(handler,/fetch\\(|reserveMarketingAttempt\\(|sendJourneyTemplate\\(/);
+  assert.ok(handler.includes("req.method !== 'POST'"));
+  assert.ok(handler.includes("assertStoreAccess(req.user, 'csi')"));
+  assert.ok(handler.includes("csiTestPhoneVariants(req.body?.testPhone)"));
+  assert.ok(handler.includes("summarizeCsiReplyReceipts"));
+  assert.ok(handler.includes(".where('to', 'in', candidates)"));
+  assert.ok(!handler.includes("fetch("));
+  assert.ok(!handler.includes("reserveMarketingAttempt("));
+  assert.ok(!handler.includes("sendJourneyTemplate("));
   const ui=readFileSync(new URL('../src/pages/MarketingAutomationStatus.jsx',import.meta.url),'utf8');
-  assert.match(ui,/Conferir entrega de uma mensagem de teste/);
-  assert.match(ui,/authenticatedFetch\\('\/api\/csi-whatsapp-receipt-check'/);
-  assert.match(ui,/body:JSON\\.stringify\\(\\{testPhone:testPhone\\.trim\\(\\)\\}\\)/);
-  assert.match(ui,/setTestReceipt\\(data\\.testReceipt\\)/);
+  assert.ok(ui.includes('Conferir entrega de uma mensagem de teste'));
+  assert.ok(ui.includes("authenticatedFetch('/api/csi-whatsapp-receipt-check'"));
+  assert.ok(ui.includes("body:JSON.stringify({testPhone:testPhone.trim()})"));
+  assert.ok(ui.includes("setTestReceipt(data.testReceipt)"));
 });
