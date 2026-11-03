@@ -101,11 +101,11 @@ export default function MarketingAutomationStatus() {
     setTestReceipt(null);
     setTestReceiptError('');
     try {
-      const response = await authenticatedFetch(
-        '/api/marketing-automation-status?storeId=csi&testPhone=' +
-        encodeURIComponent(testPhone.trim()),
-        { method:'GET', headers:{'Cache-Control':'no-cache'} }
-      );
+      const response = await authenticatedFetch('/api/csi-whatsapp-receipt-check', {
+        method:'POST',
+        headers:{'Content-Type':'application/json','Cache-Control':'no-cache'},
+        body:JSON.stringify({testPhone:testPhone.trim()})
+      });
       const data = await response.json();
       if (!response.ok || !data.success || data.testReceiptError) {
         throw new Error(data.error || data.testReceiptError || 'Falha ao consultar recibos da Meta.');
