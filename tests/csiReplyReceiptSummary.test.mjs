@@ -36,18 +36,21 @@ test('only CSI manual Cloud API replies count; a Meta acceptance is not delivery
   assert.ok(!JSON.stringify(s).includes('48988722970'));
   assert.ok(!JSON.stringify(s).includes('wamid.'));
 });
-test('receipt lookup is login and tenant protected, GET-only and does not send messages', () => {
+test('receipt lookup is tenant protected, read-only, and never puts phone in the URL', () => {
   const api=readFileSync(new URL('../api/index.js', import.meta.url),'utf8');
-  const start=api.indexOf("if (path === '/api/marketing-automation-status')");
-  const end=api.indexOf("if (path === '/api/whatsapp-embedded-signup')",start);
+  const start=api.indexOf("if (path === '/api/csi-whatsapp-receipt-check')");
+  const end=api.indexOf("if (path === '/api/marketing-automation-status')",start);
   const handler=api.slice(start,end);
   assert.ok(start>0 && end>start);
-  assert.match(handler,/assertStoreAccess\(req\.user, statusStoreId\)/);
-  assert.match(handler,/csiTestPhoneVariants/);
+  assert.match(handler,/req\\.method !== 'POST'/);
+  assert.match(handler,/assertStoreAccess\\(req\\.user, 'csi'\\)/);
+  assert.match(handler,/csiTestPhoneVariants\\(req\\.body\\?\\.testPhone\\)/);
   assert.match(handler,/summarizeCsiReplyReceipts/);
-  assert.match(handler,/\.where\('to', 'in', candidates\)/);
-  assert.doesNotMatch(handler,/method:\s*'POST'|reserveMarketingAttempt\(|sendJourneyTemplate\(/);
+  assert.match(handler,/\\.where\\('to', 'in', candidates\\)/);
+  assert.doesNotMatch(handler,/fetch\\(|reserveMarketingAttempt\\(|sendJourneyTemplate\\(/);
   const ui=readFileSync(new URL('../src/pages/MarketingAutomationStatus.jsx',import.meta.url),'utf8');
   assert.match(ui,/Conferir entrega de uma mensagem de teste/);
-  assert.match(ui,/setTestReceipt\(data\.testReceipt\)/);
+  assert.match(ui,/authenticatedFetch\\('\/api\/csi-whatsapp-receipt-check'/);
+  assert.match(ui,/body:JSON\\.stringify\\(\\{testPhone:testPhone\\.trim\\(\\)\\}\\)/);
+  assert.match(ui,/setTestReceipt\\(data\\.testReceipt\\)/);
 });
