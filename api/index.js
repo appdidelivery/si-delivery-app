@@ -725,6 +725,31 @@ export default async function handler(req, res) {
         });
     }
 
+    // On-demand receipt lookup for one authorized CSI test recipient.
+    // POST carries the phone in the HTTPS body (never in URLs/request-path logs).
+    // Handler reads Firestore only; there are no Meta sends, queue writes or consent changes.
+    if (path === '/api/csi-whatsapp-receipt-check') {
+        res.setHeader('Cache-Control', 'private, no-store');
+        if (req.method !== 'POST') return res.status(405).json({success:false,error:'Método não permitido.'});
+        await assertStoreAccess(req.user, 'csi');
+        const candidates = csiTestPhoneVariants(req.body?.testPhone);
+        if (!candidates) return res.status(400).json({
+            success:false,error:'Informe número brasileiro completo com DDD (10 ou 11 dígitos).'
+        });
+        try {
+            const replySnap = await db.collection('whatsapp_inbound')
+                .where('to', 'in', candidates).limit(500).get();
+            const testReceipt = summarizeCsiReplyReceipts(
+                replySnap.docs.map(doc=>doc.data()),
+                {days:14,partialScan:replySnap.size>=500}
+            );
+            return res.status(200).json({success:true,readOnly:true,testReceipt});
+        } catch (error) {
+            console.warn('[CSI Reply Receipts] Consulta de leitura indisponível:', error?.message);
+            return res.status(503).json({success:false,error:'Não foi possível consultar os recibos agora.'});
+        }
+    }
+
     // Read-only marketing diagnostic. Uses the Firebase identity verified by the
     // global auth middleware; intentionally never calls Meta or queues messages.
     if (path === '/api/marketing-automation-status') {
@@ -750,8 +775,6 @@ export default async function handler(req, res) {
         let receiptAudit = null;
         let receiptError = null;
         let diagnosticError = null;
-        let testReceipt = null;
-        let testReceiptError = null;
         if (String(req.query?.details || '') === '1') {
             try {
                 const collections = [
@@ -826,26 +849,6 @@ export default async function handler(req, res) {
                 templateAudit.source = 'waba_not_available';
             }
         }
-        // Opt-in manual test audit: authenticated, tenant-scoped and read-only.
-        // Query exact Brazilian number variants only; never infer/remove the ninth digit.
-        // Return aggregate receipt states, not recipient numbers, message IDs or text.
-        if (req.query?.testPhone !== undefined) {
-            const candidates = csiTestPhoneVariants(req.query.testPhone);
-            if (!candidates) return res.status(400).json({
-                success:false, error:'Informe número brasileiro completo com DDD (10 ou 11 dígitos).'
-            });
-            try {
-                const replySnap = await db.collection('whatsapp_inbound')
-                    .where('to', 'in', candidates).limit(500).get();
-                testReceipt = summarizeCsiReplyReceipts(
-                    replySnap.docs.map(doc=>doc.data()),
-                    {days:14,partialScan:replySnap.size>=500}
-                );
-            } catch (error) {
-                console.warn('[CSI Reply Receipts] Consulta de leitura indisponível:', error?.message);
-                testReceiptError = 'Não foi possível consultar recibos do número informado.';
-            }
-        }
         return res.status(200).json({
             success: true, storeId: statusStoreId, localDate: day, readOnly: true,
             storeNiche: String(storeDoc.data()?.storeNiche || ''),
@@ -874,7 +877,6 @@ export default async function handler(req, res) {
             },
             attemptsToday: Number(usageDoc.data()?.attempted || 0),
             readiness, templateAudit, diagnosticError, receiptAudit, receiptError,
-            testReceipt, testReceiptError,
             deliveryConfirmed: false,
             note: 'Configuração de leitura. A presença de credenciais e flags não prova aprovação de template, execução do cron nem entrega.'
         });
