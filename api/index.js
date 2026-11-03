@@ -1316,6 +1316,43 @@ export default async function handler(req, res) {
             
             for (const storeDoc of storesQuery.docs) {
                 const storeData = storeDoc.data();
+
+                // Resguardo pontual autorizado: Monte Verde e Saco Grande, vencimento 10/11/2026.
+                // Configura exclusivamente lojas ainda sem data-base; não altera createdAt nem faturas existentes.
+                const isMonteVerde = storeDoc.id === 'mercadomonteverde' || storeDoc.id === 'mercadomonteverdesacogrande';
+                const isFirstMonteVerdeCycle = brazilTime.getUTCFullYear() === 2026
+                    && brazilTime.getUTCMonth() === 10
+                    && brazilTime.getUTCDate() >= 3 && brazilTime.getUTCDate() <= 10;
+                if (isMonteVerde && isFirstMonteVerdeCycle
+                    && !storeData.billingSetupMarker && !storeData.billingDueDay && !storeData.createdAt) {
+                    const previousInvoices = Array.isArray(storeData.faturasHistorico) ? storeData.faturasHistorico : [];
+                    const alreadyIssued = previousInvoices.some(invoice =>
+                        String(invoice.month || '').toLowerCase() === 'novembro de 2026' ||
+                        String(invoice.dueDate || '').startsWith('2026-11-10')
+                    );
+                    const update = {
+                        billingDueDay: 10, billingBasePrice: 249.90, billingFlatRate: true,
+                        billingSetupMarker: 'mv-2026-11-confirmed'
+                    };
+                    if (!alreadyIssued) {
+                        const invoice = {
+                            id: 'mv_nov_2026_' + storeDoc.id,
+                            month: 'novembro de 2026', amount: 'R$ 249,90',
+                            status: 'PENDENTE',
+                            dueDate: '2026-11-10T12:00:00-03:00',
+                            createdAt: brazilTime.toISOString(),
+                            isAuto: true,
+                            breakdown: { basePlan: 249.90, extraOrdersCost: 0, discount: 0 }
+                        };
+                        update.faturasHistorico = admin.firestore.FieldValue.arrayUnion(invoice);
+                        update.billingStatus = 'pendente';
+                        batch.set(storeDoc.ref.collection('analytics').doc(invoice.id), invoice, { merge: true });
+                        faturasGeradas++;
+                    }
+                    batch.update(storeDoc.ref, update);
+                    continue;
+                }
+
                 // A data de vencimento contratada é independente da criação da loja.
                 // Contratos antigos continuam usando createdAt como fallback.
                 const configuredDay = Number(storeData.billingDueDay);
