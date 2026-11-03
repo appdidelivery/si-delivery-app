@@ -1316,18 +1316,20 @@ export default async function handler(req, res) {
             
             for (const storeDoc of storesQuery.docs) {
                 const storeData = storeDoc.data();
-                if (!storeData.createdAt) continue;
-
-                let dataCriacao;
-                if (storeData.createdAt && typeof storeData.createdAt.toDate === 'function') {
-                    dataCriacao = storeData.createdAt.toDate();
+                // A data de vencimento contratada é independente da criação da loja.
+                // Contratos antigos continuam usando createdAt como fallback.
+                const configuredDay = Number(storeData.billingDueDay);
+                let diaVencimento;
+                if (Number.isInteger(configuredDay) && configuredDay >= 1 && configuredDay <= 28) {
+                    diaVencimento = configuredDay;
                 } else {
-                    dataCriacao = new Date(storeData.createdAt);
+                    if (!storeData.createdAt) continue;
+                    const dataCriacao = storeData.createdAt && typeof storeData.createdAt.toDate === 'function'
+                        ? storeData.createdAt.toDate()
+                        : new Date(storeData.createdAt);
+                    if (isNaN(dataCriacao.getTime())) continue;
+                    diaVencimento = dataCriacao.getDate();
                 }
-
-                if (isNaN(dataCriacao)) continue;
-
-                const diaVencimento = dataCriacao.getDate();
 
                 // Correção: Verifica se passou do dia do vencimento E se a fatura do mês atual ainda não foi gerada
                 const nomeMesAno = brazilTime.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
@@ -1355,7 +1357,7 @@ export default async function handler(req, res) {
                     }).length;
                     
                     const extraOrders = Math.max(0, ordersCount - 100);
-                    const extraCost = extraOrders * 0.25;
+                    const extraCost = storeData.billingFlatRate === true ? 0 : extraOrders * 0.25;
                     const isCortesia = storeData.billingStatus === 'gratis_vitalicio';
                     
                     // Usa o valor vigente do plano e os adicionais registrados pela loja.
