@@ -103,7 +103,7 @@ export default function MarketingAutomationStatus() {
     try {
       const response = await authenticatedFetch(
         '/api/marketing-automation-status?storeId=csi&testPhone=' +
-        encodeURIComponent(testPhone.trim().replace(/[^0-9]/g, '')),
+        encodeURIComponent(testPhone.trim()),
         { method:'GET', headers:{'Cache-Control':'no-cache'} }
       );
       const data = await response.json();
