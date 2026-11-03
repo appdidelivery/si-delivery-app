@@ -19,6 +19,7 @@ import { hasAuthorizedCsiMarketingConsent } from '../lib/csiMarketingEligibility
 import { buildCsiConsentInvite, CSI_CONSENT_BUTTON_YES, CSI_CONSENT_BUTTON_NO } from '../lib/csiMarketingConsentInvite.js';
 import { analyzeCsiMarketingReadiness } from '../lib/csiMarketingReadiness.js';
 import { summarizeCsiConsentReceipts, CSI_CONSENT_INVITE_SOURCES } from '../lib/csiConsentReceiptSummary.js';
+import { csiTestPhoneVariants, summarizeCsiReplyReceipts } from '../lib/csiReplyReceiptSummary.js';
 import { hasValidCsiMarketingRecord } from '../lib/whatsappConsentCapture.js';
 import { handleOccasionLifecycle } from '../server/lifecycleDispatch.js';
 import { handleFootballRadar } from '../server/footballRadar.js';
@@ -749,6 +750,8 @@ export default async function handler(req, res) {
         let receiptAudit = null;
         let receiptError = null;
         let diagnosticError = null;
+        let testReceipt = null;
+        let testReceiptError = null;
         if (String(req.query?.details || '') === '1') {
             try {
                 const collections = [
@@ -823,6 +826,26 @@ export default async function handler(req, res) {
                 templateAudit.source = 'waba_not_available';
             }
         }
+        // Opt-in manual test audit: authenticated, tenant-scoped and read-only.
+        // Query exact Brazilian number variants only; never infer/remove the ninth digit.
+        // Return aggregate receipt states, not recipient numbers, message IDs or text.
+        if (req.query?.testPhone !== undefined) {
+            const candidates = csiTestPhoneVariants(req.query.testPhone);
+            if (!candidates) return res.status(400).json({
+                success:false, error:'Informe número brasileiro completo com DDD (10 ou 11 dígitos).'
+            });
+            try {
+                const replySnap = await db.collection('whatsapp_inbound')
+                    .where('to', 'in', candidates).limit(500).get();
+                testReceipt = summarizeCsiReplyReceipts(
+                    replySnap.docs.map(doc=>doc.data()),
+                    {days:14,partialScan:replySnap.size>=500}
+                );
+            } catch (error) {
+                console.warn('[CSI Reply Receipts] Consulta de leitura indisponível:', error?.message);
+                testReceiptError = 'Não foi possível consultar recibos do número informado.';
+            }
+        }
         return res.status(200).json({
             success: true, storeId: statusStoreId, localDate: day, readOnly: true,
             storeNiche: String(storeDoc.data()?.storeNiche || ''),
@@ -851,6 +874,7 @@ export default async function handler(req, res) {
             },
             attemptsToday: Number(usageDoc.data()?.attempted || 0),
             readiness, templateAudit, diagnosticError, receiptAudit, receiptError,
+            testReceipt, testReceiptError,
             deliveryConfirmed: false,
             note: 'Configuração de leitura. A presença de credenciais e flags não prova aprovação de template, execução do cron nem entrega.'
         });
