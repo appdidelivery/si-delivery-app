@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useStore } from '../context/StoreContext';
 import { signOut } from 'firebase/auth';
 import { auth, db } from '../services/firebase';
-import { collection, getDocs, doc, updateDoc, deleteDoc, arrayUnion, query, where, addDoc } from 'firebase/firestore';
+import { collection, getDocs, doc, updateDoc, deleteDoc, arrayUnion, query, where, addDoc, runTransaction } from 'firebase/firestore';
 import { 
     LayoutDashboard, Store, Radio, ShieldAlert, LogOut, Menu, X, Loader2, 
     CheckCircle, ToggleRight, ToggleLeft, Play, Zap, CreditCard, Clock, 
@@ -54,12 +54,59 @@ export default function AdminSaaS() {
             }
             
             // Se passou pelas travas, carrega os dados
+            await ensureMonteVerdeBilling();
             await fetchSaaSData();
             setGlobalLoading(false);
         });
         
         return () => unsubscribe();
     }, [navigate]);
+
+
+    // Migração pontual aprovada: duas unidades Mercado Monte Verde, competência novembro/2026.
+    // O vencimento é separado da data cadastral. Transações protegem contra dupla emissão.
+    const ensureMonteVerdeBilling = async () => {
+        const today = new Date();
+        if (today < new Date('2026-11-03T00:00:00-03:00') || today >= new Date('2026-11-11T00:00:00-03:00')) return;
+        for (const storeId of ['mercadomonteverde', 'mercadomonteverdesacogrande']) {
+            const storeRef = doc(db, 'stores', storeId);
+            try {
+                await runTransaction(db, async (transaction) => {
+                    const snap = await transaction.get(storeRef);
+                    if (!snap.exists()) throw new Error('Loja não encontrada: ' + storeId);
+                    const data = snap.data();
+                    if (data.billingSetupMarker === 'mv-2026-11-confirmed') return;
+                    const currentInvoices = Array.isArray(data.faturasHistorico) ? data.faturasHistorico : [];
+                    const alreadyIssued = currentInvoices.some((invoice) =>
+                        String(invoice.month || '').toLowerCase() === 'novembro de 2026' ||
+                        String(invoice.dueDate || '').startsWith('2026-11-10')
+                    );
+                    const invoice = {
+                        id: 'mv_nov_2026_' + storeId,
+                        month: 'novembro de 2026',
+                        amount: 'R$ 249,90',
+                        status: 'PENDENTE',
+                        dueDate: '2026-11-10T12:00:00-03:00',
+                        createdAt: today.toISOString(),
+                        isAuto: true,
+                        breakdown: { basePlan: 249.90, extraOrdersCost: 0, discount: 0 }
+                    };
+                    transaction.update(storeRef, {
+                        billingDueDay: 10,
+                        billingBasePrice: 249.90,
+                        billingFlatRate: true,
+                        billingSetupMarker: 'mv-2026-11-confirmed',
+                        ...(!alreadyIssued ? {
+                            faturasHistorico: [...currentInvoices, invoice],
+                            billingStatus: 'pendente'
+                        } : {})
+                    });
+                });
+            } catch (error) {
+                console.error('[Velo financeiro] Não foi possível configurar ' + storeId, error);
+            }
+        }
+    };
 
     const fetchSaaSData = async () => {
         try {
@@ -472,7 +519,14 @@ const handleToggleFiscalSaaS = async (loja) => {
         }
     };
 // --- LÓGICA DE VENCIMENTO DINÂMICO ---
-    const calculateDueDate = (createdAt) => {
+    const calculateDueDate = (createdAt, billingDueDay) => {
+        const explicitDay = Number(billingDueDay);
+        if (Number.isInteger(explicitDay) && explicitDay >= 1 && explicitDay <= 28) {
+            const now = new Date();
+            const dueDate = new Date(now.getFullYear(), now.getMonth(), explicitDay);
+            if (now.getDate() > explicitDay) dueDate.setMonth(dueDate.getMonth() + 1);
+            return dueDate.toLocaleDateString('pt-BR');
+        }
         if (!createdAt) return 'Não Definido';
         try {
             // Lida com o formato Timestamp do Firebase ou com string ISO
@@ -694,24 +748,25 @@ const handleToggleFiscalSaaS = async (loja) => {
                                             {renderBillingBadge(loja.billingStatus)}
                                             <span 
                                                 onClick={async () => {
-                                                    const novaData = window.prompt("Mudar a data de criação/vencimento desta loja? (Formato: YYYY-MM-DD)\nExemplo para Janeiro: 2026-01-10", "2026-01-10");
-                                                    if (novaData) {
-                                                        const dateObj = new Date(novaData + 'T12:00:00');
-                                                        if (!isNaN(dateObj)) {
-                                                            setActionLoading(`date_${loja.id}`);
-                                                            await updateDoc(doc(db, 'stores', loja.id), { createdAt: dateObj });
-                                                            alert("✅ Data alterada! Agora clique no botão 'Sincronizar Faturas Antigas' lá em cima.");
-                                                            await fetchSaaSData();
-                                                            setActionLoading(null);
-                                                        } else {
-                                                            alert("Formato inválido. Use YYYY-MM-DD");
-                                                        }
+                                                    const inputDay = window.prompt("Dia fixo de vencimento da mensalidade (1 a 28):", String(loja.billingDueDay || 10));
+                                                    if (inputDay === null) return;
+                                                    const dueDay = Number(inputDay);
+                                                    if (!Number.isInteger(dueDay) || dueDay < 1 || dueDay > 28) return alert("Informe um dia válido de 1 a 28.");
+                                                    setActionLoading(`date_${loja.id}`);
+                                                    try {
+                                                        await updateDoc(doc(db, 'stores', loja.id), { billingDueDay: dueDay });
+                                                        await fetchSaaSData();
+                                                        alert("Dia de vencimento atualizado, sem alterar o cadastro da loja.");
+                                                    } catch (error) {
+                                                        alert("Não foi possível atualizar o vencimento: " + error.message);
+                                                    } finally {
+                                                        setActionLoading(null);
                                                     }
                                                 }}
                                                 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest bg-slate-800 px-2 py-1 rounded cursor-pointer hover:bg-slate-700 hover:text-white transition-all border border-transparent hover:border-slate-600"
                                                 title="Clique para alterar a data base da loja"
                                             >
-                                                Vencimento: <span className="text-blue-400">{calculateDueDate(loja.createdAt)}</span> ✏️
+                                                Vencimento: <span className="text-blue-400">{calculateDueDate(loja.createdAt, loja.billingDueDay)}</span> ✏️
                                             </span>
                                         </div>
                                     </div>
@@ -744,6 +799,9 @@ const handleToggleFiscalSaaS = async (loja) => {
                                                     <div>
                                                         <p className="text-sm font-black text-slate-200 uppercase">{fat.month}</p>
                                                         <p className="text-xs font-bold text-slate-500 mt-0.5">{fat.amount}</p>
+                                                        {fat.dueDate && <p className={`text-[11px] font-extrabold mt-1 ${String(fat.status).toUpperCase() === 'PENDENTE' ? 'text-amber-400' : 'text-slate-400'}`}>
+                                                            {String(fat.status).toUpperCase() === 'PENDENTE' ? '⚠ Pagamento pendente — ' : ''}Vence em {new Date(fat.dueDate).toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' })}
+                                                        </p>}
                                                     </div>
                                                     <div className="flex items-center gap-3">
                                                         <span className={`text-[10px] font-black uppercase tracking-widest px-3 py-1.5 rounded-lg ${fat.status === 'PAGO' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-amber-500/20 text-amber-400'}`}>
