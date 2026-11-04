@@ -633,6 +633,46 @@ export default function Admin() {
 
    // --- ESTADOS GERAIS ---
     const [activeTab, setActiveTab] = useState('dashboard');
+    // Métricas da loja consultadas separadamente do limite operacional de 800 pedidos.
+    const [dashboardFinancials, setDashboardFinancials] = useState(null);
+    const [dashboardFinancialLoading, setDashboardFinancialLoading] = useState(false);
+    const [dashboardFinancialError, setDashboardFinancialError] = useState('');
+    const [dashboardFinancialRefreshKey, setDashboardFinancialRefreshKey] = useState(0);
+
+    useEffect(() => {
+        if (!storeId || activeTab !== 'dashboard') return;
+        const controller = new AbortController();
+        let cancelled = false;
+        setDashboardFinancials(null);
+        setDashboardFinancialError('');
+        setDashboardFinancialLoading(true);
+        (async () => {
+            try {
+                const response = await authenticatedFetch('/api/dashboard-financials', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ storeId, forceRefresh: dashboardFinancialRefreshKey > 0 }),
+                    signal: controller.signal
+                });
+                const payload = await response.json();
+                if (!response.ok || payload?.success !== true || !payload?.periods || !payload?.counts) {
+                    throw new Error(payload?.error || 'Não foi possível apurar o histórico financeiro.');
+                }
+                if (!cancelled) setDashboardFinancials(payload);
+            } catch (error) {
+                if (!cancelled && error?.name !== 'AbortError') {
+                    console.error('Falha no histórico financeiro do painel:', error);
+                    setDashboardFinancialError(error?.message || 'Erro na consulta dos pedidos.');
+                }
+            } finally {
+                if (!cancelled) setDashboardFinancialLoading(false);
+            }
+        })();
+        return () => {
+            cancelled = true;
+            controller.abort();
+        };
+    }, [storeId, activeTab, dashboardFinancialRefreshKey]);
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false); // <-- NOVO CONTROLE MOBILE
     const [billingCycle, setBillingCycle] = useState('monthly'); // 'monthly' ou 'semestral'
     const [orderViewMode, setOrderViewMode] = useState('list'); // NOVO: Controle de visualização (Lista ou Kanban)
@@ -5164,10 +5204,12 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                 )}
                 {activeTab === 'dashboard' && (() => {
                     const totalProducts = products.length;
-                    const totalOrders = orders.length;
                     const totalCustomers = customers.length;
-                    const manualOrdersCount = orders.filter(o => o.source === 'manual').length;
-                    const storefrontOrdersCount = orders.filter(o => o.source !== 'manual').length; 
+                    const formatHistoricalCount = value => Number.isFinite(value) ? value.toLocaleString('pt-BR') : '—';
+                    const totalOrders = formatHistoricalCount(dashboardFinancials?.counts?.totalOrders);
+                    const manualOrdersCount = formatHistoricalCount(dashboardFinancials?.counts?.manualOrders);
+                    const storefrontOrdersCount = formatHistoricalCount(dashboardFinancials?.counts?.storefrontOrders);
+                    const formatFinanceCurrency = value => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
 
                     // Helper Blindado para checar "Hoje" impedindo erros de Invalid Date do Firebase
                     const isToday = (timestamp) => {
@@ -5190,28 +5232,11 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                             return totalProfit + orderProfit;
                         }, 0);
 
-                    // --- NOVO: CÁLCULOS DE HISTÓRICO FINANCEIRO att(7, 30, 180 E 365 DIAS) ---
-                    const nowMs = Date.now();
-                    const dayMs = 24 * 60 * 60 * 1000;
-                    
-                    const calculateFinancials = (days) => {
-                        const cutoff = nowMs - (days * dayMs);
-                        return orders
-                            .filter(o => o.status !== 'canceled' && o.createdAt && o.createdAt.toMillis() >= cutoff)
-                            .reduce((acc, order) => {
-                                acc.revenue += (Number(order.total) || 0);
-                                const orderProfit = (order.items || []).reduce((itemAcc, item) => {
-                                    return itemAcc + ((Number(item.price) || 0) - (Number(item.costPrice) || 0)) * (Number(item.quantity) || 0);
-                                }, 0);
-                                acc.profit += orderProfit;
-                                return acc;
-                            }, { revenue: 0, profit: 0 });
-                    };
-
-                    const fin7 = calculateFinancials(7);
-                    const fin30 = calculateFinancials(30);
-                    const fin180 = calculateFinancials(180);
-                    const fin365 = calculateFinancials(365);
+                    // Todas as janelas vêm da apuração histórica completa no servidor.
+                    const fin7 = dashboardFinancials?.periods?.['7'] || null;
+                    const fin30 = dashboardFinancials?.periods?.['30'] || null;
+                    const fin180 = dashboardFinancials?.periods?.['180'] || null;
+                    const fin365 = dashboardFinancials?.periods?.['365'] || null;
 
                     return (
                         <div className="space-y-8">
@@ -5681,6 +5706,20 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                 <h2 className="text-2xl font-black italic tracking-tighter uppercase mb-6 text-slate-800 flex items-center gap-2">
                                     <Landmark size={24} className="text-emerald-500"/> Histórico Financeiro
                                 </h2>
+                                <div className="flex flex-wrap items-center justify-between gap-3 mb-5">
+                                    <div>
+                                        {dashboardFinancialLoading && <p role="status" className="text-xs font-semibold text-slate-500">Consultando o histórico completo da loja...</p>}
+                                        {!dashboardFinancialLoading && dashboardFinancialError && <p role="alert" className="text-xs font-semibold text-red-600">{dashboardFinancialError}</p>}
+                                        {!dashboardFinancialLoading && !dashboardFinancialError && dashboardFinancials?.generatedAt && (
+                                            <p className="text-xs font-semibold text-slate-400">Histórico completo por período • Atualizado em {new Date(dashboardFinancials.generatedAt).toLocaleString('pt-BR')}</p>
+                                        )}
+                                    </div>
+                                    <button type="button" onClick={() => setDashboardFinancialRefreshKey(value => value + 1)}
+                                        disabled={dashboardFinancialLoading}
+                                        className="inline-flex items-center gap-2 rounded-xl border border-slate-200 px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-100 disabled:opacity-50">
+                                        <RefreshCw size={15} className={dashboardFinancialLoading ? 'animate-spin' : ''}/> Atualizar histórico
+                                    </button>
+                                </div>
                                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                                     {[
                                         { title: 'Últimos 7 Dias', data: fin7 },
@@ -5693,18 +5732,18 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                             <div className="space-y-3">
                                                 <div>
                                                     <p className="text-[10px] font-bold text-slate-400 uppercase mb-0.5">Vendas (Faturamento)</p>
-                                                    <p className="text-2xl font-black text-slate-800 italic truncate">R$ {period.data.revenue.toFixed(2)}</p>
+                                                    <p className="text-2xl font-black text-slate-800 italic truncate">{period.data ? formatFinanceCurrency(period.data.revenue) : '—'}</p>
                                                 </div>
                                                 <div className="pt-3 border-t border-slate-50">
                                                     <p className="text-[10px] font-bold text-slate-400 uppercase mb-0.5">Lucro Estimado</p>
-                                                    <p className="text-xl font-black text-emerald-500 italic truncate">R$ {period.data.profit.toFixed(2)}</p>
+                                                    <p className="text-xl font-black text-emerald-500 italic truncate">{period.data ? formatFinanceCurrency(period.data.profit) : '—'}</p>
                                                 </div>
                                             </div>
                                         </div>
                                     ))}
                                 </div>
                                 <p className="text-[10px] text-slate-400 font-bold mt-4 text-center">
-                                    * O Lucro Estimado é calculado apenas com base nos produtos que possuem o campo "Custo (R$)" preenchido no estoque.
+                                    * O Lucro Estimado considera somente itens com custo registrado no pedido e não equivale ao lucro líquido. Pedidos cancelados e pagamentos online pendentes são excluídos.
                                 </p>
                             </div>
                         </div>
