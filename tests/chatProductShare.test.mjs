@@ -68,3 +68,26 @@ test('lista interativa do catálogo usa WhatsApp oficial e devolve a escolha no 
   assert.match(capture, /tx\.update\(offerRef/);
   assert.match(capture, /continue;/);
 });
+
+test('cliente confirma quantidade e subtotal antes de aparecer como escolha do vendedor', () => {
+  const api = readFileSync(new URL('../api/index.js', import.meta.url), 'utf8');
+  const ui = readFileSync(new URL('../src/components/AdminChat.jsx', import.meta.url), 'utf8');
+  const start = api.indexOf("if (String(interactivePayload).startsWith('velo_pick_'))");
+  const end = api.indexOf('// 2. SALVA A MENSAGEM NO PAINEL DO LOJISTA COM A MÍDIA!', start);
+  assert.ok(start >= 0 && end > start);
+  const flow = api.slice(start, end);
+
+  assert.match(flow, /pendingProductQuantity/);
+  assert.match(flow, /velo_qty_/);
+  assert.match(flow, /length: 9/);
+  assert.match(flow, /title: 'Outra quantidade'/);
+  assert.match(flow, /typedQuantity/);
+  assert.match(flow, /quantity < 1 \|\| quantity > 999/);
+  assert.match(flow, /quantity, subtotal, offerId/);
+  assert.match(flow, /Quantid ade:/.replace('Quantid ade', 'Quantidade'));
+  assert.match(flow, /pendingProductQuantity: admin\.firestore\.FieldValue\.delete\(\)/);
+  assert.match(flow, /alreadyRecorded\.exists/);
+  assert.match(flow, /expectedPhone !== normalizedPhone/);
+  assert.match(ui, /msg\.selectedProduct\?\.quantity/);
+  assert.match(ui, /Nenhum pedido é criado automaticamente/);
+});
