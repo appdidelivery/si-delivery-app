@@ -84,7 +84,7 @@ test('cliente confirma quantidade e subtotal antes de aparecer como escolha do v
   assert.match(flow, /typedQuantity/);
   assert.match(flow, /quantity < 1 \|\| quantity > 999/);
   assert.match(flow, /quantity, subtotal, offerId/);
-  assert.match(flow, /Quantid ade:/.replace('Quantid ade', 'Quantidade'));
+  assert.match(flow, /Quantidade:/);
   assert.match(flow, /pendingProductQuantity: admin\.firestore\.FieldValue\.delete\(\)/);
   assert.match(flow, /alreadyRecorded\.exists/);
   assert.match(flow, /expectedPhone !== normalizedPhone/);
