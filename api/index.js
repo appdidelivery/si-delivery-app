@@ -4069,64 +4069,231 @@ const aiResponse = await fetchGeminiWithRetry(`https://generativelanguage.google
                                     // -------------------------------------------------------
 
 
-                                    // Opção de catálogo apresentada pelo vendedor: resposta visível ao vendedor.
-                                    // Executa ANTES do bot, para que o clique não gere carrinho, pedido ou resposta automática.
+
+                                    // Catálogo do vendedor: primeiro identifica o produto, depois pergunta QUANTIDADE.
+                                    // A escolha só fica como solicitação ao vendedor após confirmar unidades.
                                     if (String(interactivePayload).startsWith('velo_pick_')) {
                                         const match = /^velo_pick_([A-Za-z0-9]{20})_([0-7])$/.exec(String(interactivePayload));
                                         if (!match || !message.id) {
-                                            console.warn('[WhatsApp seleção] ID de resposta inválido.');
+                                            console.warn('[WhatsApp quantidade] Resposta de produto sem identificador válido.');
                                             continue;
                                         }
+                                        const offerRef = db.collection('whatsapp_product_offers').doc(match[1]);
+                                        const clickRef = db.collection('whatsapp_product_choice_clicks').doc(
+                                            'meta_' + crypto.createHash('sha256').update(message.id).digest('hex')
+                                        );
+                                        const quantitySessionRef = db.collection('whatsapp_sessions').doc(`${storeId}_${normalizedPhone}`);
+                                        const index = Number(match[2]);
                                         try {
-                                            const offerRef = db.collection('whatsapp_product_offers').doc(match[1]);
-                                            const selectionRef = db.collection('whatsapp_inbound').doc(
-                                                'meta_' + crypto.createHash('sha256').update(message.id).digest('hex')
-                                            );
-                                            const selectedIndex = Number(match[2]);
-                                            const selected = await db.runTransaction(async tx => {
-                                                const offerSnap = await tx.get(offerRef);
-                                                const recordedSnap = await tx.get(selectionRef);
-                                                if (recordedSnap.exists) return { duplicate: true };
+                                            const clicked = await db.runTransaction(async tx => {
+                                                const [offerSnap, clickSnap] = await Promise.all([
+                                                    tx.get(offerRef), tx.get(clickRef)
+                                                ]);
+                                                if (clickSnap.exists) return { duplicate: true };
                                                 const offer = offerSnap.data() || {};
                                                 const recipient = String(offer.recipient || '').replace(/\D/g, '');
                                                 let expectedPhone = recipient.startsWith('55') ? recipient.slice(2) : recipient;
                                                 if (expectedPhone.length === 10) {
                                                     expectedPhone = expectedPhone.slice(0, 2) + '9' + expectedPhone.slice(2);
                                                 }
-                                                const item = offer.items?.[selectedIndex];
+                                                const item = offer.items?.[index];
                                                 if (!offerSnap.exists || offer.storeId !== storeId ||
                                                     expectedPhone !== normalizedPhone ||
-                                                    !item || Date.parse(offer.expiresAt || '') < Date.now()) {
+                                                    !item || !Number.isFinite(Date.parse(offer.expiresAt || '')) ||
+                                                    Date.parse(offer.expiresAt) <= Date.now()) {
                                                     return { invalid: true };
                                                 }
-                                                const formattedPrice = Number(item.price) > 0
-                                                    ? Number(item.price).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
-                                                    : 'Preço sob consulta';
-                                                const selectionText = `✅ CLIENTE ESCOLHEU UM PRODUTO\n🛍️ ${item.name}\n💰 ${formattedPrice}\nAguardando atendimento do vendedor.`;
-                                                const selection = {
-                                                    id: item.id, name: item.name, price: item.price || null,
-                                                    messageId: message.id, selectedAt: new Date().toISOString()
-                                                };
-                                                tx.set(selectionRef, {
-                                                    storeId, phoneNumberId, from: message.from,
-                                                    pushName: senderProfileName, text: selectionText,
-                                                    direction: 'inbound', status: 'unread',
-                                                    source: 'chat_product_selection', offerId: offerRef.id,
-                                                    selectedProduct: selection, metaMessageId: message.id,
+                                                tx.set(clickRef, {
+                                                    storeId, offerId: offerRef.id, index, phone: normalizedPhone,
+                                                    productId: item.id, status: 'awaiting_quantity',
+                                                    metaMessageId: message.id,
                                                     receivedAt: admin.firestore.FieldValue.serverTimestamp()
                                                 });
-                                                tx.update(offerRef, {
-                                                    selections: admin.firestore.FieldValue.arrayUnion(selection),
-                                                    lastSelectedAt: admin.firestore.FieldValue.serverTimestamp()
-                                                });
+                                                tx.set(quantitySessionRef, {
+                                                    storeId, phone: normalizedPhone, botPaused: true,
+                                                    pendingProductQuantity: {
+                                                        offerId: offerRef.id, index, productId: item.id,
+                                                        clickMessageId: message.id,
+                                                        expiresAt: new Date(Date.now() + 48 * 3600000).toISOString()
+                                                    },
+                                                    updatedAt: admin.firestore.FieldValue.serverTimestamp()
+                                                }, { merge: true });
                                                 return { item };
                                             });
-                                            if (selected.invalid) console.warn('[WhatsApp seleção] Oferta não encontrada, expirada ou de outro telefone/loja.');
+                                            if (clicked.duplicate || clicked.invalid) {
+                                                if (clicked.invalid) console.warn('[WhatsApp quantidade] Produto/loja/telefone inválido ou oferta vencida.');
+                                                continue;
+                                            }
+                                            if (!apiToken) {
+                                                console.warn('[WhatsApp quantidade] Token Meta indisponível para perguntar quantidade.');
+                                                continue;
+                                            }
+
+                                            // 10 linhas: quantidades de 1 a 9 mais opção de informar outro número.
+                                            const qtyRows = Array.from({ length: 9 }, (_, indexQty) => {
+                                                const quantity = indexQty + 1;
+                                                return {
+                                                    id: `velo_qty_${offerRef.id}_${index}_${quantity}`,
+                                                    title: `${quantity} ${quantity === 1 ? 'unidade' : 'unidades'}`
+                                                };
+                                            });
+                                            qtyRows.push({
+                                                id: `velo_qty_${offerRef.id}_${index}_more`,
+                                                title: 'Outra quantidade',
+                                                description: 'Informar de 1 a 999 unidades'
+                                            });
+                                            const question = `📦 *${clicked.item.name}*\nQuantas unidades você deseja? Escolha na lista ou envie apenas o número (ex.: 12).`;
+                                            const response = await fetch(`https://graph.facebook.com/v25.0/${phoneNumberId}/messages`, {
+                                                method: 'POST',
+                                                headers: { Authorization: `Bearer ${apiToken}`, 'Content-Type': 'application/json' },
+                                                body: JSON.stringify({
+                                                    messaging_product: 'whatsapp', recipient_type: 'individual',
+                                                    to: message.from, type: 'interactive',
+                                                    interactive: {
+                                                        type: 'list',
+                                                        body: { text: question },
+                                                        action: { button: 'Escolher quantidade', sections: [{ title: 'Quantidade desejada', rows: qtyRows }] }
+                                                    }
+                                                })
+                                            });
+                                            const payload = await response.json().catch(() => ({}));
+                                            if (!response.ok) {
+                                                // Se a Meta negar a lista, um texto simples ainda permite responder números.
+                                                console.warn('[WhatsApp quantidade] Lista rejeitada pela Meta:', response.status);
+                                                const fallback = await fetch(`https://graph.facebook.com/v25.0/${phoneNumberId}/messages`, {
+                                                    method: 'POST',
+                                                    headers: { Authorization: `Bearer ${apiToken}`, 'Content-Type': 'application/json' },
+                                                    body: JSON.stringify({
+                                                        messaging_product: 'whatsapp', to: message.from,
+                                                        type: 'text', text: { body: question }
+                                                    })
+                                                });
+                                                if (!fallback.ok) console.warn('[WhatsApp quantidade] Também falhou a pergunta em texto:', fallback.status);
+                                            } else if (payload.messages?.[0]?.id) {
+                                                const wamid = payload.messages[0].id;
+                                                await db.collection('whatsapp_inbound').doc(
+                                                    'meta_' + crypto.createHash('sha256').update(wamid).digest('hex')
+                                                ).set({
+                                                    storeId, to: message.from, text: question,
+                                                    direction: 'outbound', source: 'chat_product_quantity_prompt',
+                                                    offerId: offerRef.id, metaMessageId: wamid, status: 'sent',
+                                                    deliveryStatus: 'accepted',
+                                                    receivedAt: admin.firestore.FieldValue.serverTimestamp(),
+                                                    sentAt: admin.firestore.FieldValue.serverTimestamp()
+                                                }, { merge: true }).catch(error => {
+                                                    console.warn('[WhatsApp quantidade] Pergunta enviada, histórico pendente:', error.message);
+                                                });
+                                            }
                                         } catch (error) {
-                                            console.error('[WhatsApp seleção] Falha ao registrar escolha:', error.message);
-                                            throw error; // Webhook precisa poder ser repetido pela Meta; não perder a seleção.
+                                            console.error('[WhatsApp quantidade] Falha ao iniciar seleção de quantidade:', error.message);
+                                            throw error;
                                         }
                                         continue;
+                                    }
+
+                                    // Quantidade escolhida na lista OU escrita como número pelo cliente.
+                                    // Processa antes das automações e do carrinho, sempre com transação idempotente.
+                                    const quantityPayload = String(interactivePayload || '');
+                                    const quantityAction = quantityPayload.startsWith('velo_qty_');
+                                    const qtyMatch = /^velo_qty_([A-Za-z0-9]{20})_([0-7])_(more|[1-9])$/.exec(quantityPayload);
+                                    const typedQuantity = message.type === 'text'
+                                        ? /^([1-9]\d{0,2})(?:\s*(?:un|unid|unidade|unidades))?\.?$/i.exec(String(messageText || '').trim())
+                                        : null;
+
+                                    if (quantityAction || typedQuantity) {
+                                        const quantitySessionRef = db.collection('whatsapp_sessions').doc(`${storeId}_${normalizedPhone}`);
+                                        const sessionSnapshot = await quantitySessionRef.get();
+                                        const pending = sessionSnapshot.data()?.pendingProductQuantity;
+                                        const pendingValid = pending &&
+                                            Number.isFinite(Date.parse(pending.expiresAt || '')) &&
+                                            Date.parse(pending.expiresAt) > Date.now();
+                                        if (!pendingValid) {
+                                            if (quantityAction) continue; // Não interpretar botões antigos como pedidos.
+                                        } else {
+                                            if (quantityAction && (!qtyMatch || qtyMatch[1] !== pending.offerId ||
+                                                Number(qtyMatch[2]) !== pending.index)) {
+                                                console.warn('[WhatsApp quantidade] Resposta não corresponde ao produto aguardado.');
+                                                continue;
+                                            }
+
+                                            if (quantityAction && qtyMatch[3] === 'more') {
+                                                if (apiToken) {
+                                                    const prompt = await fetch(`https://graph.facebook.com/v25.0/${phoneNumberId}/messages`, {
+                                                        method: 'POST',
+                                                        headers: { Authorization: `Bearer ${apiToken}`, 'Content-Type': 'application/json' },
+                                                        body: JSON.stringify({
+                                                            messaging_product: 'whatsapp', to: message.from,
+                                                            type: 'text', text: { body: 'Digite a quantidade desejada (de 1 a 999) usando somente números. Ex.: 12' }
+                                                        })
+                                                    });
+                                                    if (!prompt.ok) console.warn('[WhatsApp quantidade] Falha ao solicitar valor digitado:', prompt.status);
+                                                }
+                                                continue;
+                                            }
+
+                                            const quantity = quantityAction ? Number(qtyMatch[3]) : Number(typedQuantity?.[1]);
+                                            if (!Number.isInteger(quantity) || quantity < 1 || quantity > 999 || !message.id) {
+                                                console.warn('[WhatsApp quantidade] Quantidade inválida.');
+                                                continue;
+                                            }
+                                            const selectionRef = db.collection('whatsapp_inbound').doc(
+                                                'meta_' + crypto.createHash('sha256').update(message.id).digest('hex')
+                                            );
+                                            const offerRef = db.collection('whatsapp_product_offers').doc(pending.offerId);
+                                            try {
+                                                const selectionResult = await db.runTransaction(async tx => {
+                                                    const [sessionDoc, offerDoc, alreadyRecorded] = await Promise.all([
+                                                        tx.get(quantitySessionRef), tx.get(offerRef), tx.get(selectionRef)
+                                                    ]);
+                                                    if (alreadyRecorded.exists) return { duplicate: true };
+                                                    const latestPending = sessionDoc.data()?.pendingProductQuantity;
+                                                    const offer = offerDoc.data() || {};
+                                                    const recipient = String(offer.recipient || '').replace(/\D/g, '');
+                                                    let expectedPhone = recipient.startsWith('55') ? recipient.slice(2) : recipient;
+                                                    if (expectedPhone.length === 10) expectedPhone = expectedPhone.slice(0, 2) + '9' + expectedPhone.slice(2);
+                                                    const item = offer.items?.[pending.index];
+                                                    if (!offerDoc.exists || !latestPending ||
+                                                        latestPending.offerId !== pending.offerId ||
+                                                        latestPending.index !== pending.index ||
+                                                        latestPending.clickMessageId !== pending.clickMessageId ||
+                                                        Date.parse(latestPending.expiresAt || '') <= Date.now() ||
+                                                        offer.storeId !== storeId || expectedPhone !== normalizedPhone ||
+                                                        !item || item.id !== pending.productId) return { invalid: true };
+
+                                                    const unitPrice = Number(item.price) > 0 ? Number(item.price) : null;
+                                                    const subtotal = unitPrice === null ? null : Math.round(unitPrice * quantity * 100) / 100;
+                                                    const money = value => value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+                                                    const selection = {
+                                                        id: item.id, name: item.name, price: unitPrice,
+                                                        quantity, subtotal, offerId: offerRef.id,
+                                                        messageId: message.id, selectedAt: new Date().toISOString()
+                                                    };
+                                                    const selectionText = `✅ CLIENTE ESCOLHEU UM PRODUTO\n🛍️ ${item.name}\n📦 Quantidade: ${quantity} ${quantity === 1 ? 'unidade' : 'unidades'}\n💰 Valor unitário: ${unitPrice === null ? 'Sob consulta' : money(unitPrice)}\n🧾 Subtotal: ${subtotal === null ? 'A confirmar' : money(subtotal)}\nAguardando confirmação do vendedor — pedido não gerado.`;
+                                                    tx.set(selectionRef, {
+                                                        storeId, phoneNumberId, from: message.from,
+                                                        pushName: senderProfileName, text: selectionText,
+                                                        direction: 'inbound', status: 'unread',
+                                                        source: 'chat_product_selection', offerId: offerRef.id,
+                                                        selectedProduct: selection, metaMessageId: message.id,
+                                                        receivedAt: admin.firestore.FieldValue.serverTimestamp()
+                                                    });
+                                                    tx.update(offerRef, {
+                                                        selections: admin.firestore.FieldValue.arrayUnion(selection),
+                                                        lastSelectedAt: admin.firestore.FieldValue.serverTimestamp()
+                                                    });
+                                                    tx.update(quantitySessionRef, {
+                                                        pendingProductQuantity: admin.firestore.FieldValue.delete(),
+                                                        updatedAt: admin.firestore.FieldValue.serverTimestamp()
+                                                    });
+                                                    return { saved: true };
+                                                });
+                                                if (selectionResult.invalid) console.warn('[WhatsApp quantidade] Resposta desatualizada; escolha não registrada.');
+                                            } catch (error) {
+                                                console.error('[WhatsApp quantidade] Erro ao registrar quantidade:', error.message);
+                                                throw error;
+                                            }
+                                            continue;
+                                        }
                                     }
 
                                     // 2. SALVA A MENSAGEM NO PAINEL DO LOJISTA COM A MÍDIA! (Só chega aqui se NÃO estiver bloqueado)
