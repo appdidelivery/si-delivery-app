@@ -36,5 +36,5 @@ export function buildChatProductShare(product, publicOrigin) {
   const slug = productShareSlug(product?.name) || encodeURIComponent(String(product?.id || ''));
   const url = `${String(publicOrigin).replace(/\/+$/, '')}/p/${slug}`;
   const displayName = String(product?.name || 'Produto').slice(0, 160);
-  return `🛍️ *${displayName}*\n💰 ${formattedPrice}\n🔗 Veja os detalhes e compre pelo app:\n${url}\n\n✅ É este produto? Responda com o nome para confirmar, ou finalize sua compra pelo link.`;
+  return `🛍️ *${displayName}*\n💰 ${formattedPrice}\n🔗 Veja os detalhes e compre pelo app:\n${url}\n\n✅ Quer este item? Toque em *Escolher produto* na lista enviada pelo atendente, ou compre pelo link.`;
 }
