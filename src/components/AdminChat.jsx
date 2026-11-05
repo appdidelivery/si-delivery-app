@@ -708,6 +708,34 @@ export default function AdminChat({ canManageSound = false }) {
             }
         }
 
+        // Os produtos já foram apresentados; agora o cliente recebe a lista oficial
+        // do WhatsApp para indicar ao vendedor qual deseja (sem fechar pedido).
+        let selectionFailure = null;
+        if (sentIds.length) {
+            try {
+                const selectionResponse = await authenticatedFetch('/api/whatsapp-send', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        action: 'chat_product_offer',
+                        storeId,
+                        toPhone: safePhone,
+                        productIds: sentIds
+                    })
+                });
+                const selectionResult = await selectionResponse.json().catch(() => ({}));
+                if (!selectionResponse.ok || !selectionResult.success) {
+                    throw new Error(selectionResult?.metaDetails?.error?.message || selectionResult.error || 'A Meta recusou a lista de escolha.');
+                }
+                if (selectionResult.tracking_warning) {
+                    console.warn('[WhatsApp] Lista enviada; registro de histórico pendente:', selectionResult.tracking_warning);
+                }
+            } catch (error) {
+                console.error('[WhatsApp] Falha ao apresentar opções de escolha:', error);
+                selectionFailure = error;
+            }
+        }
+
         if (sentIds.length) {
             const sessionPhone = String(activeChat).replace(/\D/g, '');
             try {
@@ -720,8 +748,12 @@ export default function AdminChat({ canManageSound = false }) {
         }
 
         setSelectedProductIds(current => current.filter(id => !sentIds.includes(id)));
-        if (failure) {
-            setProductShareError(`${sentIds.length} produto(s) enviado(s). O restante não foi enviado: ${failure.message}. Revise antes de tentar novamente.`);
+        if (failure || selectionFailure) {
+            const details = [
+                failure ? `O restante não foi enviado: ${failure.message}` : '',
+                selectionFailure ? `O botão "Escolher produto" não foi enviado: ${selectionFailure.message}. Os produtos já enviados não devem ser reenviados sem conferir o chat.` : ''
+            ].filter(Boolean).join(' ');
+            setProductShareError(`${sentIds.length} produto(s) enviado(s). ${details}`);
         } else {
             setShowProductPicker(false);
             setSelectedProductIds([]);
@@ -2770,7 +2802,7 @@ export default function AdminChat({ canManageSound = false }) {
                                     </div>
                                     <div className="shrink-0 space-y-2 bg-white px-4 py-3">
                                         {productShareError && <p role="alert" className="rounded-lg bg-red-50 p-2 text-xs text-red-700">{productShareError}</p>}
-                                        <p className="text-[11px] text-slate-500">Cada item será enviado separadamente com link direto para a página do produto. O cliente pode responder qual deseja ou comprar pelo app.</p>
+                                        <p className="text-[11px] text-slate-500">Cada produto vai com foto ou texto e link de compra. Ao final, o cliente recebe o botão "Escolher produto"; a escolha aparece identificada neste chat, sem gerar pedido automaticamente.</p>
                                         <button
                                             type="button"
                                             onClick={handleSendCatalogProducts}
@@ -2778,7 +2810,7 @@ export default function AdminChat({ canManageSound = false }) {
                                             className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#008069] px-4 py-3 text-sm font-black text-white transition-colors hover:bg-[#006c59] disabled:cursor-not-allowed disabled:opacity-40"
                                         >
                                             {sendingProducts ? <Loader2 size={18} className="animate-spin" /> : <Send size={18} />}
-                                            {sendingProducts ? `Enviando ${productShareProgress} de ${selectedProductIds.length}...` : `Enviar ${selectedProductIds.length} produto(s) ao cliente`}
+                                            {sendingProducts ? `Enviando ${productShareProgress} de ${selectedProductIds.length}...` : `Enviar ${selectedProductIds.length} produto(s) + botão de escolha`}
                                         </button>
                                     </div>
                                 </div>
