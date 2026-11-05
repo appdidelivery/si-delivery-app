@@ -3486,7 +3486,7 @@ const aiResponse = await fetchGeminiWithRetry(`https://generativelanguage.google
                     type: 'interactive',
                     interactive: {
                         type: 'list',
-                        body: { text: 'Qual destes produtos você deseja? Toque em "Escolher produto" e marque sua opção. Seu atendente verá sua escolha.' },
+                        body: { text: 'Qual produto você deseja? Toque em "Escolher produto", escolha o item e depois informe a quantidade. O atendente verá sua solicitação.' },
                         action: { button: 'Escolher produto', sections: [{ title: 'Produtos enviados', rows }] }
                     }
                 };
