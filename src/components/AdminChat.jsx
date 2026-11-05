@@ -6,6 +6,8 @@ import { Search, MoreVertical, Paperclip, Mic, Send, User, CheckCheck, Reply, X,
 import { motion, AnimatePresence } from 'framer-motion';
 import { authenticatedFetch } from '../utils/apiAuth';
 import { resolveWhatsAppChatRecipient, matchesWhatsAppChatSearch } from '../../lib/whatsappReplyRecipient.js';
+import { getStorePublicOrigin } from '../utils/domainHelper';
+import { MAX_CHAT_PRODUCTS, buildChatProductShare, formatChatProductPrice, chatProductImageUrl, matchesChatProductSearch } from '../lib/chatProductShare.js';
 
 // 1. Helper de segurança fora do componente para não ser recriado
 const safeEncode = (text) => {
@@ -30,6 +32,13 @@ export default function AdminChat({ canManageSound = false }) {
 
     const [messages, setMessages] = useState([]);
     const [products, setProducts] = useState([]);
+    const [showProductPicker, setShowProductPicker] = useState(false);
+    const [productSearchTerm, setProductSearchTerm] = useState('');
+    const [selectedProductIds, setSelectedProductIds] = useState([]);
+    const [sendingProducts, setSendingProducts] = useState(false);
+    const sendingProductsRef = useRef(false);
+    const [productShareProgress, setProductShareProgress] = useState(0);
+    const [productShareError, setProductShareError] = useState('');
     const [activeChat, setActiveChat] = useState(null);
     const [replyText, setReplyText] = useState('');
     const [loadingSend, setLoadingSend] = useState(false);
@@ -607,7 +616,125 @@ export default function AdminChat({ canManageSound = false }) {
     }, [activeChat, chats]);
     // --------------------------------------------------------
 
+    const openProductPicker = () => {
+        if (!activeChat || sendingProductsRef.current || blockedContacts.includes(activeChat) ||
+            (chatSessions[activeChat]?.assignedTo && chatSessions[activeChat]?.assignedTo !== auth.currentUser?.email)) return;
+        setProductSearchTerm('');
+        setSelectedProductIds([]);
+        setProductShareError('');
+        setProductShareProgress(0);
+        setShowProductPicker(true);
+    };
+
+    const closeProductPicker = () => {
+        if (sendingProductsRef.current) return;
+        setShowProductPicker(false);
+        setSelectedProductIds([]);
+        setProductShareError('');
+    };
+
+    useEffect(() => {
+        if (sendingProductsRef.current) return;
+        setShowProductPicker(false);
+        setSelectedProductIds([]);
+        setProductShareError('');
+    }, [activeChat, storeId]);
+
+    const toggleProductSelection = (productId) => {
+        if (sendingProductsRef.current) return;
+        setSelectedProductIds(previous => {
+            if (previous.includes(productId)) return previous.filter(id => id !== productId);
+            if (previous.length >= MAX_CHAT_PRODUCTS) return previous;
+            return [...previous, productId];
+        });
+    };
+
+    const handleSendCatalogProducts = async () => {
+        if (sendingProductsRef.current || !activeChat || !storeId || selectedProductIds.length === 0) return;
+        if (blockedContacts.includes(activeChat) ||
+            (chatSessions[activeChat]?.assignedTo && chatSessions[activeChat]?.assignedTo !== auth.currentUser?.email)) {
+            setProductShareError('Esta conversa está bloqueada ou em atendimento por outra pessoa.');
+            return;
+        }
+        const safePhone = resolveWhatsAppChatRecipient(chats[activeChat]?.msgs);
+        if (!safePhone) {
+            setProductShareError('Não há número oficial validado para este chat. O cliente deve enviar uma mensagem primeiro.');
+            return;
+        }
+        const selected = selectedProductIds
+            .map(id => products.find(product => product.id === id && product.isActive !== false &&
+                (product.stock === undefined || product.stock === '' || Number(product.stock) > 0)))
+            .filter(Boolean)
+            .slice(0, MAX_CHAT_PRODUCTS);
+        if (selected.length === 0) {
+            setProductShareError('Os produtos selecionados não estão mais disponíveis no catálogo.');
+            return;
+        }
+
+        sendingProductsRef.current = true;
+        setSendingProducts(true);
+        setProductShareProgress(0);
+        setProductShareError('');
+        const publicOrigin = getStorePublicOrigin(storeId, store?.customDomain);
+        const sentIds = [];
+        let failure = null;
+        for (const product of selected) {
+            try {
+                const image = chatProductImageUrl(product);
+                const response = await authenticatedFetch('/api/whatsapp-send', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        action: 'chat_reply',
+                        storeId,
+                        toPhone: safePhone,
+                        dynamicParams: {
+                            text: buildChatProductShare(product, publicOrigin),
+                            ...(image ? { mediaUrl: image, mediaType: 'image' } : {})
+                        }
+                    })
+                });
+                const data = await response.json().catch(() => ({}));
+                if (!response.ok || !data.success) {
+                    throw new Error(data?.metaDetails?.error?.message || data.error || 'A Meta não confirmou o envio.');
+                }
+                if (data.tracking_warning) console.warn('[WhatsApp] Produto aceito, registro de histórico pendente:', data.tracking_warning);
+                sentIds.push(product.id);
+                setProductShareProgress(sentIds.length);
+            } catch (error) {
+                console.error('[WhatsApp] Falha ao compartilhar produto:', error);
+                failure = error;
+                break; // Não repetir os produtos anteriores: a Meta pode já ter recebido.
+            }
+        }
+
+        if (sentIds.length) {
+            const sessionPhone = String(activeChat).replace(/\D/g, '');
+            try {
+                await setDoc(doc(db, 'whatsapp_sessions', `${storeId}_${sessionPhone}`), {
+                    storeId, phone: sessionPhone, botPaused: true, updatedAt: serverTimestamp()
+                }, { merge: true });
+            } catch (error) {
+                console.warn('[WhatsApp] Produtos enviados; não foi possível atualizar a sessão:', error);
+            }
+        }
+
+        setSelectedProductIds(current => current.filter(id => !sentIds.includes(id)));
+        if (failure) {
+            setProductShareError(`${sentIds.length} produto(s) enviado(s). O restante não foi enviado: ${failure.message}. Revise antes de tentar novamente.`);
+        } else {
+            setShowProductPicker(false);
+            setSelectedProductIds([]);
+            setProductShareError('');
+            setProductShareProgress(0);
+        }
+        sendingProductsRef.current = false;
+        setSendingProducts(false);
+    };
+
     const handleOpenChat = async (phone) => {
+        if (sendingProductsRef.current) return;
+        setShowProductPicker(false);
         setActiveChat(phone);
         
         setContactForm({
@@ -2178,6 +2305,18 @@ export default function AdminChat({ canManageSound = false }) {
                                     <DownloadCloud size={16} /> <span className="hidden xl:inline">Backup</span>
                                 </button>
 
+                                {/* Compartilhamento rápido de itens do catálogo oficial da loja */}
+                                <button
+                                    type="button"
+                                    onClick={openProductPicker}
+                                    disabled={sendingProducts || blockedContacts.includes(activeChat) ||
+                                        (chatSessions[activeChat]?.assignedTo && chatSessions[activeChat]?.assignedTo !== auth.currentUser?.email)}
+                                    className="flex items-center gap-1 rounded-lg border border-emerald-200 bg-emerald-50 p-1.5 text-[10px] font-black uppercase tracking-wide text-[#008069] shadow-sm hover:bg-emerald-100 disabled:opacity-50 md:px-3 md:py-2"
+                                    title="Buscar produto e enviar foto, preço e link ao cliente"
+                                >
+                                    <Package size={16} /> <span className="hidden 2xl:inline">Buscar Produto</span>
+                                </button>
+
                                 {/* GATILHO DO MINI PDV (IMPORTANTE - MANTÉM TEXTO) */}
                                 <button 
                                     onClick={() => {
@@ -2421,12 +2560,23 @@ export default function AdminChat({ canManageSound = false }) {
                             ) : (
                                 /* --- UI PADRÃO DE TEXTO --- */
                                 <>
-                                    <button 
+                                    <button
                                         onClick={() => fileInputRef.current.click()}
                                         className="text-gray-500 hover:text-gray-700 p-2 rounded-full transition-colors"
-                                        title="Anexar Imagem"
+                                        title="Anexar imagem"
+                                        disabled={loadingSend}
                                     >
                                         <Paperclip size={24} />
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={openProductPicker}
+                                        disabled={loadingSend}
+                                        className="flex shrink-0 items-center gap-1.5 rounded-full bg-[#dcf8e9] text-[#087d62] px-2.5 py-2 font-bold text-xs hover:bg-[#c5efd8] disabled:opacity-50"
+                                        title="Buscar produtos no catálogo e enviar ao cliente"
+                                    >
+                                        <Package size={20} />
+                                        <span className="hidden xl:inline">Produtos</span>
                                     </button>
                                     
                                     <div className="flex-1 bg-white rounded-xl px-4 py-2 shadow-sm flex items-center">
@@ -2535,6 +2685,100 @@ export default function AdminChat({ canManageSound = false }) {
                                             className="w-full bg-blue-600 text-white py-3 rounded-xl font-black uppercase tracking-widest text-xs shadow-md hover:bg-blue-700 transition-all active:scale-95 flex justify-center items-center gap-2 mt-2"
                                         >
                                             <Save size={16}/> Salvar Contato
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Catálogo rápido: envio manual de produtos ao WhatsApp oficial. */}
+                        {showProductPicker && (
+                            <div className="absolute inset-0 z-[60] flex items-center justify-center bg-slate-900/50 p-2 sm:p-4">
+                                <div role="dialog" aria-modal="true" aria-label="Buscar produtos para compartilhar" className="flex max-h-full w-full max-w-2xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl">
+                                    <div className="flex shrink-0 items-center justify-between gap-3 border-b border-slate-200 bg-[#f0f2f5] px-4 py-3">
+                                        <div className="flex min-w-0 items-center gap-2">
+                                            <Package size={21} className="shrink-0 text-[#008069]" />
+                                            <div>
+                                                <h3 className="text-sm font-black text-slate-800">Buscar produtos</h3>
+                                                <p className="text-[11px] text-slate-500">Envie foto, nome, preço e link de compra para este cliente</p>
+                                            </div>
+                                        </div>
+                                        <button type="button" onClick={closeProductPicker} disabled={sendingProducts} className="rounded-full p-2 hover:bg-slate-200 disabled:opacity-50" aria-label="Fechar catálogo">
+                                            <X size={20} />
+                                        </button>
+                                    </div>
+                                    <div className="shrink-0 space-y-2 px-4 py-3">
+                                        <div className="flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 focus-within:border-[#00a884]">
+                                            <Search size={18} className="text-slate-400" />
+                                            <input
+                                                type="search"
+                                                autoFocus
+                                                value={productSearchTerm}
+                                                onChange={event => setProductSearchTerm(event.target.value)}
+                                                disabled={sendingProducts}
+                                                placeholder="Nome do produto ou categoria..."
+                                                className="min-w-0 flex-1 bg-transparent text-sm outline-none"
+                                                aria-label="Pesquisar produtos"
+                                            />
+                                        </div>
+                                        <div className="flex items-center justify-between gap-2 text-xs text-slate-600">
+                                            <span>{selectedProductIds.length} de {MAX_CHAT_PRODUCTS} selecionados</span>
+                                            <button type="button" onClick={() => setSelectedProductIds([])} disabled={sendingProducts || selectedProductIds.length === 0} className="font-semibold text-[#008069] disabled:opacity-40">Limpar seleção</button>
+                                        </div>
+                                    </div>
+                                    <div className="min-h-0 flex-1 overflow-y-auto border-y border-slate-100 bg-slate-50 px-3 py-2">
+                                        {(() => {
+                                            const available = products
+                                                .filter(product => product.isActive !== false && matchesChatProductSearch(product, productSearchTerm))
+                                                .sort((a, b) => String(a.name || '').localeCompare(String(b.name || ''), 'pt-BR'))
+                                                .slice(0, 100);
+                                            if (!available.length) return <p className="py-10 text-center text-sm text-slate-500">Nenhum produto encontrado no catálogo ativo.</p>;
+                                            return (
+                                                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                                                    {available.map(product => {
+                                                        const selected = selectedProductIds.includes(product.id);
+                                                        const imageUrl = chatProductImageUrl(product);
+                                                        const outOfStock = product.stock !== undefined && product.stock !== '' && Number(product.stock) <= 0;
+                                                        const formattedPrice = formatChatProductPrice(product);
+                                                        return (
+                                                            <button
+                                                                key={product.id}
+                                                                type="button"
+                                                                disabled={sendingProducts || (outOfStock && !selected) || (!selected && selectedProductIds.length >= MAX_CHAT_PRODUCTS)}
+                                                                onClick={() => toggleProductSelection(product.id)}
+                                                                aria-pressed={selected}
+                                                                className={`flex items-center gap-3 rounded-xl border p-2 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${selected ? 'border-[#00a884] bg-emerald-50 ring-1 ring-[#00a884]' : 'border-slate-200 bg-white hover:border-emerald-300'}`}
+                                                            >
+                                                                <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-slate-100">
+                                                                    {imageUrl ? <img src={imageUrl} alt="" loading="lazy" className="h-full w-full object-cover" /> : <ImageIcon size={24} className="text-slate-300" />}
+                                                                </div>
+                                                                <div className="min-w-0 flex-1">
+                                                                    <p className="line-clamp-2 text-xs font-bold text-slate-800">{product.name}</p>
+                                                                    <p className="mt-1 text-xs font-black text-[#008069]">{formattedPrice}</p>
+                                                                    {outOfStock && <p className="text-[10px] text-red-600">Sem estoque</p>}
+                                                                    {!imageUrl && <p className="text-[10px] text-amber-700">Sem foto: enviaremos texto</p>}
+                                                                </div>
+                                                                <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-md border text-xs font-black ${selected ? 'border-[#00a884] bg-[#00a884] text-white' : 'border-slate-300 text-transparent'}`}>
+                                                                    {selected ? '✓' : '·'}
+                                                                </span>
+                                                            </button>
+                                                        );
+                                                    })}
+                                                </div>
+                                            );
+                                        })()}
+                                    </div>
+                                    <div className="shrink-0 space-y-2 bg-white px-4 py-3">
+                                        {productShareError && <p role="alert" className="rounded-lg bg-red-50 p-2 text-xs text-red-700">{productShareError}</p>}
+                                        <p className="text-[11px] text-slate-500">Cada item será enviado separadamente com link direto para a página do produto. O cliente pode responder qual deseja ou comprar pelo app.</p>
+                                        <button
+                                            type="button"
+                                            onClick={handleSendCatalogProducts}
+                                            disabled={sendingProducts || selectedProductIds.length === 0}
+                                            className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#008069] px-4 py-3 text-sm font-black text-white transition-colors hover:bg-[#006c59] disabled:cursor-not-allowed disabled:opacity-40"
+                                        >
+                                            {sendingProducts ? <Loader2 size={18} className="animate-spin" /> : <Send size={18} />}
+                                            {sendingProducts ? `Enviando ${productShareProgress} de ${selectedProductIds.length}...` : `Enviar ${selectedProductIds.length} produto(s) ao cliente`}
                                         </button>
                                     </div>
                                 </div>
