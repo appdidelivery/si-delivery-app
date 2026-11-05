@@ -2682,6 +2682,8 @@ const [vipMissions, setVipMissions] = useState([]);
        // NOVO: Escuta as mensagens do WhatsApp para alertas de transbordo e som padrão
         let initialChat = true;
         const sessionCache = new Map();
+        // Guarda os clientes já alertados até todas as mensagens do chat serem lidas.
+        const notifiedUnreadChats = new Set();
         
         // OTIMIZAÇÃO: Lê apenas as mensagens das últimas 24h para notificações. Libera a RAM e acelera a abertura do painel.
         const oneDayAgo = new Date();
@@ -2703,18 +2705,39 @@ const [vipMissions, setVipMissions] = useState([]);
             // Descobre qual conversa o lojista está olhando agora
             const normalizeChatPhone = (value) => {
                 const digits = String(value || '').replace(/\D/g, '');
-                return digits.startsWith('55') && digits.length > 11 ? digits.substring(2) : digits;
+                const nationalPhone = digits.startsWith('55') && digits.length > 11 ? digits.substring(2) : digits;
+                return nationalPhone.length === 10 ? nationalPhone.slice(0, 2) + '9' + nationalPhone.slice(2) : nationalPhone;
             };
             const storedActiveChat = localStorage.getItem('active_whatsapp_chat');
-            const activeChatInScreen = storeId === 'csi' ? normalizeChatPhone(storedActiveChat) : storedActiveChat;
+            const activeChatInScreen = normalizeChatPhone(storedActiveChat);
+
+            // Um som por NOVO chat não lido, nunca por cada mensagem do mesmo cliente.
+            const unreadChatPhones = new Set();
+            for (const messageDoc of s.docs) {
+                const message = messageDoc.data();
+                if (message.direction === 'outbound' || message.status !== 'unread') continue;
+                const phone = normalizeChatPhone(message.from);
+                if (phone) unreadChatPhones.add(phone);
+            }
+            if (initialChat) {
+                // Abrir/recarregar o painel não reproduz notificações antigas.
+                for (const phone of unreadChatPhones) notifiedUnreadChats.add(phone);
+            } else {
+                // Só libera um novo alerta após a conversa anterior ser lida.
+                for (const phone of notifiedUnreadChats) {
+                    if (!unreadChatPhones.has(phone)) notifiedUnreadChats.delete(phone);
+                }
+            }
 
             if (!initialChat) {
                 for (const change of s.docChanges()) {
                     const data = change.doc.data();
                     if (change.type === "added" && data.direction !== 'outbound' && data.status === 'unread') {
                         // Normaliza o número
-                        let senderPhone = String(data.from || '').replace(/\D/g, '');
-                        if (senderPhone.startsWith('55')) senderPhone = senderPhone.substring(2);
+                        const senderPhone = normalizeChatPhone(data.from);
+                        if (!senderPhone || notifiedUnreadChats.has(senderPhone)) continue;
+                        // Marca ANTES de operações assíncronas para evitar alertas duplicados.
+                        notifiedUnreadChats.add(senderPhone);
                         // Conversa ativa já está sendo acompanhada: não repetir alertas.
                         // Isto inclui pedidos de transferência para atendimento humano.
                         if (storeId === 'csi' && senderPhone && senderPhone === activeChatInScreen) continue;
@@ -2739,11 +2762,11 @@ const [vipMissions, setVipMissions] = useState([]);
                         if (data.text && String(data.text).toLowerCase().includes(handoffTriggerText.toLowerCase())) {
                             isHandoffAlert = true;
                             handoffMessageText = data.text;
-                            shouldPlaySound = true; // O Alerta de Handoff SEMPRE toca
+                            shouldPlaySound = true; // Handoff novo mantém o toque prioritário, uma vez por chat.
                             senderName = data.pushName || data.name || "Cliente";
                             
                         } else if (senderPhone !== activeChatInScreen) {
-                                    // NOVA REGRA: Toca o som para TODAS as mensagens novas
+                                    // Toca uma vez quando o chat entra em estado não lido.
                                     shouldPlaySound = true; 
                                     senderName = data.pushName || data.name || "Cliente";
                                 }
