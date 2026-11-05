@@ -3433,6 +3433,108 @@ const aiResponse = await fetchGeminiWithRetry(`https://generativelanguage.google
                 }
             }
             // --- FIM: ATUALIZAR PERFIL DO WHATSAPP BUSINESS ---
+
+            // Lista interativa do catálogo compartilhado no atendimento humano.
+            // A escolha é apenas uma intenção de compra: não dispara pedido nem cobrança.
+            if (action === 'chat_product_offer') {
+                const cleanPhone = normalizeWhatsAppReplyRecipient(toPhone);
+                if (!cleanPhone) return res.status(400).json({ success: false, error: 'Destinatário WhatsApp inválido.' });
+
+                const productIds = req.body?.productIds;
+                if (!Array.isArray(productIds) || productIds.length < 1 || productIds.length > 8 ||
+                    productIds.some(id => typeof id !== 'string' || !id || id.length > 180) ||
+                    new Set(productIds).size !== productIds.length) {
+                    return res.status(400).json({ success: false, error: 'Selecione entre 1 e 8 produtos válidos, sem repetições.' });
+                }
+
+                const productSnaps = await Promise.all(productIds.map(id => db.collection('products').doc(id).get()));
+                const items = productSnaps.map((snap, index) => {
+                    const data = snap.data() || {};
+                    const available = snap.exists && data.storeId === storeId && data.isActive !== false &&
+                        (data.stock === undefined || data.stock === '' || Number(data.stock) > 0);
+                    if (!available || !String(data.name || '').trim()) return null;
+                    const normalPrice = Number(data.price);
+                    const promoPrice = Number(data.promotionalPrice);
+                    const price = promoPrice > 0 ? promoPrice : normalPrice;
+                    return {
+                        id: productIds[index],
+                        name: String(data.name).trim().slice(0, 160),
+                        price: Number.isFinite(price) && price > 0 ? price : null
+                    };
+                });
+                if (items.some(item => !item)) {
+                    return res.status(409).json({
+                        success: false, error: 'Um dos produtos não pertence à loja, ficou inativo ou está sem estoque. Atualize o catálogo.'
+                    });
+                }
+
+                const offerRef = db.collection('whatsapp_product_offers').doc();
+                const expiresAt = new Date(Date.now() + 30 * 86400000).toISOString();
+                await offerRef.set({
+                    storeId, recipient: cleanPhone, items, status: 'preparing',
+                    expiresAt, createdAt: admin.firestore.FieldValue.serverTimestamp(),
+                    createdBy: req.user?.email || req.user?.uid || 'loja'
+                });
+
+                const rows = items.map((item, index) => ({
+                    id: `velo_pick_${offerRef.id}_${index}`,
+                    title: `${index + 1}. ${item.name}`.slice(0, 24),
+                    ...(item.price ? { description: `Preço: ${item.price.toLocaleString('pt-BR', {style:'currency', currency:'BRL'})}` } : {})
+                }));
+                const payload = {
+                    messaging_product: 'whatsapp', recipient_type: 'individual', to: cleanPhone,
+                    type: 'interactive',
+                    interactive: {
+                        type: 'list',
+                        body: { text: 'Qual destes produtos você deseja? Toque em "Escolher produto" e marque sua opção. Seu atendente verá sua escolha.' },
+                        action: { button: 'Escolher produto', sections: [{ title: 'Produtos enviados', rows }] }
+                    }
+                };
+
+                let response;
+                let data;
+                try {
+                    response = await fetch(GRAPH_API_URL, {
+                        method: 'POST',
+                        headers: { Authorization: `Bearer ${apiToken}`, 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+                    data = await response.json().catch(() => ({}));
+                } catch (error) {
+                    await offerRef.delete().catch(() => {});
+                    console.error('[WhatsApp seleção] Falha ao alcançar Meta:', error.message);
+                    return res.status(502).json({ success: false, error: 'Falha de conexão com WhatsApp oficial.' });
+                }
+                if (!response.ok || !data.messages?.[0]?.id) {
+                    await offerRef.delete().catch(() => {});
+                    return res.status(400).json({ success: false, error: 'A Meta recusou a lista de seleção.', metaDetails: data });
+                }
+                const metaMessageId = data.messages[0].id;
+                let trackingWarning = null;
+                try {
+                    const outgoingRef = db.collection('whatsapp_inbound').doc('meta_' + crypto.createHash('sha256').update(metaMessageId).digest('hex'));
+                    await Promise.all([
+                        offerRef.set({ status: 'sent', metaMessageId, sentAt: admin.firestore.FieldValue.serverTimestamp() }, { merge: true }),
+                        outgoingRef.set({
+                            storeId, to: cleanPhone,
+                            text: '🛍️ Escolha um produto na lista:\n' + items.map((item, i) => `${i + 1}. ${item.name}`).join('\n'),
+                            direction: 'outbound', source: 'chat_product_offer',
+                            offerId: offerRef.id, type: 'interactive', messageType: 'interactive',
+                            status: 'sent', deliveryStatus: 'accepted', metaMessageId,
+                            sentAt: admin.firestore.FieldValue.serverTimestamp(),
+                            receivedAt: admin.firestore.FieldValue.serverTimestamp()
+                        }, { merge: true })
+                    ]);
+                } catch (error) {
+                    trackingWarning = 'A Meta aceitou a lista, mas falhou o registro do histórico.';
+                    console.error('[WhatsApp seleção] Lista aceita; erro ao registrar:', error.message);
+                }
+                return res.status(200).json({
+                    success: true, message_id: metaMessageId, offer_id: offerRef.id,
+                    ...(trackingWarning ? { tracking_warning: trackingWarning } : {})
+                });
+            }
+
             // --- INÍCIO: LÓGICA PARA RESPOSTA LIVRE NO CHAT ---
             if (action === 'chat_reply') {
                 if (!toPhone) return res.status(400).json({ error: 'Telefone é obrigatório' });
@@ -3965,6 +4067,67 @@ const aiResponse = await fetchGeminiWithRetry(`https://generativelanguage.google
                                         continue; // Interrompe TUDO aqui. Nem salva, nem responde.
                                     }
                                     // -------------------------------------------------------
+
+
+                                    // Opção de catálogo apresentada pelo vendedor: resposta visível ao vendedor.
+                                    // Executa ANTES do bot, para que o clique não gere carrinho, pedido ou resposta automática.
+                                    if (String(interactivePayload).startsWith('velo_pick_')) {
+                                        const match = /^velo_pick_([A-Za-z0-9]{20})_([0-7])$/.exec(String(interactivePayload));
+                                        if (!match || !message.id) {
+                                            console.warn('[WhatsApp seleção] ID de resposta inválido.');
+                                            continue;
+                                        }
+                                        try {
+                                            const offerRef = db.collection('whatsapp_product_offers').doc(match[1]);
+                                            const selectionRef = db.collection('whatsapp_inbound').doc(
+                                                'meta_' + crypto.createHash('sha256').update(message.id).digest('hex')
+                                            );
+                                            const selectedIndex = Number(match[2]);
+                                            const selected = await db.runTransaction(async tx => {
+                                                const offerSnap = await tx.get(offerRef);
+                                                const recordedSnap = await tx.get(selectionRef);
+                                                if (recordedSnap.exists) return { duplicate: true };
+                                                const offer = offerSnap.data() || {};
+                                                const recipient = String(offer.recipient || '').replace(/\D/g, '');
+                                                let expectedPhone = recipient.startsWith('55') ? recipient.slice(2) : recipient;
+                                                if (expectedPhone.length === 10) {
+                                                    expectedPhone = expectedPhone.slice(0, 2) + '9' + expectedPhone.slice(2);
+                                                }
+                                                const item = offer.items?.[selectedIndex];
+                                                if (!offerSnap.exists || offer.storeId !== storeId ||
+                                                    expectedPhone !== normalizedPhone ||
+                                                    !item || Date.parse(offer.expiresAt || '') < Date.now()) {
+                                                    return { invalid: true };
+                                                }
+                                                const formattedPrice = Number(item.price) > 0
+                                                    ? Number(item.price).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+                                                    : 'Preço sob consulta';
+                                                const selectionText = `✅ CLIENTE ESCOLHEU UM PRODUTO\n🛍️ ${item.name}\n💰 ${formattedPrice}\nAguardando atendimento do vendedor.`;
+                                                const selection = {
+                                                    id: item.id, name: item.name, price: item.price || null,
+                                                    messageId: message.id, selectedAt: new Date().toISOString()
+                                                };
+                                                tx.set(selectionRef, {
+                                                    storeId, phoneNumberId, from: message.from,
+                                                    pushName: senderProfileName, text: selectionText,
+                                                    direction: 'inbound', status: 'unread',
+                                                    source: 'chat_product_selection', offerId: offerRef.id,
+                                                    selectedProduct: selection, metaMessageId: message.id,
+                                                    receivedAt: admin.firestore.FieldValue.serverTimestamp()
+                                                });
+                                                tx.update(offerRef, {
+                                                    selections: admin.firestore.FieldValue.arrayUnion(selection),
+                                                    lastSelectedAt: admin.firestore.FieldValue.serverTimestamp()
+                                                });
+                                                return { item };
+                                            });
+                                            if (selected.invalid) console.warn('[WhatsApp seleção] Oferta não encontrada, expirada ou de outro telefone/loja.');
+                                        } catch (error) {
+                                            console.error('[WhatsApp seleção] Falha ao registrar escolha:', error.message);
+                                            throw error; // Webhook precisa poder ser repetido pela Meta; não perder a seleção.
+                                        }
+                                        continue;
+                                    }
 
                                     // 2. SALVA A MENSAGEM NO PAINEL DO LOJISTA COM A MÍDIA! (Só chega aqui se NÃO estiver bloqueado)
                                     const inboundMessageRef = await db.collection('whatsapp_inbound').add({
