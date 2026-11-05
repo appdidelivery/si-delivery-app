@@ -887,6 +887,8 @@ const handleToggleFiscalSaaS = async (loja) => {
                                                         <p className="text-sm font-black text-slate-200 uppercase">{fat.month}</p>
                                                         <p className="text-xs font-bold text-slate-500 mt-0.5">{fat.amount}</p>
                                                         {fat.dueDate && <p className={`text-[11px] font-extrabold mt-1 ${String(fat.status).toUpperCase() === 'PENDENTE' ? 'text-amber-400' : 'text-slate-400'}`}>
+                                                            {String(fat.status).toUpperCase() === 'PENDENTE' ? '⚠ Pagamento pendente — ' : ''}Vence em {new Date(fat.dueDate).toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' })}
+                                                        </p>}
                                                         {Array.isArray(fat.extensionHistory) && fat.extensionHistory.length > 0 && (
                                                             <p className="text-[10px] text-blue-300 mt-1">
                                                                 Prorrogada em {new Date(fat.extensionHistory[fat.extensionHistory.length - 1].changedAt).toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' })}
@@ -896,8 +898,6 @@ const handleToggleFiscalSaaS = async (loja) => {
                                                             </p>
                                                         )}
 
-                                                            {String(fat.status).toUpperCase() === 'PENDENTE' ? '⚠ Pagamento pendente — ' : ''}Vence em {new Date(fat.dueDate).toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' })}
-                                                        </p>}
                                                     </div>
                                                     <div className="flex items-center gap-3">
                                                         {String(fat.status).toUpperCase() === 'PENDENTE' && fat.id && (
