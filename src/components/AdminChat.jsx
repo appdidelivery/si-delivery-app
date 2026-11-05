@@ -2450,10 +2450,11 @@ export default function AdminChat({ canManageSound = false }) {
                                 // NOVO: Flag para destacar a bolha específica
                                 const handoffTriggerTextBubble = store?.settings?.integrations?.whatsapp?.botOption2 || "Falar com Humano";
                                 const isThisHandoff = !isOutbound && displayText && String(displayText).toLowerCase().includes(handoffTriggerTextBubble.toLowerCase());
+                                const isProductChoice = !isOutbound && msg.source === 'chat_product_selection';
                                 // ---------------------------------------
 
                                 return (
-                                    <div key={msg.id} className={`group relative max-w-[75%] md:max-w-[65%] px-3 py-1.5 rounded-lg shadow-sm text-[14px] leading-relaxed flex flex-col ${isOutbound ? 'bg-[#d9fdd3] text-[#111b21] self-end rounded-tr-none' : isThisHandoff ? 'bg-red-50 text-red-900 border-2 border-red-500 self-start rounded-tl-none shadow-md animate-pulse' : 'bg-white text-[#111b21] self-start rounded-tl-none'}`}>
+                                    <div key={msg.id} className={`group relative max-w-[75%] md:max-w-[65%] px-3 py-1.5 rounded-lg shadow-sm text-[14px] leading-relaxed flex flex-col ${isOutbound ? 'bg-[#d9fdd3] text-[#111b21] self-end rounded-tr-none' : isProductChoice ? 'bg-emerald-50 text-emerald-950 border-2 border-emerald-500 self-start rounded-tl-none shadow-md' : isThisHandoff ? 'bg-red-50 text-red-900 border-2 border-red-500 self-start rounded-tl-none shadow-md animate-pulse' : 'bg-white text-[#111b21] self-start rounded-tl-none'}`}>
                                         
                                         {/* Ações da Mensagem (Aparecem no Hover) */}
                                         <div className={`absolute top-1 ${isOutbound ? '-left-20' : '-right-20'} opacity-0 group-hover:opacity-100 flex items-center gap-1 z-20 transition-all`}>
@@ -2506,6 +2507,8 @@ export default function AdminChat({ canManageSound = false }) {
                                             </div>
                                         )}
 
+                                        {/* Destaque de uma opção escolhida pelo cliente. */}
+                                        {isProductChoice && <span className="text-[10px] font-black uppercase tracking-wide text-emerald-800">Escolha do cliente · atendimento pendente</span>}
                                         {/* Texto / Legenda */}
                                         {displayText && <span className="pr-12 whitespace-pre-wrap wrap-break-word break-all">{displayText}</span>}
                                         
