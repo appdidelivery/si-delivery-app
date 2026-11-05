@@ -2508,7 +2508,7 @@ export default function AdminChat({ canManageSound = false }) {
                                         )}
 
                                         {/* Destaque de uma opção escolhida pelo cliente. */}
-                                        {isProductChoice && <span className="text-[10px] font-black uppercase tracking-wide text-emerald-800">Escolha do cliente · atendimento pendente</span>}
+                                        {isProductChoice && <span className="text-[10px] font-black uppercase tracking-wide text-emerald-800">Escolha do cliente · {msg.selectedProduct?.quantity ? `${msg.selectedProduct.quantity} un.` : 'quantidade pendente'} · atendimento pendente</span>}
                                         {/* Texto / Legenda */}
                                         {displayText && <span className="pr-12 whitespace-pre-wrap wrap-break-word break-all">{displayText}</span>}
                                         
@@ -2805,7 +2805,7 @@ export default function AdminChat({ canManageSound = false }) {
                                     </div>
                                     <div className="shrink-0 space-y-2 bg-white px-4 py-3">
                                         {productShareError && <p role="alert" className="rounded-lg bg-red-50 p-2 text-xs text-red-700">{productShareError}</p>}
-                                        <p className="text-[11px] text-slate-500">Cada produto vai com foto ou texto e link de compra. Ao final, o cliente recebe o botão "Escolher produto"; a escolha aparece identificada neste chat, sem gerar pedido automaticamente.</p>
+                                        <p className="text-[11px] text-slate-500">Cada produto vai com foto ou texto e link de compra. O cliente toca em "Escolher produto", informa quantas unidades deseja e o vendedor vê produto, quantidade e subtotal neste chat. Nenhum pedido é criado automaticamente.</p>
                                         <button
                                             type="button"
                                             onClick={handleSendCatalogProducts}
