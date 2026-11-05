@@ -170,6 +170,93 @@ export default function AdminSaaS() {
         finally { setActionLoading(null); }
     };
 
+
+    // Prorrogação pontual: altera somente a fatura, nunca o dia recorrente (billingDueDay).
+    const handleExtendInvoiceDueDate = async (storeId, invoiceId) => {
+        const loja = storesList.find(item => item.id === storeId);
+        const invoice = loja?.faturasHistorico?.find(item => item.id === invoiceId);
+        if (!invoice || String(invoice.status).toUpperCase() !== 'PENDENTE') {
+            alert('Selecione uma fatura pendente para prorrogar.');
+            return;
+        }
+        const spDate = (value) => new Intl.DateTimeFormat('sv-SE', {
+            timeZone: 'America/Sao_Paulo', year: 'numeric', month: '2-digit', day: '2-digit'
+        }).format(new Date(value));
+        const previousDueDate = invoice.dueDate ? spDate(invoice.dueDate) : null;
+        const informedDate = window.prompt(
+            `Novo vencimento para ${loja.name || storeId} — ${invoice.month}? (AAAA-MM-DD)\nA recorrência das mensalidades não será alterada.`,
+            previousDueDate || spDate(new Date())
+        );
+        if (informedDate === null) return;
+        const nextDay = informedDate.trim();
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(nextDay)) {
+            alert('Informe a data no formato AAAA-MM-DD.');
+            return;
+        }
+        const nextDueDate = new Date(`${nextDay}T12:00:00-03:00`);
+        if (Number.isNaN(nextDueDate.getTime()) || spDate(nextDueDate) !== nextDay) {
+            alert('Data de vencimento inválida.');
+            return;
+        }
+        if (nextDay < spDate(new Date()) || (previousDueDate && nextDay <= previousDueDate)) {
+            alert('A nova data precisa ser futura ou igual a hoje e posterior ao vencimento atual.');
+            return;
+        }
+        const reasonInput = window.prompt('Motivo da prorrogação (será registrado no histórico):', 'Prazo adicional solicitado pelo lojista');
+        if (reasonInput === null) return;
+        const reason = reasonInput.trim();
+        if (!reason || reason.length > 250) {
+            alert('Informe um motivo de até 250 caracteres.');
+            return;
+        }
+        if (!window.confirm(
+            `Prorrogar SOMENTE a fatura ${invoice.month} de ${loja.name || storeId}?\n` +
+            `Vencimento atual: ${previousDueDate || 'não definido'}\nNovo vencimento: ${nextDay}\n` +
+            'O valor, o status pendente e o vencimento das próximas mensalidades serão preservados.'
+        )) return;
+        setActionLoading(`extend_${storeId}_${invoiceId}`);
+        try {
+            const storeRef = doc(db, 'stores', storeId);
+            await runTransaction(db, async (transaction) => {
+                const snapshot = await transaction.get(storeRef);
+                if (!snapshot.exists()) throw new Error('Loja não encontrada.');
+                const data = snapshot.data();
+                const invoices = Array.isArray(data.faturasHistorico) ? data.faturasHistorico : [];
+                const index = invoices.findIndex(item => item.id === invoiceId);
+                if (index < 0 || String(invoices[index].status).toUpperCase() !== 'PENDENTE') {
+                    throw new Error('Esta fatura não está mais pendente. Atualize o painel.');
+                }
+                const currentDue = invoices[index].dueDate || null;
+                if (currentDue !== (invoice.dueDate || null)) {
+                    throw new Error('O vencimento foi alterado por outra sessão. Atualize o painel.');
+                }
+                const change = {
+                    previousDueDate: currentDue,
+                    newDueDate: nextDueDate.toISOString(),
+                    changedAt: new Date().toISOString(),
+                    changedBy: auth.currentUser?.email || 'admin-saas',
+                    reason
+                };
+                const updatedInvoices = [...invoices];
+                updatedInvoices[index] = {
+                    ...invoices[index],
+                    dueDate: change.newDueDate,
+                    extensionHistory: [...(Array.isArray(invoices[index].extensionHistory) ? invoices[index].extensionHistory : []), change]
+                };
+                transaction.update(storeRef, {
+                    faturasHistorico: updatedInvoices,
+                    billingUpdatedAt: new Date()
+                });
+            });
+            await fetchSaaSData();
+            alert(`Vencimento da fatura prorrogado para ${nextDay}. As próximas mensalidades permanecem inalteradas.`);
+        } catch (error) {
+            alert('Não foi possível prorrogar a fatura: ' + error.message);
+        } finally {
+            setActionLoading(null);
+        }
+    };
+
     const handleUpdateBillingStatus = async (storeId, newStatus) => {
         if (!window.confirm(`Mudar status financeiro para: ${newStatus.toUpperCase()}?`)) return;
         setActionLoading(`billing_${storeId}`);
@@ -800,10 +887,30 @@ const handleToggleFiscalSaaS = async (loja) => {
                                                         <p className="text-sm font-black text-slate-200 uppercase">{fat.month}</p>
                                                         <p className="text-xs font-bold text-slate-500 mt-0.5">{fat.amount}</p>
                                                         {fat.dueDate && <p className={`text-[11px] font-extrabold mt-1 ${String(fat.status).toUpperCase() === 'PENDENTE' ? 'text-amber-400' : 'text-slate-400'}`}>
+                                                        {Array.isArray(fat.extensionHistory) && fat.extensionHistory.length > 0 && (
+                                                            <p className="text-[10px] text-blue-300 mt-1">
+                                                                Prorrogada em {new Date(fat.extensionHistory[fat.extensionHistory.length - 1].changedAt).toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' })}
+                                                                {' · '}Vencimento anterior: {fat.extensionHistory[fat.extensionHistory.length - 1].previousDueDate
+                                                                    ? new Date(fat.extensionHistory[fat.extensionHistory.length - 1].previousDueDate).toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' })
+                                                                    : 'não definido'}
+                                                            </p>
+                                                        )}
+
                                                             {String(fat.status).toUpperCase() === 'PENDENTE' ? '⚠ Pagamento pendente — ' : ''}Vence em {new Date(fat.dueDate).toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' })}
                                                         </p>}
                                                     </div>
                                                     <div className="flex items-center gap-3">
+                                                        {String(fat.status).toUpperCase() === 'PENDENTE' && fat.id && (
+                                                            <button
+                                                                type="button"
+                                                                disabled={Boolean(actionLoading)}
+                                                                onClick={() => handleExtendInvoiceDueDate(loja.id, fat.id)}
+                                                                title="Prorrogar somente esta fatura, mantendo a recorrência"
+                                                                className="rounded-lg border border-blue-500/30 bg-blue-500/10 px-3 py-1.5 text-[10px] font-bold text-blue-300 hover:bg-blue-500/20 disabled:cursor-wait disabled:opacity-50"
+                                                            >
+                                                                {actionLoading === `extend_${loja.id}_${fat.id}` ? 'Salvando...' : 'Prorrogar'}
+                                                            </button>
+                                                        )}
                                                         <span className={`text-[10px] font-black uppercase tracking-widest px-3 py-1.5 rounded-lg ${fat.status === 'PAGO' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-amber-500/20 text-amber-400'}`}>
                                                             {fat.status}
                                                         </span>
