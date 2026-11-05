@@ -9,7 +9,7 @@ test('gera o link real da vitrine com slug idêntico à página de produtos', ()
   const msg = buildChatProductShare(item, 'https://convenienciasantaisabel.com.br');
   assert.match(msg, /R\$\s*5,90/);
   assert.match(msg, /https:\/\/convenienciasantaisabel\.com\.br\/p\/agua-tonica-350ml/);
-  assert.match(msg, /Responda com o nome/);
+  assert.match(msg, /Escolher produto/);
 });
 test('suporta preço promocional vigente e não oferece preço falso quando está vazio', () => {
   const sale = { name: 'Red Label', price: 149.9, promotionalPrice: 129.9, promotionStartAt: '2020-01-01', promotionEndAt: '2099-01-01' };
@@ -35,4 +35,36 @@ test('interface usa seleção manual e chat_reply oficial sem disparos automáti
   assert.match(action, /action: 'chat_reply'/);
   assert.match(action, /mediaType: 'image'/);
   assert.match(action, /sentIds\.push\(product\.id\)/);
+});
+
+test('lista interativa do catálogo usa WhatsApp oficial e devolve a escolha no chat, sem pedido automático', () => {
+  const ui = readFileSync(new URL('../src/components/AdminChat.jsx', import.meta.url), 'utf8');
+  const api = readFileSync(new URL('../api/index.js', import.meta.url), 'utf8');
+  const handlerStart = ui.indexOf('const handleSendCatalogProducts = async');
+  const handlerEnd = ui.indexOf('const handleOpenChat = async', handlerStart);
+  const action = ui.slice(handlerStart, handlerEnd);
+  assert.ok(handlerStart >= 0 && handlerEnd > handlerStart);
+  assert.match(action, /action: 'chat_product_offer'/);
+  assert.match(action, /productIds: sentIds/);
+  assert.match(ui, /msg\.source === 'chat_product_selection'/);
+
+  const sendStart = api.indexOf("if (action === 'chat_product_offer')");
+  const sendEnd = api.indexOf("if (action === 'chat_reply')", sendStart);
+  assert.ok(sendStart >= 0 && sendEnd > sendStart);
+  const send = api.slice(sendStart, sendEnd);
+  assert.match(send, /await assertStoreAccess|const productSnaps/);
+  assert.match(send, /type: 'list'/);
+  assert.match(send, /Escolher produto/);
+  assert.match(send, /whatsapp_product_offers/);
+  assert.match(send, /data\.storeId === storeId/);
+
+  const receiver = api.indexOf("if (String(interactivePayload).startsWith('velo_pick_'))");
+  const normalInbound = api.indexOf('const inboundMessageRef = await db.collection', receiver);
+  assert.ok(receiver >= 0 && normalInbound > receiver, 'deve capturar a escolha antes do chatbot');
+  const capture = api.slice(receiver, normalInbound);
+  assert.match(capture, /expectedPhone !== normalizedPhone/);
+  assert.match(capture, /source: 'chat_product_selection'/);
+  assert.match(capture, /tx\.set\(selectionRef/);
+  assert.match(capture, /tx\.update\(offerRef/);
+  assert.match(capture, /continue;/);
 });
