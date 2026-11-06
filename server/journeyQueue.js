@@ -2,7 +2,7 @@ import { marketingMessagesEndpoint } from '../lib/whatsappMarketingGraph.js';
 import { hasAuthorizedCsiMarketingConsent } from '../lib/csiMarketingEligibility.js';
 import admin from 'firebase-admin';
 import { QueueClient, send } from '@vercel/queue';
-import { hasEligibleMarketingConsent, isMarketingOptedOut, reserveMarketingAttempt } from '../lib/whatsappMarketingGuard.js';
+import { hasEligibleMarketingConsent, isMarketingOptedOut, reserveMarketingAttempt, getAutomationDailyLimit } from '../lib/whatsappMarketingGuard.js';
 
 export const JOURNEY_TOPIC = 'velo-whatsapp-journey';
 export const CSI_STORE_ID = 'csi';
@@ -77,8 +77,10 @@ async function sendJourneyTemplate({ phone, templateCandidates, stage, sourceId,
     throw new Error('WhatsApp oficial da CSI não configurado.');
   }
 
+  // Respeita o piloto de 10/dia quando ativado no painel; não usa teto fixo 20.
+  const journeyDailyLimit = getAutomationDailyLimit(waConfig.journeyAutomation.dailyLimit);
   const reserved = await reserveMarketingAttempt(db, {
-    storeId: CSI_STORE_ID, phone: normalized, type: stage, dailyLimit: 20
+    storeId: CSI_STORE_ID, phone: normalized, type: stage, dailyLimit: journeyDailyLimit
   });
   if (!reserved.allowed) return { ok: false, reason: reserved.reason };
 
