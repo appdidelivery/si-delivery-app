@@ -244,6 +244,13 @@ export default function MarketingAutomationStatus() {
                 Examinados: {data.examined} · Sem telefone válido: {data.missingPhone} · Sem autorização/18+: {data.missingConsentOrAdult} ·
                 Bloqueados: {data.blocked} · Já tratados: {data.alreadySent} · Ainda fora da janela: {data.notDue}
               </p>
+              {typeof data.unidentifiedPhone === 'number' && (
+                <p className="mt-2 text-xs text-slate-500">
+                  Desses carrinhos: sem WhatsApp informado: {data.unidentifiedPhone} ·
+                  Número inválido ou incompleto: {data.invalidPhone}. Um carrinho anônimo
+                  continua no relatório, mas não pode receber mensagens.
+                </p>
+              )}
             </div>)}
             <div className="text-sm text-slate-700">
               <p>Consentimentos expressos válidos recebidos no WhatsApp: <strong>{status.readiness.validWhatsAppConsents}</strong></p>
