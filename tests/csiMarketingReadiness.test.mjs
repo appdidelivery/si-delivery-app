@@ -69,3 +69,16 @@ test('deep audit remains behind authenticated GET and no message sends', () => {
   assert.match(slice,/method:\s*'GET'|const response = await fetch\(url/);
   assert.doesNotMatch(slice,/method:\s*'POST'|sendMessageToMeta\(|reserveMarketingAttempt\(/);
 });
+
+test('anonymous carts are distinguished from invalid or incomplete phone data',()=>{
+  const carts=[
+    {status:'abandoned',customerPhone:'',lastUpdated:minutesAgo(50)},
+    {status:'abandoned',customerPhone:'48',lastUpdated:minutesAgo(50)},
+    {status:'abandoned',customerPhone:phone,lastUpdated:minutesAgo(50)}
+  ];
+  const r=analyzeCsiMarketingReadiness({carts,consents:[consent],nowMs:now});
+  assert.equal(r.abandoned.missingPhone,2);
+  assert.equal(r.abandoned.unidentifiedPhone,1);
+  assert.equal(r.abandoned.invalidPhone,1);
+  assert.equal(r.abandoned.eligibleNow,1);
+});

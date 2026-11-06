@@ -1,5 +1,7 @@
 import { marketingMessagesEndpoint } from '../lib/whatsappMarketingGraph.js';
 import { hasAuthorizedCsiMarketingConsent } from '../lib/csiMarketingEligibility.js';
+import { normalizeWhatsAppReplyRecipient } from '../lib/whatsappReplyRecipient.js';
+import { secondPurchasePolicy, evaluateCsiSecondPurchase } from '../lib/csiSecondPurchaseEligibility.js';
 import admin from 'firebase-admin';
 import { QueueClient, send } from '@vercel/queue';
 import { hasEligibleMarketingConsent, isMarketingOptedOut, reserveMarketingAttempt, getAutomationDailyLimit } from '../lib/whatsappMarketingGuard.js';
@@ -85,7 +87,10 @@ async function sendJourneyTemplate({ phone, templateCandidates, stage, sourceId,
   if (!reserved.allowed) return { ok: false, reason: reserved.reason };
 
   const endpoint = marketingMessagesEndpoint(waConfig.phoneNumberId);
-  const safePhone = `55${normalized}`;
+  // A chave de elegibilidade pode normalizar o telefone para busca, mas o
+  // destinatário da Meta preserva os dígitos realmente informados pelo cliente.
+  const safePhone = normalizeWhatsAppReplyRecipient(phone);
+  if (!safePhone) return { ok: false, reason: 'invalid_meta_recipient' };
   let lastError = null;
 
   for (const templateName of templateCandidates) {
@@ -172,7 +177,7 @@ async function processJourneyMessage(message) {
     if (!phone || !(await canReceiveJourneyMarketing(phone, cart))) return;
 
     const sent = await sendJourneyTemplate({
-      phone,
+      phone: cart.customerPhone,
       templateCandidates: ['velo_carrinho_bebidas'],
       stage: 'abandoned_cart',
       sourceId: cartSnap.id,
@@ -220,7 +225,7 @@ async function processJourneyMessage(message) {
     if (!phone || !(await canReceiveJourneyMarketing(phone, order))) return;
 
     const sent = await sendJourneyTemplate({
-      phone,
+      phone: order.customerPhone || order.customer?.phone,
       templateCandidates: ['1_velo_pos_venda_bebidas', 'velo_pos_venda_bebidas'],
       stage: 'post_sale',
       sourceId: orderSnap.id,
@@ -234,6 +239,55 @@ async function processJourneyMessage(message) {
         journeyPostSaleMetaMessageId: sent.metaMessageId,
         journeyPostSaleSentAt: admin.firestore.FieldValue.serverTimestamp(),
         postOrderAlertSent: true,
+      }, { merge: true });
+    }
+    return;
+  }
+
+  if (message.type === 'second_purchase') {
+    const orderRef = db.collection('orders').doc(String(message.sourceId));
+    const orderSnap = await orderRef.get();
+    if (!orderSnap.exists) return;
+    const order = orderSnap.data() || {};
+    if (order.storeId !== CSI_STORE_ID || order.journeySecondPurchaseSent === true) return;
+
+    const settingsDoc = await db.collection('settings').doc(CSI_STORE_ID).get();
+    const policy = secondPurchasePolicy(settingsDoc.data()?.integrations?.whatsapp?.journeyAutomation || {});
+    const ordersSnap = await db.collection('orders').where('storeId', '==', CSI_STORE_ID).limit(5000).get();
+    // An incomplete order sample must not trigger unsolicited messages.
+    if (ordersSnap.size >= 5000) {
+      console.warn('[Second Purchase] order scan reached safety limit; not sending.');
+      return;
+    }
+    const decision = evaluateCsiSecondPurchase({
+      sourceId: orderSnap.id, order,
+      otherOrders: ordersSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })),
+      nowMs: Date.now(), ...policy,
+    });
+    if (decision.reason === 'not_due') {
+      const bucket = Math.floor(Date.now() / (6 * 3600000));
+      await enqueueJourney(message, {
+        delaySeconds: Math.max(1, Math.min(6 * 86400, Math.ceil(decision.remainingMs / 1000))),
+        retentionSeconds: 604800,
+        idempotencyKey: `csi:second-purchase-recheck:${orderSnap.id}:${bucket}`,
+      });
+      return;
+    }
+    if (!decision.allowed) return;
+    if (!(await canReceiveJourneyMarketing(decision.phone, order))) return;
+    const sent = await sendJourneyTemplate({
+      phone: order.customerPhone || order.customer?.phone,
+      templateCandidates: ['velo_segunda_compra_bebidas'],
+      stage: 'second_purchase',
+      sourceId: orderSnap.id,
+      sourceType: 'order',
+    });
+    if (sent.ok) {
+      await orderRef.set({
+        journeySecondPurchaseSent: true,
+        journeySecondPurchaseTemplate: sent.templateName,
+        journeySecondPurchaseMetaMessageId: sent.metaMessageId,
+        journeySecondPurchaseSentAt: admin.firestore.FieldValue.serverTimestamp(),
       }, { merge: true });
     }
   }
@@ -324,11 +378,34 @@ export async function scheduleJourneyRequest(req, res) {
       },
     );
 
+    // Agenda a segunda compra apenas para pedidos concluídos novos,
+    // sem varredura/disparo retroativo em contatos antigos.
+    const settingsSnap = await db.collection('settings').doc(CSI_STORE_ID).get();
+    const secondPolicy = secondPurchasePolicy(settingsSnap.data()?.integrations?.whatsapp?.journeyAutomation || {});
+    const secondPurchaseDelaySeconds = Math.max(1, Math.min(6 * 86400,
+      Math.ceil(((completedAtMs + secondPolicy.afterDays * 86400000) - Date.now()) / 1000)));
+    let secondPurchaseQueued = false;
+    try {
+      await enqueueJourney(
+        { type: 'second_purchase', storeId, sourceId: String(sourceId) },
+        {
+          delaySeconds: secondPurchaseDelaySeconds,
+          retentionSeconds: 604800,
+          idempotencyKey: `csi:second-purchase:${sourceId}`,
+        },
+      );
+      secondPurchaseQueued = true;
+    } catch (error) {
+      // Uma falha na fila futura não invalida a recuperação pós-venda já agendada.
+      console.error('[Second Purchase] Falha ao agendar', error?.message);
+    }
+
     return res.status(200).json({
       success: true,
       queued: true,
       messageId: result.messageId,
       delaySeconds,
+      secondPurchaseQueued,
     });
   }
 

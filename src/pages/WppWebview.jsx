@@ -231,8 +231,9 @@ export default function WppWebview() {
         localStorage.setItem('veloVisitorId', cId);
         try {
             const abandonedCartId = `cart_${slug}_${cId}`;
+            const identifiedPhone = normalizeBrazilianCheckoutPhone(customer.phone);
             await setDoc(doc(db, "abandoned_carts", abandonedCartId), {
-                storeId: slug, customerPhone: customer.phone || customerPhoneQuery || "", items: cart,
+                storeId: slug, customerPhone: identifiedPhone || "", items: cart,
                 whatsappMarketingOptIn: customer.whatsappMarketingOptIn === true,
                 alcoholMarketingAgeConfirmed: customer.alcoholMarketingAgeConfirmed === true,
                 subtotal: cart.reduce((a, i) => a + (i.price * i.quantity), 0),
@@ -241,7 +242,7 @@ export default function WppWebview() {
 
             // Agenda a recuperação de forma durável. A fila revalida o carrinho
             // após 30 minutos e se adapta caso o cliente continue mexendo nele.
-            if (slug === 'csi' && (customer.phone || customerPhoneQuery)) {
+            if (slug === 'csi' && identifiedPhone) {
                 const throttleKey = `veloJourneyCartQueued_${slug}_${cId}`;
                 const lastQueuedAt = Number(localStorage.getItem(throttleKey) || 0);
                 if (Date.now() - lastQueuedAt > 5 * 60 * 1000) {
@@ -257,7 +258,7 @@ export default function WppWebview() {
         } catch(e){}
     }, 3000);
     return () => clearTimeout(t);
-  }, [cart, customer.phone, customer.whatsappMarketingOptIn, customerPhoneQuery, slug, store]);
+  }, [cart, customer.phone, customer.whatsappMarketingOptIn, customer.alcoholMarketingAgeConfirmed, customerPhoneQuery, slug, store]);
 
   // Escuta a carteira digital (Cashback)
   useEffect(() => {
@@ -584,6 +585,33 @@ export default function WppWebview() {
       <AnimatePresence>
         {cartCount > 0 && !isCheckoutOpen && !selectedProduct && (
           <motion.div initial={{ y: 100 }} animate={{ y: 0 }} exit={{ y: 100 }} className="fixed bottom-8 left-4 right-4 z-50">
+            {slug === 'csi' && !normalizeBrazilianCheckoutPhone(customer.phone) && (
+              <div className="mb-2 rounded-2xl border border-slate-600 bg-[#1E293B] px-4 py-3 shadow-lg">
+                <label htmlFor="cart-whatsapp-identification" className="block text-xs font-bold text-white mb-2">
+                  Identifique sua sacola com seu WhatsApp (opcional)
+                </label>
+                <input
+                  id="cart-whatsapp-identification"
+                  type="tel"
+                  inputMode="tel"
+                  autoComplete="tel"
+                  aria-label="WhatsApp para identificar a sacola"
+                  value={customer.phone}
+                  maxLength={24}
+                  onChange={e => setCustomer(prev => ({
+                    ...prev, phone: e.target.value.slice(0, 24),
+                    whatsappMarketingOptIn: false,
+                    alcoholMarketingAgeConfirmed: false,
+                    footballAlertsOptIn: false
+                  }))}
+                  placeholder="DDD + número"
+                  className="w-full rounded-xl bg-slate-900 border border-slate-500 px-3 py-2 text-sm text-white outline-none focus:border-white"
+                />
+                <p className="mt-1 text-[10px] text-slate-300">
+                  Preencher o telefone não autoriza ofertas. O aceite é separado no checkout.
+                </p>
+              </div>
+            )}
             <button onClick={() => setIsCheckoutOpen(true)} className="w-full text-white p-5 rounded-[28px] shadow-2xl flex justify-between items-center px-8 border-2 border-white/20" style={{ backgroundColor: themeColor }}>
               <div className="flex items-center gap-3">
                 <div className="bg-white rounded-full w-8 h-8 flex items-center justify-center text-xs font-black" style={{ color: themeColor }}>{cartCount}</div>
