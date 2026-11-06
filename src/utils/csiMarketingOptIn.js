@@ -25,6 +25,8 @@ export function normalizeBrazilianCheckoutPhone(value) {
   const raw = String(value).trim();
   if (!/^\+?[0-9\s().-]+$/.test(raw)) return null;
   let digits = raw.replace(/\D/g, '');
+  // Um + explícito exige código do Brasil; nunca aceitar +1 como DDD brasileiro.
+  if (raw.startsWith('+') && !digits.startsWith('55')) return null;
   if (digits.startsWith('55') && (digits.length === 12 || digits.length === 13)) digits = digits.slice(2);
   return /^[1-9][0-9][0-9]{8,9}$/.test(digits) ? digits : null;
 }
