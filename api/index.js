@@ -2570,11 +2570,21 @@ const aiResponse = await fetchGeminiWithRetry(`https://generativelanguage.google
                 const recentCutoffMs = Date.now() - COOLDOWN_DAYS * 86400000;
                 const hashPhone = (phone) => crypto.createHash('sha256').update(`${storeId}:${phone}`).digest('hex');
 
-                const [blockedSnap, campaignSnap, optoutSnap] = await Promise.all([
+                const [blockedSnap, campaignSnap, optoutSnap, consentSnap] = await Promise.all([
                     db.collection('blocked_contacts').where('storeId', '==', storeId).limit(2000).get(),
                     db.collection('whatsapp_campaigns').where('storeId', '==', storeId).limit(200).get(),
-                    db.collection('whatsapp_marketing_optouts').where('storeId', '==', storeId).limit(2000).get()
+                    db.collection('whatsapp_marketing_optouts').where('storeId', '==', storeId).limit(2000).get(),
+                    // Explicit WhatsApp permissions are independent of checkout permissions.
+                    storeId === 'csi'
+                        ? db.collection('whatsapp_marketing_consents').where('storeId', '==', 'csi').limit(3000).get()
+                        : Promise.resolve(null)
                 ]);
+                const explicitConsents = new Map();
+                consentSnap?.forEach(doc => {
+                    const record = doc.data();
+                    const phone = normalizeMarketingPhone(record.phone);
+                    if (phone && hasValidCsiMarketingRecord(record)) explicitConsents.set(phone, record);
+                });
                 const blockedPhones = new Set();
                 blockedSnap.forEach(doc => {
                     const phone = normalizeMarketingPhone(doc.data().phone);
@@ -2634,7 +2644,16 @@ const aiResponse = await fetchGeminiWithRetry(`https://generativelanguage.google
                             byPhone.set(phone, {
                                 phone,
                                 customerName: data.customerName || data.customer?.name || 'Cliente',
-                                marketingOptIn: hasEligibleMarketingConsent(data, storeId === 'csi'),
+                                // Keep latest-order revocation flags; explicit opt-out must
+                                // override even a newer WhatsApp consent record.
+                                consentSource: {
+                                    whatsappMarketingOptIn: data.whatsappMarketingOptIn,
+                                    marketingOptIn: data.marketingOptIn,
+                                    alcoholMarketingAgeConfirmed: data.alcoholMarketingAgeConfirmed,
+                                    customer: { alcoholMarketingAgeConfirmed: data.customer?.alcoholMarketingAgeConfirmed },
+                                    whatsappMarketingOptOut: data.whatsappMarketingOptOut,
+                                    marketingOptOut: data.marketingOptOut
+                                },
                                 lastOrderAtMs: createdAtMs
                             });
                         }
@@ -2647,10 +2666,15 @@ const aiResponse = await fetchGeminiWithRetry(`https://generativelanguage.google
                     if (scannedOrders >= MAX_SCAN) truncated = true;
                 }
 
+                const authorizedCustomer = customer => storeId === 'csi'
+                    ? hasAuthorizedCsiMarketingConsent(customer.consentSource, explicitConsents.get(customer.phone))
+                    : hasEligibleMarketingConsent(customer.consentSource, false);
+                // Reativação exige compra anterior; leads apenas de WhatsApp ficam
+                // reservados à base geral, nunca são classificados como inativos.
                 const sortedCandidates = Array.from(byPhone.values())
                     .filter(customer =>
                         customer.lastOrderAtMs <= cutoffMs &&
-                        customer.marketingOptIn &&
+                        authorizedCustomer(customer) &&
                         !blockedPhones.has(customer.phone) &&
                         !recentRecipientHashes.has(hashPhone(customer.phone))
                     )
@@ -2670,11 +2694,13 @@ const aiResponse = await fetchGeminiWithRetry(`https://generativelanguage.google
                     scannedOrders,
                     scanLimit: MAX_SCAN,
                     uniqueCustomers: byPhone.size,
+                    explicitWhatsAppConsentsOnBuyers: Array.from(byPhone.keys()).filter(phone => explicitConsents.has(phone)).length,
+                    recentCustomerOrders: Array.from(byPhone.values()).filter(customer => customer.lastOrderAtMs > cutoffMs).length,
                     blockedCount: blockedPhones.size,
                     alreadyContactedCount: recentRecipientHashes.size + legacySentCount,
                     cooldownDays: COOLDOWN_DAYS,
                     hashPhone,
-                    truncated
+                    truncated: truncated || (consentSnap?.size >= 3000)
                 };
             };
 
@@ -2938,6 +2964,8 @@ const aiResponse = await fetchGeminiWithRetry(`https://generativelanguage.google
                     maxRecipients,
                     scannedOrders: audience.scannedOrders,
                     uniqueCustomers: audience.uniqueCustomers,
+                    explicitWhatsAppConsentsOnBuyers: audience.explicitWhatsAppConsentsOnBuyers,
+                    recentCustomerOrders: audience.recentCustomerOrders,
                     blockedCount: audience.blockedCount,
                     alreadyContactedCount: audience.alreadyContactedCount,
                     cooldownDays: audience.cooldownDays,
