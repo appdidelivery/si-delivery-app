@@ -54,3 +54,13 @@ test('Webview exposes mandatory phone before optional marketing choices',()=>{
   assert.match(code,/customerPhone: checkoutPhone/);
   assert.match(code,/whatsappMarketingOptIn: false,\s*alcoholMarketingAgeConfirmed: false/);
 });
+
+test('CSI cart identifies customers early without implicit marketing permission', () => {
+  const source=readFileSync(new URL('../src/pages/WppWebview.jsx',import.meta.url),'utf8');
+  assert.match(source,/aria-label="WhatsApp para identificar a sacola"/);
+  assert.match(source,/Preencher o telefone não autoriza ofertas/);
+  assert.match(source,/const identifiedPhone = normalizeBrazilianCheckoutPhone\(customer\.phone\)/);
+  assert.match(source,/customerPhone: identifiedPhone \|\| ""/);
+  assert.match(source,/if \(slug === 'csi' && identifiedPhone\)/);
+  assert.match(source,/customer\.alcoholMarketingAgeConfirmed, customerPhoneQuery/);
+});
