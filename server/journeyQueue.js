@@ -267,7 +267,7 @@ async function processJourneyMessage(message) {
     if (decision.reason === 'not_due') {
       const bucket = Math.floor(Date.now() / (6 * 3600000));
       await enqueueJourney(message, {
-        delaySeconds: Math.max(1, Math.min(604800, Math.ceil(decision.remainingMs / 1000))),
+        delaySeconds: Math.max(1, Math.min(6 * 86400, Math.ceil(decision.remainingMs / 1000))),
         retentionSeconds: 604800,
         idempotencyKey: `csi:second-purchase-recheck:${orderSnap.id}:${bucket}`,
       });
@@ -382,7 +382,7 @@ export async function scheduleJourneyRequest(req, res) {
     // sem varredura/disparo retroativo em contatos antigos.
     const settingsSnap = await db.collection('settings').doc(CSI_STORE_ID).get();
     const secondPolicy = secondPurchasePolicy(settingsSnap.data()?.integrations?.whatsapp?.journeyAutomation || {});
-    const secondPurchaseDelaySeconds = Math.max(1, Math.min(604800,
+    const secondPurchaseDelaySeconds = Math.max(1, Math.min(6 * 86400,
       Math.ceil(((completedAtMs + secondPolicy.afterDays * 86400000) - Date.now()) / 1000)));
     let secondPurchaseQueued = false;
     try {
