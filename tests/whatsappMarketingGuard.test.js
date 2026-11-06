@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { hasMarketingOptIn, hasEligibleMarketingConsent, normalizeMarketingPhone, brazilDayKey, getLifecycleStage, reserveMarketingAttempt } from '../lib/whatsappMarketingGuard.js';
+import { readFileSync } from 'node:fs';
+import { hasMarketingOptIn, hasEligibleMarketingConsent, normalizeMarketingPhone, brazilDayKey, getLifecycleStage, reserveMarketingAttempt, getAutomationDailyLimit } from '../lib/whatsappMarketingGuard.js';
 
 test('inbound interaction alone is not marketing consent', () => {
   assert.equal(hasMarketingOptIn({ hasInboundChat: true }), false);
@@ -68,4 +69,17 @@ test('uncapped manual attempts still reject a repeated number on the same day', 
   assert.equal(a.allowed,true);
   assert.equal(b.reason,'already_attempted_today');
   assert.equal(records.get(key).attempted,251);
+});
+
+test('CSI journey queue obeys the configured 10/day pilot cap', () => {
+  assert.equal(getAutomationDailyLimit(10), 10);
+  assert.equal(getAutomationDailyLimit('10'), 10);
+  assert.equal(getAutomationDailyLimit(1), 1);
+  assert.equal(getAutomationDailyLimit(50), 20);
+  assert.equal(getAutomationDailyLimit(undefined), 20);
+  assert.equal(getAutomationDailyLimit(null), 20);
+  assert.equal(getAutomationDailyLimit('invalid'), 20);
+  const script = readFileSync(new URL('../server/journeyQueue.js', import.meta.url), 'utf8');
+  assert.match(script, /getAutomationDailyLimit\(waConfig\.journeyAutomation\.dailyLimit\)/);
+  assert.match(script, /dailyLimit: journeyDailyLimit/);
 });
