@@ -967,14 +967,19 @@ export default function AdminChat({ canManageSound = false }) {
         }
         
         setIsSubmittingMiniPdv(true);
+        let createdOrderId = null;
 
         try {
             const subtotal = miniPdvCart.reduce((acc, i) => acc + (i.price * i.quantity), 0);
             const frete = miniPdvCustomer.deliveryMethod === 'delivery' ? Number(miniPdvShippingFee || 0) : 0;
             const cartTotal = subtotal + frete;
             
-            let cleanPhone = String(activeChat).replace(/\D/g, '');
-            let phoneForMeta = cleanPhone.startsWith('55') ? cleanPhone : `55${cleanPhone}`;
+            const phoneForMeta = resolveWhatsAppChatRecipient(chats[activeChat]?.msgs);
+            if (!phoneForMeta) {
+                alert('Não foi possível identificar o número original recebido pela Meta. Peça ao cliente para enviar uma mensagem antes de enviar a confirmação.');
+                return;
+            }
+            const cleanPhone = String(activeChat).replace(/\D/g, '');
             const customerName = getDisplayName(activeChat);
 
             const sellerName = auth.currentUser?.displayName || auth.currentUser?.email?.split('@')[0] || 'Equipe';
@@ -1001,6 +1006,26 @@ export default function AdminChat({ canManageSound = false }) {
             });
 
             const orderId = newOrderRef.id;
+            createdOrderId = orderId;
+
+            // O backend grava o WAMID e atualiza a entrega via webhook.
+            // Não criar uma segunda mensagem local nem assumir sucesso sem a Meta aceitar.
+            const sendOrderWhatsapp = async (text) => {
+                const response = await authenticatedFetch('/api/whatsapp-send', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        action: 'chat_reply', storeId, toPhone: phoneForMeta,
+                        dynamicParams: { text }
+                    })
+                });
+                const data = await response.json().catch(() => ({}));
+                if (!response.ok || !data.success) {
+                    throw new Error(data?.metaDetails?.error?.message || data.error || 'A Meta não aceitou a confirmação do pedido.');
+                }
+                if (data.tracking_warning) console.warn('[Mini-PDV] Meta aceitou, mas o histórico exige atenção:', data.tracking_warning);
+                return data.message_id;
+            };
             const resumoItens = miniPdvCart.map(i => `▪️ ${i.quantity}x ${i.name}`).join('\n');
             let msgConfirmacao = `✅ *Pedido #${orderId.slice(-5).toUpperCase()} Lançado!*\n\n*Resumo:*\n${resumoItens}\n\n*Total a pagar: R$ ${cartTotal.toFixed(2)}*\n`;
 
@@ -1057,36 +1082,20 @@ export default function AdminChat({ canManageSound = false }) {
                 if (pixCodeToShare) {
                     msgConfirmacao += `*Pagamento:* 💠 PIX\n\nCopie o código na mensagem abaixo e pague no seu app do banco. 👇\n\n*A cozinha já foi avisada e começará a preparar assim que o pagamento for confirmado!* 🚀`;
                     
-                    await authenticatedFetch('/api/whatsapp-send', {
-                        method: 'POST', headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ action: 'chat_reply', storeId: storeId, toPhone: phoneForMeta, dynamicParams: { text: msgConfirmacao } })
-                    });
-                    await addDoc(collection(db, 'whatsapp_inbound'), { storeId, to: phoneForMeta, text: msgConfirmacao, receivedAt: serverTimestamp(), status: 'read', direction: 'outbound' });
+                    await sendOrderWhatsapp(msgConfirmacao);
 
-                    await authenticatedFetch('/api/whatsapp-send', {
-                        method: 'POST', headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ action: 'chat_reply', storeId: storeId, toPhone: phoneForMeta, dynamicParams: { text: pixCodeToShare } })
-                    });
-                    await addDoc(collection(db, 'whatsapp_inbound'), { storeId, to: phoneForMeta, text: pixCodeToShare, receivedAt: serverTimestamp(), status: 'read', direction: 'outbound' });
+                    await sendOrderWhatsapp(pixCodeToShare);
 
                 } else {
                     msgConfirmacao += `*Pagamento:* 💠 PIX\n\n_Ocorreu uma falha ao gerar o código automático. O atendente enviará a Chave PIX da loja em instantes._`;
-                    await authenticatedFetch('/api/whatsapp-send', {
-                        method: 'POST', headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ action: 'chat_reply', storeId: storeId, toPhone: phoneForMeta, dynamicParams: { text: msgConfirmacao } })
-                    });
-                    await addDoc(collection(db, 'whatsapp_inbound'), { storeId, to: phoneForMeta, text: msgConfirmacao, receivedAt: serverTimestamp(), status: 'read', direction: 'outbound' });
+                    await sendOrderWhatsapp(msgConfirmacao);
                 }
             } else {
                 const formaPagtoTxt = miniPdvCustomer.payment === 'cartao' ? '💳 Cartão na Entrega' : '💵 Dinheiro';
                 const trocoTxt = miniPdvCustomer.payment === 'dinheiro' && miniPdvCustomer.changeFor ? `\n*Troco para:* R$ ${miniPdvCustomer.changeFor}` : '';
                 msgConfirmacao += `*Pagamento:* ${formaPagtoTxt}${trocoTxt}\n\nSeu pedido já foi enviado para a cozinha! 👨‍🍳`;
 
-                await authenticatedFetch('/api/whatsapp-send', {
-                    method: 'POST', headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ action: 'chat_reply', storeId: storeId, toPhone: phoneForMeta, dynamicParams: { text: msgConfirmacao } })
-                });
-                await addDoc(collection(db, 'whatsapp_inbound'), { storeId, to: phoneForMeta, text: msgConfirmacao, receivedAt: serverTimestamp(), status: 'read', direction: 'outbound' });
+                await sendOrderWhatsapp(msgConfirmacao);
             }
 
             setMiniPdvCart([]);
@@ -1100,7 +1109,13 @@ export default function AdminChat({ canManageSound = false }) {
 
         } catch (error) {
             console.error("Erro ao lançar pedido PDV:", error);
-            alert("Erro ao lançar o pedido.");
+            if (createdOrderId) {
+                alert('O pedido #' + createdOrderId.slice(-5).toUpperCase() +
+                    ' foi registrado, mas não foi possível confirmar o envio no WhatsApp: ' +
+                    error.message + '. Verifique o pedido antes de tentar novamente para evitar duplicidade.');
+            } else {
+                alert('Erro ao lançar o pedido: ' + error.message);
+            }
         } finally {
             setIsSubmittingMiniPdv(false);
         }

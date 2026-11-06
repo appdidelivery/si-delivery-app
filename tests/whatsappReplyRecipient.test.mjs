@@ -102,3 +102,18 @@ test('chat reply persists accepted WAMID on server and admin does not duplicate 
   assert.doesNotMatch(media, /addDoc\(collection\(db, 'whatsapp_inbound'\)/);
   assert.doesNotMatch(reply, /addDoc\(collection\(db, 'whatsapp_inbound'\)/);
 });
+
+test('mini-PDV obtains original Meta wa_id and lets backend own the WAMID history', () => {
+  const code = readFileSync(new URL('../src/components/AdminChat.jsx', import.meta.url), 'utf8');
+  const start = code.indexOf('const handleLaunchMiniPdvOrder = async');
+  const end = code.indexOf('const uploadToCloudinary = async', start);
+  const mini = code.slice(start, end);
+  assert.ok(start > 0 && end > start);
+  assert.match(mini, /resolveWhatsAppChatRecipient\(chats\[activeChat\]\?\.msgs\)/);
+  assert.doesNotMatch(mini, /phoneForMeta\s*=\s*cleanPhone\.startsWith/);
+  assert.doesNotMatch(mini, /addDoc\(collection\(db, 'whatsapp_inbound'\)/);
+  assert.match(mini, /const sendOrderWhatsapp = async/);
+  assert.match(mini, /if \(!response\.ok \|\| !data\.success\)/);
+  assert.match(mini, /if \(createdOrderId\)/);
+  assert.equal((mini.match(/await sendOrderWhatsapp\(/g) || []).length, 4);
+});
