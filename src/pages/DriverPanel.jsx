@@ -160,13 +160,26 @@ export default function DriverPanel() {
 
       await updateDoc(doc(db, "orders", orderId), { status: 'completed', cashbackAwarded: true, completedAt: serverTimestamp() });
 
-      // Agenda o pós-venda durável sem depender do cron diário da Vercel.
+      // Aguarda a confirmação da fila antes de finalizar a tela do entregador.
+      // Não bloqueia o pedido entregue se o agendamento falhar; registra a pendência.
       if (storeId === 'csi') {
-        fetch('/api/journey-schedule', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ storeId, type: 'post_sale', sourceId: orderId })
-        }).catch((error) => console.warn('Falha ao agendar pós-venda:', error));
+        try {
+          const journeyResponse = await fetch('/api/journey-schedule', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ storeId, type: 'post_sale', sourceId: orderId })
+          });
+          if (!journeyResponse.ok) {
+            console.warn('Falha ao agendar jornadas WhatsApp CSI:', journeyResponse.status);
+          } else {
+            const queued = await journeyResponse.json().catch(() => ({}));
+            if (queued.secondPurchaseQueued === false) {
+              console.warn('Segunda compra não agendada; revisar fila CSI.');
+            }
+          }
+        } catch (error) {
+          console.warn('Falha ao agendar jornadas WhatsApp CSI:', error);
+        }
       }
 
       await notifyCustomer('completed'); 
