@@ -69,3 +69,24 @@ test('Dashboard offers a read-only, explicit opt-in campaign audience preview',(
   assert.match(page,/campaignPreview\.eligibleCount/);
   assert.match(page,/campaignPreview\.sendableNow/);
 });
+
+test('CSI reactivation includes valid WhatsApp opt-in for existing buyers without treating leads as past buyers',()=>{
+  const start=api.indexOf('const buildReactivationAudience = async');
+  const end=api.indexOf('const buildLifecycleMetrics = async',start);
+  assert.ok(start>0 && end>start);
+  const segment=api.slice(start,end);
+  assert.match(segment,/db\.collection\('whatsapp_marketing_consents'\)/);
+  assert.match(segment,/where\('storeId', '==', 'csi'\)/);
+  assert.match(segment,/hasValidCsiMarketingRecord\(record\)/);
+  assert.match(segment,/hasAuthorizedCsiMarketingConsent\(customer\.consentSource, explicitConsents\.get\(customer\.phone\)\)/);
+  assert.match(segment,/customer\.lastOrderAtMs <= cutoffMs/);
+  assert.match(segment,/!blockedPhones\.has\(customer\.phone\)/);
+  assert.match(segment,/!recentRecipientHashes\.has\(hashPhone\(customer\.phone\)\)/);
+  assert.match(segment,/whatsappMarketingOptOut: data\.whatsappMarketingOptOut/);
+  assert.match(segment,/marketingOptOut: data\.marketingOptOut/);
+  assert.match(segment,/explicitWhatsAppConsentsOnBuyers/);
+  const sendStart=api.indexOf("if (action === 'broadcast_reactivation')");
+  const sendEnd=api.indexOf("if (action === 'broadcast_preview')",sendStart);
+  assert.ok(sendStart>0 && sendEnd>sendStart);
+  assert.match(api.slice(sendStart,sendEnd),/buildReactivationAudience\(req\.body\.inactivityDays\)/);
+});
