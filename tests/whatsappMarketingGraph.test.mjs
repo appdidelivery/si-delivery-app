@@ -40,7 +40,7 @@ test('legacy native WhatsApp chat remains on its existing route', () => {
   assert.match(source, /\/api\/whatsapp-send/);
   assert.match(source, /marketingMessagesEndpoint\(journeyWa\.phoneNumberId\)/);
   assert.match(source, /const response = await fetch\(marketingMessagesEndpoint\(phoneNumberId\),/);
-  assert.match(source, /const GRAPH_API_URL = `https:\/\/graph\.facebook\.com\/v19\.0\/\$\{phoneNumberId\}\/messages`/);
+  assert.match(source, /const GRAPH_API_URL = `https:\/\/graph\.facebook\.com\/v25\.0\/\$\{phoneNumberId\}\/messages`/);
 });
 
 test('the existing production cron schedules are unchanged', () => {
