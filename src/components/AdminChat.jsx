@@ -1911,6 +1911,15 @@ export default function AdminChat({ canManageSound = false }) {
                                                     <span>Clientes únicos analisados</span>
                                                     <strong>{reactivationPreview.uniqueCustomers}</strong>
                                                 </div>
+                                                {storeId === 'csi' && (
+                                                    <div className="mt-2 rounded-lg bg-blue-50 p-3 text-[11px] text-blue-900">
+                                                        <div className="flex items-center justify-between gap-2">
+                                                            <span>Ex-compradores com aceite explícito pelo WhatsApp</span>
+                                                            <strong>{reactivationPreview.explicitWhatsAppConsentsOnBuyers ?? '—'}</strong>
+                                                        </div>
+                                                        <p className="mt-1">O consentimento do chat é reconhecido mesmo sem aceite no último pedido. Leads sem pedido permanecem na Base geral; só entram na reativação após comprar.</p>
+                                                    </div>
+                                                )}
                                                 <div className="flex items-center justify-between gap-3 mt-1">
                                                     <span>Contatos bloqueados excluídos</span>
                                                     <strong>{reactivationPreview.blockedCount}</strong>
