@@ -29,6 +29,9 @@ export default function MarketingAutomationStatus() {
   const [controlBusy, setControlBusy] = useState(false);
   const [controlResult, setControlResult] = useState('');
   const [policyConfirmed, setPolicyConfirmed] = useState(false);
+  const [reconciliation, setReconciliation] = useState(null);
+  const [reconciliationBusy, setReconciliationBusy] = useState(false);
+  const [reconciliationError, setReconciliationError] = useState('');
   const changePilot = async (action) => {
     if (controlBusy) return;
     if (action === 'activate' && !policyConfirmed) {
@@ -69,6 +72,25 @@ export default function MarketingAutomationStatus() {
     } catch (e) {
       setError(e.message);
     } finally { setChecking(false); }
+  };
+  // Consulta paginada sob demanda, autenticada e somente agregados. Não envia.
+  const reconcileConsents = async () => {
+    if (reconciliationBusy) return;
+    setReconciliationBusy(true);
+    setReconciliationError('');
+    try {
+      const response = await authenticatedFetch('/api/csi-consent-reconciliation', {
+        method:'GET',headers:{'Cache-Control':'no-cache'}
+      });
+      const data = await response.json();
+      if (!response.ok || !data.success || !data.readOnly) {
+        throw new Error(data.error || 'Não foi possível conciliar o histórico.');
+      }
+      setReconciliation(data.report);
+    } catch (err) {
+      setReconciliation(null);
+      setReconciliationError(err.message);
+    } finally { setReconciliationBusy(false); }
   };
   // Consulta apenas quem já autorizou marketing, inclusive leads sem pedido.
   // Nenhum disparo é feito: a ação invocada é broadcast_preview.
@@ -265,6 +287,38 @@ export default function MarketingAutomationStatus() {
                   histórico, prazo, frequência, limites e bloqueios. Não envia mensagens.
                 </p>
               </div>}
+              <div className="mt-3 rounded-lg border border-blue-200 bg-blue-50 p-3 space-y-2">
+                <p className="font-bold text-blue-950">Conciliar contatos com histórico ampliado</p>
+                <p className="text-xs text-blue-950">
+                  Consulta até 25 mil pedidos e 6 mil carrinhos da Santa Isabel, paginados.
+                  Mostra coincidências exatas e diferenças que exigem revisão; não altera contatos nem envia mensagens.
+                </p>
+                <button type="button" onClick={reconcileConsents} disabled={reconciliationBusy}
+                  className="rounded-lg bg-blue-700 px-4 py-2 text-sm font-bold text-white disabled:opacity-50">
+                  {reconciliationBusy ? 'Conferindo registros...' : 'Conciliar histórico ampliado (sem enviar)'}
+                </button>
+                {reconciliationError && <p role="alert" className="text-sm font-semibold text-red-700">{reconciliationError}</p>}
+                {reconciliation && <div role="status" className="rounded-lg bg-white p-3 space-y-1 text-sm text-slate-800">
+                  <p className="font-bold">Conciliação de {reconciliation.validDistinctConsentPhones} números com aceite válido</p>
+                  <p>Pedidos encontrados por número exato: <strong>{reconciliation.coverage.exactOrderMatch}</strong></p>
+                  <p>Pedidos com diferença de formato/nono dígito para revisão: <strong>{reconciliation.coverage.formatOnlyOrderMatch}</strong></p>
+                  <p>Somente carrinho identificado por número exato: <strong>{reconciliation.coverage.cartOnlyExact}</strong></p>
+                  <p>Somente carrinho com diferença de formato para revisão: <strong>{reconciliation.coverage.cartOnlyFormatReview}</strong></p>
+                  <p>Sem pedido ou carrinho localizado na consulta: <strong>{reconciliation.coverage.noOrderOrCartInScan}</strong></p>
+                  <p>Com pedido concluído e telefone exato: <strong>{reconciliation.coverage.completedOrderExact}</strong> (subconjunto)</p>
+                  <p>Pedidos com telefone apenas no campo secundário: <strong>{reconciliation.orderPhoneQuality.nestedOnly}</strong></p>
+                  <p>Pedidos com telefones divergentes entre campos: <strong>{reconciliation.orderPhoneQuality.conflictingFields}</strong></p>
+                  <p>Pedidos sem telefone utilizável: <strong>{reconciliation.orderPhoneQuality.missingOrInvalid}</strong></p>
+                  <p className="text-xs text-slate-500">
+                    Registros consultados: {reconciliation.scanned?.orders} pedidos, {reconciliation.scanned?.abandoned_carts} carrinhos.
+                    A contagem de pedidos encontrados inclui pedidos pendentes; a de concluídos é informada separadamente.
+                  </p>
+                  {Object.values(reconciliation.partial || {}).some(Boolean) && <p className="font-bold text-amber-700">
+                    Um dos limites de consulta foi atingido. Não é possível afirmar que os contatos restantes nunca compraram.
+                  </p>}
+                  <p className="text-xs text-slate-500">{reconciliation.note}</p>
+                </div>}
+              </div>
               <p>Contatos bloqueados ou descadastrados: <strong>{status.readiness.blockedOrOptoutPhones}</strong></p>
               {status.readiness.partialScan && <p className="font-semibold text-amber-800">
                 A amostra atingiu o limite de consulta. Os totais podem estar incompletos.
