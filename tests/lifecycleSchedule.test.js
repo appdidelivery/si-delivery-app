@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { OCCASION_SLOTS, brazilLocalParts, dispatchWindow, confirmedMatchEvent, occasionPurchaseScore, isStoreOpenForSlot, CSI_LIFECYCLE_SCAN_LIMITS, isCsiLifecycleScanComplete } from '../lib/lifecycleSchedule.js';
 
 test('all slots are São Paulo time and use only allowed days', () => {
@@ -50,4 +51,20 @@ test('CSI retention stops when any input scan hits its cap or has unknown size',
   }
   assert.equal(isCsiLifecycleScanComplete({ orders: 0 }), false);
   assert.equal(isCsiLifecycleScanComplete(), false);
+});
+
+test('production CSI lifecycle paginates all orders and fails closed before selecting recipients', () => {
+  const script = readFileSync(new URL('../server/lifecycleDispatch.js', import.meta.url),'utf8');
+  const begin = script.indexOf("const scanDeadlineMs = Date.now() + 40_000;");
+  const selection = script.indexOf("orders.forEach(order =>");
+  const send = script.indexOf("const response = await fetch(marketingMessagesEndpoint");
+  assert.ok(begin > 0 && selection > begin && send > selection);
+  const scan = script.slice(begin,selection);
+  assert.match(scan,/scanCsiDiagnosticCollection/);
+  assert.match(scan,/scans\.some\(scan => scan\.partial\)/);
+  assert.match(scan,/isCsiLifecycleScanComplete\(scanCounts\)/);
+  assert.match(scan,/skipped: 'incomplete_audience_scan'/);
+  assert.equal(CSI_LIFECYCLE_SCAN_LIMITS.orders,25000);
+  assert.equal(isCsiLifecycleScanComplete({orders:12590,blocked:0,lifecycle:0,consents:74}),true);
+  assert.doesNotMatch(scan,/send\(|reserveMarketingAttempt\(|fetch\(marketingMessagesEndpoint/);
 });
