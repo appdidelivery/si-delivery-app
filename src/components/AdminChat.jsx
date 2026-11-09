@@ -7,7 +7,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { authenticatedFetch } from '../utils/apiAuth';
 import { resolveWhatsAppChatRecipient, matchesWhatsAppChatSearch } from '../../lib/whatsappReplyRecipient.js';
 import { getStorePublicOrigin } from '../utils/domainHelper';
-import { MAX_CHAT_PRODUCTS, buildChatProductShare, formatChatProductPrice, chatProductImageUrl, matchesChatProductSearch } from '../lib/chatProductShare.js';
+import { MAX_CHAT_PRODUCTS, buildChatProductShare, formatChatProductPrice, chatProductImageUrl, matchesChatProductSearch, isChatCatalogProductVisible } from '../lib/chatProductShare.js';
 
 // 1. Helper de segurança fora do componente para não ser recriado
 const safeEncode = (text) => {
@@ -32,6 +32,7 @@ export default function AdminChat({ canManageSound = false }) {
 
     const [messages, setMessages] = useState([]);
     const [products, setProducts] = useState([]);
+    const [catalogError, setCatalogError] = useState('');
     const [showProductPicker, setShowProductPicker] = useState(false);
     const [productSearchTerm, setProductSearchTerm] = useState('');
     const [selectedProductIds, setSelectedProductIds] = useState([]);
@@ -505,10 +506,21 @@ export default function AdminChat({ canManageSound = false }) {
     }, [storeId]);
 
     useEffect(() => {
-        if (!storeId) return;
-        const q = query(collection(db, 'products'), where('storeId', '==', storeId), where('isActive', '==', true));
+        if (!storeId) {
+            setProducts([]);
+            return;
+        }
+        setProducts([]);
+        setCatalogError('');
+        // Mesma visibilidade do estoque: produtos antigos podem nao possuir isActive.
+        const q = query(collection(db, 'products'), where('storeId', '==', storeId));
         const unsub = onSnapshot(q, (snapshot) => {
-            setProducts(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+            setProducts(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })).filter(isChatCatalogProductVisible));
+            setCatalogError('');
+        }, (error) => {
+            console.error('[AdminChat] Falha na sincronizacao do catalogo:', error?.code || error?.message);
+            setProducts([]);
+            setCatalogError('Nao foi possivel sincronizar os produtos. Atualize o chat e confira o cadastro da loja.');
         });
         return () => unsub();
     }, [storeId]);
@@ -662,7 +674,7 @@ export default function AdminChat({ canManageSound = false }) {
             return;
         }
         const selected = selectedProductIds
-            .map(id => products.find(product => product.id === id && product.isActive !== false &&
+            .map(id => products.find(product => product.id === id && isChatCatalogProductVisible(product) &&
                 (product.stock === undefined || product.stock === '' || Number(product.stock) > 0)))
             .filter(Boolean)
             .slice(0, MAX_CHAT_PRODUCTS);
@@ -2785,10 +2797,11 @@ export default function AdminChat({ canManageSound = false }) {
                                             <button type="button" onClick={() => setSelectedProductIds([])} disabled={sendingProducts || selectedProductIds.length === 0} className="font-semibold text-[#008069] disabled:opacity-40">Limpar seleção</button>
                                         </div>
                                     </div>
-                                    <div className="min-h-0 flex-1 overflow-y-auto border-y border-slate-100 bg-slate-50 px-3 py-2">
+                                    {catalogError && <p role="alert" className="px-3 py-2 text-xs text-red-700 bg-red-50">{catalogError}</p>}
+                                        <div className="min-h-0 flex-1 overflow-y-auto border-y border-slate-100 bg-slate-50 px-3 py-2">
                                         {(() => {
                                             const available = products
-                                                .filter(product => product.isActive !== false && matchesChatProductSearch(product, productSearchTerm))
+                                                .filter(product => isChatCatalogProductVisible(product) && matchesChatProductSearch(product, productSearchTerm))
                                                 .sort((a, b) => String(a.name || '').localeCompare(String(b.name || ''), 'pt-BR'))
                                                 .slice(0, 100);
                                             if (!available.length) return <p className="py-10 text-center text-sm text-slate-500">Nenhum produto encontrado no catálogo ativo.</p>;
@@ -2873,10 +2886,11 @@ export default function AdminChat({ canManageSound = false }) {
                                         )}
                                     </div>
                                     
+                                    {catalogError && <p role="alert" className="mt-2 text-xs text-red-700 font-semibold">{catalogError}</p>}
                                     {/* RESULTADO DA BUSCA (Aparece ao digitar) */}
                                     {miniPdvSearch && (
                                         <div className="mt-2 max-h-48 overflow-y-auto custom-scrollbar border border-slate-200 rounded-xl bg-slate-50 shadow-inner flex flex-col gap-1 p-1">
-                                            {products.filter(p => p.isActive !== false && p.name.toLowerCase().includes(miniPdvSearch.toLowerCase())).map(p => {
+                                            {products.filter(p => isChatCatalogProductVisible(p) && matchesChatProductSearch(p, miniPdvSearch)).map(p => {
                                                 const price = p.promotionalPrice > 0 ? p.promotionalPrice : p.price;
                                                 const isOutOfStock = p.stock !== undefined && p.stock !== '' && Number(p.stock) <= 0;
                                                 return (
@@ -2902,7 +2916,7 @@ export default function AdminChat({ canManageSound = false }) {
                                                     </div>
                                                 );
                                             })}
-                                            {products.filter(p => p.name.toLowerCase().includes(miniPdvSearch.toLowerCase())).length === 0 && (
+                                            {products.filter(p => isChatCatalogProductVisible(p) && matchesChatProductSearch(p, miniPdvSearch)).length === 0 && (
                                                 <p className="text-xs text-center text-slate-400 font-bold p-2">Nenhum produto encontrado.</p>
                                             )}
                                         </div>

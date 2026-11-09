@@ -10,6 +10,15 @@ export const productShareSlug = (name) => String(name ?? '')
   .replace(/-+/g, '-')
   .replace(/^-+|-+$/g, '');
 
+// O estoque administrativo considera ativos os itens legados sem isActive.
+// Respeita desativacoes explicitas e impede que o chat oculte produtos publicados.
+export function isChatCatalogProductVisible(product) {
+  if (!product) return false;
+  if (product.isActive === false) return false;
+  if (product.isActive === true) return true;
+  return product.active !== false;
+}
+
 export function matchesChatProductSearch(product, query) {
   const normalize = value => String(value ?? '').toLocaleLowerCase('pt-BR')
     .normalize('NFD').replace(/[\u0300-\u036f]/g, '');
