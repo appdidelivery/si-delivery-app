@@ -18,6 +18,7 @@ import { normalizeWhatsAppReplyRecipient } from '../lib/whatsappReplyRecipient.j
 import { hasAuthorizedCsiMarketingConsent } from '../lib/csiMarketingEligibility.js';
 import { buildCsiConsentInvite, CSI_CONSENT_BUTTON_YES, CSI_CONSENT_BUTTON_NO } from '../lib/csiMarketingConsentInvite.js';
 import { analyzeCsiMarketingReadiness } from '../lib/csiMarketingReadiness.js';
+import { scanCsiDiagnosticCollection } from '../lib/csiReadOnlyPagination.js';
 import { analyzeCsiConsentReconciliation } from '../lib/csiConsentReconciliation.js';
 import { summarizeCsiConsentReceipts, CSI_CONSENT_INVITE_SOURCES } from '../lib/csiConsentReceiptSummary.js';
 import { hasValidCsiMarketingRecord } from '../lib/whatsappConsentCapture.js';
@@ -800,25 +801,47 @@ export default async function handler(req, res) {
         let diagnosticError = null;
         if (String(req.query?.details || '') === '1') {
             try {
-                const collections = [
-                    ['abandoned_carts', 2500],
-                    ['orders', 5000],
-                    ['whatsapp_marketing_consents', 3000],
-                    ['blocked_contacts', 2000],
-                    ['whatsapp_marketing_optouts', 2000],
-                    ['whatsapp_lifecycle_contacts', 3000]
+                // Full, bounded read-only history (rather than an arbitrary 5k orders
+                // that mislabels previously purchased consenting customers).
+                // Projections exclude names and messaging credentials.
+                const sharedConsentFields = [
+                    'whatsappMarketingOptOut','marketingOptOut',
+                    'whatsappMarketingOptIn','marketingOptIn',
+                    'alcoholMarketingAgeConfirmed','customer.alcoholMarketingAgeConfirmed'
                 ];
-                const results = await Promise.all(collections.map(([name, limit]) =>
-                    db.collection(name).where('storeId', '==', statusStoreId).limit(limit).get()
+                const collections = [
+                    {name:'abandoned_carts',max:6000,fields:[
+                        'status','customerPhone','lastUpdated','journeyAbandonedSent',
+                        'abandonmentAlertSent',...sharedConsentFields
+                    ]},
+                    {name:'orders',max:25000,fields:[
+                        'status','customerPhone','customer.phone','createdAt','paidAt',
+                        'completedAt','updatedAt','journeyPostSaleSent','journeySecondPurchaseSent',
+                        ...sharedConsentFields
+                    ]},
+                    {name:'whatsapp_marketing_consents',max:3000,fields:[
+                        'phone','optedIn','adultConfirmed','source','consentVersion','sourceMessageId'
+                    ]},
+                    {name:'blocked_contacts',max:2000,fields:['phone']},
+                    {name:'whatsapp_marketing_optouts',max:2000,fields:['phone']},
+                    {name:'whatsapp_lifecycle_contacts',max:3000,fields:[
+                        'lastOrderAtMs','lastStageSent','lastSentAt'
+                    ]}
+                ];
+                const deadlineMs = Date.now() + 40_000;
+                const results = await Promise.all(collections.map(collection =>
+                    scanCsiDiagnosticCollection(db, admin.firestore.FieldPath.documentId(), {
+                        ...collection, storeId:statusStoreId, deadlineMs
+                    })
                 ));
-                const named = results.map(snap => snap.docs.map(doc => ({ ...doc.data(), id: doc.id })));
+                const named = results.map(result => result.rows);
                 readiness = analyzeCsiMarketingReadiness({
                     carts:named[0], orders:named[1], consents:named[2],
                     blocked:named[3], optouts:named[4], lifecycle:named[5],
                     secondPurchaseAfterDays:Math.max(2,Math.min(30,Number(journey.secondPurchaseAfterDays)||7)),
                     secondPurchaseMaxAgeDays:Math.max(8,Math.min(60,Number(journey.secondPurchaseMaxAgeDays)||30))
                 });
-                readiness.partialScan = results.some((snap, i) => snap.size >= collections[i][1]);
+                readiness.partialScan = results.some(result => result.partial);
             } catch (error) {
                 console.warn('[Marketing Readiness CSI] Não foi possível completar análise local:', error?.message);
                 diagnosticError = 'Não foi possível consultar todos os registros agregados. Verifique os logs da Vercel.';

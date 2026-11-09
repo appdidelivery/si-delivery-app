@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { hasAuthorizedCsiMarketingConsent } from '../lib/csiMarketingEligibility.js';
 import { analyzeCsiMarketingReadiness } from '../lib/csiMarketingReadiness.js';
+import { scanCsiDiagnosticCollection } from '../lib/csiReadOnlyPagination.js';
 
 const now = Date.parse('2026-10-22T14:00:00Z');
 const phone = '51999998888';
@@ -100,4 +101,52 @@ test('diagnostic separates 18+ WhatsApp consents into disjoint order cohorts wit
   });
   assert.equal(Object.values(r.consentCoverage).reduce((a,b)=>a+b,0),r.validWhatsAppConsents);
   for (const p of [p0,p1,p2,p3]) assert.equal(JSON.stringify(r).includes(p),false);
+});
+
+test('read-only marketing diagnosis paginates beyond the old 5000-order limit', async () => {
+  const docs = Array.from({length:7},(_,i)=>({
+    id:String(i), index:i, data:()=>({customerPhone:'51' + String(900000000+i).padStart(9,'0')})
+  }));
+  let queries = 0;
+  const db = { collection(name) {
+    assert.equal(name,'orders');
+    return { where(field,operator,value) {
+      assert.deepEqual([field,operator,value],['storeId','==','csi']);
+      queries++;
+      return {
+        offset:0, count:0,
+        orderBy(field) { assert.equal(field,'__name__'); return this; },
+        limit(count) { this.count=count; return this; },
+        select(...fields) { assert.deepEqual(fields,['customerPhone']); return this; },
+        startAfter(doc) { this.offset=doc.index+1; return this; },
+        async get() {
+          const page=docs.slice(this.offset,this.offset+this.count);
+          return {docs:page,size:page.length};
+        }
+      };
+    }};
+  }};
+  const opts={name:'orders',max:25,fields:['customerPhone'],pageSize:3};
+  const full=await scanCsiDiagnosticCollection(db,'__name__',opts);
+  assert.equal(full.rows.length,7);
+  assert.equal(full.partial,false);
+  assert.ok(queries>=3);
+
+  const capped=await scanCsiDiagnosticCollection(db,'__name__',{...opts,max:6});
+  assert.equal(capped.rows.length,6);
+  assert.equal(capped.partial,true);
+  const expired=await scanCsiDiagnosticCollection(db,'__name__',{...opts,deadlineMs:Date.now()-1});
+  assert.equal(expired.rows.length,0);
+  assert.equal(expired.partial,true);
+});
+
+test('full diagnostic is read-only and identifies incomplete paginated scans', () => {
+  const api=readFileSync(new URL('../api/index.js',import.meta.url),'utf8');
+  const start=api.indexOf("if (path === '/api/marketing-automation-status')");
+  const end=api.indexOf("if (path === '/api/whatsapp-embedded-signup')",start);
+  const block=api.slice(start,end);
+  assert.match(block,/scanCsiDiagnosticCollection/);
+  assert.match(block,/name:'orders',max:25000/);
+  assert.match(block,/readiness.partialScan = results.some\(result => result.partial\)/);
+  assert.doesNotMatch(block,/sendJourneyTemplate|reserveMarketingAttempt|sendMessageToMeta|method:\\s*'POST'/);
 });
