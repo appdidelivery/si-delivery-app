@@ -1,4 +1,5 @@
 import { marketingMessagesEndpoint } from '../lib/whatsappMarketingGraph.js';
+import { csiMarketingRecipient } from '../lib/csiMarketingRecipient.js';
 import admin from 'firebase-admin';
 import crypto from 'node:crypto';
 import { brazilLocalParts, isStoreOpenForSlot, confirmedMatchEvent } from '../lib/lifecycleSchedule.js';
@@ -67,12 +68,14 @@ export async function handleFootballAlert(req,res,db,windowName) {
   ordersSnap.forEach(doc=>{
     const order=doc.data();
     if(ignoredStatuses.has(String(order.status||'').toLowerCase())) return;
-    const phone=normalizeMarketingPhone(order.customerPhone||order.customer?.phone);
+    const rawPhone=order.customerPhone||order.customer?.phone;
+    const phone=normalizeMarketingPhone(rawPhone);
+    const recipient=csiMarketingRecipient(rawPhone);
     const at=millis(order.createdAt||order.paidAt);
-    if(!phone||!at) return;
+    if(!phone||!recipient||!at) return;
     const prev=byPhone.get(phone);
     if(!prev||at>prev.lastOrderAtMs) byPhone.set(phone,{
-      phone,lastOrderAtMs:at,
+      phone,recipient,lastOrderAtMs:at,
       consent:hasEligibleMarketingConsent(order,true) && order.footballAlertsOptIn===true,
       adult:order.alcoholMarketingAgeConfirmed===true||
         order.customer?.alcoholMarketingAgeConfirmed===true,
@@ -110,7 +113,7 @@ export async function handleFootballAlert(req,res,db,windowName) {
         headers:{Authorization:`Bearer ${wa.apiToken}`,'Content-Type':'application/json'},
         body:JSON.stringify({
           messaging_product:'whatsapp',recipient_type:'individual',
-          to:`55${customer.phone}`,type:'template',
+          to:customer.recipient,type:'template',
           template:{
             name:template,language:{code:'pt_BR'},
             components:occasionTemplateComponents('football')
@@ -126,7 +129,7 @@ export async function handleFootballAlert(req,res,db,windowName) {
         lastSentAt:admin.firestore.FieldValue.serverTimestamp()
       },{merge:true});
       batch.set(db.collection('whatsapp_inbound').doc(),{
-        storeId,to:`55${customer.phone}`,templateName:template,
+        storeId,to:customer.recipient,templateName:template,
         text:`[Alerta de futebol] ${event.matchLabel} — ${localTime}`,
         campaignType:'football_match',sourceId:event.sourceId,
         matchLabel:event.matchLabel,marketingOccasion:'football',

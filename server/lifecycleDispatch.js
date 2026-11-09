@@ -1,4 +1,5 @@
 import { marketingMessagesEndpoint } from '../lib/whatsappMarketingGraph.js';
+import { csiMarketingRecipient } from '../lib/csiMarketingRecipient.js';
 import { hasAuthorizedCsiMarketingConsent } from '../lib/csiMarketingEligibility.js';
 import { hasValidCsiMarketingRecord } from '../lib/whatsappConsentCapture.js';
 import admin from 'firebase-admin';
@@ -118,13 +119,16 @@ export async function handleOccasionLifecycle(req, res, slot) {
   ordersSnap.forEach(doc => {
     const order = doc.data();
     if (deniedStatuses.has(String(order.status || '').toLowerCase())) return;
-    const phone = normalizeMarketingPhone(order.customerPhone || order.customer?.phone);
+    const rawPhone = order.customerPhone || order.customer?.phone;
+    const phone = normalizeMarketingPhone(rawPhone);
+    const recipient = csiMarketingRecipient(rawPhone);
     const purchasedAt = toMillis(order.createdAt || order.paidAt);
-    if (!phone || !purchasedAt) return;
+    if (!phone || !recipient || !purchasedAt) return;
     const entry = customers.get(phone) || { phone, purchaseTimes: [], lastOrderAtMs: 0 };
     entry.purchaseTimes.push(new Date(purchasedAt));
     if (purchasedAt > entry.lastOrderAtMs) {
       entry.lastOrderAtMs = purchasedAt;
+      entry.recipient = recipient;
       entry.customerName = order.customerName || order.customer?.name || 'Cliente';
       const verifiedConsent = hasValidCsiMarketingRecord(explicitConsents.get(phone));
       entry.optedIn = hasAuthorizedCsiMarketingConsent(order, explicitConsents.get(phone));
@@ -183,7 +187,7 @@ export async function handleOccasionLifecycle(req, res, slot) {
         headers: { Authorization: `Bearer ${wa.apiToken}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({
           messaging_product: 'whatsapp', recipient_type: 'individual',
-          to: `55${customer.phone}`, type: 'template',
+          to: customer.recipient, type: 'template',
           template: {
             name: selectedTemplate,
             language: { code: 'pt_BR' },
@@ -209,7 +213,7 @@ export async function handleOccasionLifecycle(req, res, slot) {
         updatedAt: admin.firestore.FieldValue.serverTimestamp()
       }, { merge: true });
       batch.set(db.collection('whatsapp_inbound').doc(), {
-        storeId, to: `55${customer.phone}`,
+        storeId, to: customer.recipient,
         text: `[Jornada ${customer.stage}d / ${slot}] Template oficial: ${selectedTemplate}`,
         templateName: selectedTemplate, campaignType: 'lifecycle_retention',
         lifecycleStage: customer.stage, marketingOccasion: slot,
