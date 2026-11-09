@@ -21,6 +21,8 @@ on:
       - 'lib/whatsappMarketingGraph.js'
       - 'lib/csiMarketingEligibility.js'
       - 'lib/csiMarketingReadiness.js'
+      - 'lib/csiConsentReconciliation.js'
+      - 'tests/csiConsentReconciliation.test.mjs'
       - 'lib/csiSecondPurchaseEligibility.js'
       - 'tests/csiSecondPurchase.test.mjs'
       - 'tests/csiCheckoutOptIn.test.mjs'
@@ -65,6 +67,7 @@ jobs:
           node --check lib/csiMarketingRecipient.js
           node --check lib/csiMarketingEligibility.js
           node --check lib/csiMarketingReadiness.js
+          node --check lib/csiConsentReconciliation.js
           node --check lib/csiSecondPurchaseEligibility.js
           node --check lib/csiMarketingConsentInvite.js
           node --check lib/csiConsentReceiptSummary.js
@@ -80,4 +83,4 @@ jobs:
           node --check lib/whatsappConsentCapture.js
           node -e "JSON.parse(require('fs').readFileSync('vercel.json','utf8'))"
       - name: Marketing opt-in and quota tests
-        run: node --test tests/whatsappMarketingGuard.test.js tests/lifecycleSchedule.test.js tests/footballFixtures.test.js tests/csiOccasionTemplate.test.js tests/whatsappLeadAudience.test.js tests/whatsappConsentCapture.test.js tests/whatsappMarketingGraph.test.mjs tests/csiMarketingReadiness.test.mjs tests/csiConsentButtons.test.mjs tests/csiConsentReceiptSummary.test.mjs tests/csiWabaLink.test.mjs tests/csiMarketingControl.test.mjs tests/whatsappReplyRecipient.test.mjs tests/csiMarketingRecipient.test.mjs tests/csiSecondPurchase.test.mjs tests/csiCheckoutOptIn.test.mjs
+        run: node --test tests/whatsappMarketingGuard.test.js tests/lifecycleSchedule.test.js tests/footballFixtures.test.js tests/csiOccasionTemplate.test.js tests/whatsappLeadAudience.test.js tests/whatsappConsentCapture.test.js tests/whatsappMarketingGraph.test.mjs tests/csiMarketingReadiness.test.mjs tests/csiConsentReconciliation.test.mjs tests/csiConsentButtons.test.mjs tests/csiConsentReceiptSummary.test.mjs tests/csiWabaLink.test.mjs tests/csiMarketingControl.test.mjs tests/whatsappReplyRecipient.test.mjs tests/csiMarketingRecipient.test.mjs tests/csiSecondPurchase.test.mjs tests/csiCheckoutOptIn.test.mjs
