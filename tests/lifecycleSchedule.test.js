@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { OCCASION_SLOTS, brazilLocalParts, dispatchWindow, confirmedMatchEvent, occasionPurchaseScore, isStoreOpenForSlot } from '../lib/lifecycleSchedule.js';
+import { OCCASION_SLOTS, brazilLocalParts, dispatchWindow, confirmedMatchEvent, occasionPurchaseScore, isStoreOpenForSlot, CSI_LIFECYCLE_SCAN_LIMITS, isCsiLifecycleScanComplete } from '../lib/lifecycleSchedule.js';
 
 test('all slots are São Paulo time and use only allowed days', () => {
   assert.deepEqual(Object.keys(OCCASION_SLOTS), ['wed','fri','sat','sun']);
@@ -38,4 +38,16 @@ test('weekday historical purchase gets higher occasion score', () => {
   const boughtFriday = new Date('2026-10-02T21:00:00Z');
   const boughtMonday = new Date('2026-10-05T12:00:00Z');
   assert.ok(occasionPurchaseScore([boughtFriday],'fri') > occasionPurchaseScore([boughtMonday],'fri'));
+});
+
+test('CSI retention stops when any input scan hits its cap or has unknown size', () => {
+  const safe = Object.fromEntries(Object.entries(CSI_LIFECYCLE_SCAN_LIMITS)
+    .map(([name, limit]) => [name, limit - 1]));
+  assert.equal(isCsiLifecycleScanComplete(safe), true);
+  for (const [name, limit] of Object.entries(CSI_LIFECYCLE_SCAN_LIMITS)) {
+    assert.equal(isCsiLifecycleScanComplete({ ...safe, [name]: limit }), false, name);
+    assert.equal(isCsiLifecycleScanComplete({ ...safe, [name]: -1 }), false, name);
+  }
+  assert.equal(isCsiLifecycleScanComplete({ orders: 0 }), false);
+  assert.equal(isCsiLifecycleScanComplete(), false);
 });

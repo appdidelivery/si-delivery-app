@@ -9,7 +9,8 @@ import {
   normalizeMarketingPhone, reserveMarketingAttempt
 } from '../lib/whatsappMarketingGuard.js';
 import {
-  dispatchWindow, confirmedMatchEvent, occasionPurchaseScore, isStoreOpenForSlot
+  dispatchWindow, confirmedMatchEvent, occasionPurchaseScore, isStoreOpenForSlot,
+  CSI_LIFECYCLE_SCAN_LIMITS, isCsiLifecycleScanComplete
 } from '../lib/lifecycleSchedule.js';
 import { safeCurrentFixture } from '../lib/footballFixtures.js';
 import { occasionTemplateComponents, canUseGenericOccasionTemplate } from '../lib/csiOccasionTemplate.js';
@@ -105,11 +106,24 @@ export async function handleOccasionLifecycle(req, res, slot) {
   }
 
   const [ordersSnap, blockedSnap, lifecycleSnap, consentSnap] = await Promise.all([
-    db.collection('orders').where('storeId', '==', storeId).limit(5000).get(),
-    db.collection('blocked_contacts').where('storeId', '==', storeId).limit(2000).get(),
-    db.collection('whatsapp_lifecycle_contacts').where('storeId', '==', storeId).limit(3000).get(),
-    db.collection('whatsapp_marketing_consents').where('storeId', '==', storeId).limit(3000).get()
+    db.collection('orders').where('storeId', '==', storeId).limit(CSI_LIFECYCLE_SCAN_LIMITS.orders).get(),
+    db.collection('blocked_contacts').where('storeId', '==', storeId).limit(CSI_LIFECYCLE_SCAN_LIMITS.blocked).get(),
+    db.collection('whatsapp_lifecycle_contacts').where('storeId', '==', storeId).limit(CSI_LIFECYCLE_SCAN_LIMITS.lifecycle).get(),
+    db.collection('whatsapp_marketing_consents').where('storeId', '==', storeId).limit(CSI_LIFECYCLE_SCAN_LIMITS.consents).get()
   ]);
+  const scanCounts = {
+    orders: ordersSnap.size, blocked: blockedSnap.size,
+    lifecycle: lifecycleSnap.size, consents: consentSnap.size,
+  };
+  if (!isCsiLifecycleScanComplete(scanCounts)) {
+    // Stop before selecting any recipient: incomplete datasets can conceal
+    // a more recent order, opt-out or a previous retention message.
+    console.warn('[Lifecycle Occasion] Incomplete audience scan; no messages sent', { slot, scanCounts });
+    return res.status(200).json({
+      success: true, storeId, slot, skipped: 'incomplete_audience_scan',
+      note: 'Histórico incompleto. Nenhuma mensagem enviada.',
+    });
+  }
   const blocked = new Set(blockedSnap.docs.map(d => normalizeMarketingPhone(d.data().phone)).filter(Boolean));
   const explicitConsents = new Map(consentSnap.docs.map(d => [normalizeMarketingPhone(d.data().phone), d.data()]));
   const previousByHash = new Map(lifecycleSnap.docs.map(d => [d.id, d.data()]));
