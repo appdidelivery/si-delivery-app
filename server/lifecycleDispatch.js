@@ -12,6 +12,7 @@ import {
   dispatchWindow, confirmedMatchEvent, occasionPurchaseScore, isStoreOpenForSlot,
   CSI_LIFECYCLE_SCAN_LIMITS, isCsiLifecycleScanComplete
 } from '../lib/lifecycleSchedule.js';
+import { scanCsiDiagnosticCollection } from '../lib/csiReadOnlyPagination.js';
 import { safeCurrentFixture } from '../lib/footballFixtures.js';
 import { occasionTemplateComponents, canUseGenericOccasionTemplate } from '../lib/csiOccasionTemplate.js';
 
@@ -105,33 +106,49 @@ export async function handleOccasionLifecycle(req, res, slot) {
     return res.status(200).json({ success: true, skipped: 'templates_incomplete' });
   }
 
-  const [ordersSnap, blockedSnap, lifecycleSnap, consentSnap] = await Promise.all([
-    db.collection('orders').where('storeId', '==', storeId).limit(CSI_LIFECYCLE_SCAN_LIMITS.orders).get(),
-    db.collection('blocked_contacts').where('storeId', '==', storeId).limit(CSI_LIFECYCLE_SCAN_LIMITS.blocked).get(),
-    db.collection('whatsapp_lifecycle_contacts').where('storeId', '==', storeId).limit(CSI_LIFECYCLE_SCAN_LIMITS.lifecycle).get(),
-    db.collection('whatsapp_marketing_consents').where('storeId', '==', storeId).limit(CSI_LIFECYCLE_SCAN_LIMITS.consents).get()
-  ]);
+  // Read the full historical cohort before selecting anyone. A single 5,000-row
+  // snapshot is unsafe: CSI has more than 12,000 orders, and an omitted newer
+  // purchase could incorrectly classify an active customer as inactive.
+  // The pagination helper reads only; no Meta calls occur before all scans finish.
+  const scanDeadlineMs = Date.now() + 40_000;
+  const scanSpecs = [
+    { name:'orders', max:CSI_LIFECYCLE_SCAN_LIMITS.orders, fields:[
+      'status','customerPhone','customer.phone','customerName','customer.name',
+      'createdAt','paidAt','whatsappMarketingOptIn','marketingOptIn',
+      'whatsappMarketingOptOut','marketingOptOut',
+      'alcoholMarketingAgeConfirmed','customer.alcoholMarketingAgeConfirmed'
+    ]},
+    { name:'blocked_contacts', max:CSI_LIFECYCLE_SCAN_LIMITS.blocked, fields:['phone'] },
+    { name:'whatsapp_lifecycle_contacts', max:CSI_LIFECYCLE_SCAN_LIMITS.lifecycle,
+      fields:['lastOrderAtMs','lastStageSent','lastSentAt'] },
+    { name:'whatsapp_marketing_consents', max:CSI_LIFECYCLE_SCAN_LIMITS.consents,
+      fields:['phone','optedIn','adultConfirmed','source','consentVersion','sourceMessageId'] }
+  ];
+  const scans = await Promise.all(scanSpecs.map(spec =>
+    scanCsiDiagnosticCollection(db, admin.firestore.FieldPath.documentId(), {
+      ...spec, storeId, deadlineMs:scanDeadlineMs,
+    })
+  ));
+  const [orders, blockedContacts, lifecycleContacts, consents] = scans.map(s => s.rows);
   const scanCounts = {
-    orders: ordersSnap.size, blocked: blockedSnap.size,
-    lifecycle: lifecycleSnap.size, consents: consentSnap.size,
+    orders:orders.length, blocked:blockedContacts.length,
+    lifecycle:lifecycleContacts.length, consents:consents.length
   };
-  if (!isCsiLifecycleScanComplete(scanCounts)) {
-    // Stop before selecting any recipient: incomplete datasets can conceal
-    // a more recent order, opt-out or a previous retention message.
+  if (scans.some(scan => scan.partial) || !isCsiLifecycleScanComplete(scanCounts)) {
+    // Fail closed on a query cap or deadline: do not guess recipient eligibility.
     console.warn('[Lifecycle Occasion] Incomplete audience scan; no messages sent', { slot, scanCounts });
     return res.status(200).json({
       success: true, storeId, slot, skipped: 'incomplete_audience_scan',
       note: 'Histórico incompleto. Nenhuma mensagem enviada.',
     });
   }
-  const blocked = new Set(blockedSnap.docs.map(d => normalizeMarketingPhone(d.data().phone)).filter(Boolean));
-  const explicitConsents = new Map(consentSnap.docs.map(d => [normalizeMarketingPhone(d.data().phone), d.data()]));
-  const previousByHash = new Map(lifecycleSnap.docs.map(d => [d.id, d.data()]));
+  const blocked = new Set(blockedContacts.map(d => normalizeMarketingPhone(d.phone)).filter(Boolean));
+  const explicitConsents = new Map(consents.map(d => [normalizeMarketingPhone(d.phone), d]));
+  const previousByHash = new Map(lifecycleContacts.map(d => [d.id, d]));
   const deniedStatuses = new Set(['canceled','cancelado','cancelled','refunded','estornado']);
   const customers = new Map();
 
-  ordersSnap.forEach(doc => {
-    const order = doc.data();
+  orders.forEach(order => {
     if (deniedStatuses.has(String(order.status || '').toLowerCase())) return;
     const rawPhone = order.customerPhone || order.customer?.phone;
     const phone = normalizeMarketingPhone(rawPhone);
