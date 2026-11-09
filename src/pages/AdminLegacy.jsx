@@ -3676,12 +3676,7 @@ const handleGenerateProductCopy = async () => {
     };
 
     const updateStatusAndNotify = async (order, newStatus) => {
-        // 🚀 MÁGICA DA IMPRESSÃO SÍNCRONA
-        const autoPrintTrigger = storeStatus?.autoPrintStatus || 'none';
-        if (autoPrintTrigger !== 'none' && newStatus === autoPrintTrigger) {
-            printLabel({ ...order, status: newStatus }); 
-        }
-
+        // Impressao automatica centralizada no listener de pedidos apos gravar o status.
        // 1. Atualiza o status do pedido no banco de dados primeiro
         await updateDoc(doc(db, "orders", order.id), { status: newStatus });
 
@@ -15617,15 +15612,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                         }
                                     }
                                     
-                                   // --- CORREÇÃO: GATILHO DE IMPRESSÃO VIA MODAL DE EDIÇÃO ---
-                                    // Lemos direto do estado para acelerar a renderização
-                                    if (mudouStatusPedido) {
-                                        const autoPrintTrigger = storeStatus?.autoPrintStatus || 'none';
-                                        if (autoPrintTrigger !== 'none' && dataParaSalvar.status === autoPrintTrigger) {
-                                            printLabel({ ...editingOrderData, ...dataParaSalvar, id: editingOrderData.id });
-                                        }
-                                    }
-                                    // ------------------------------------------
+                                   // Impressao automatica exclusiva do listener de pedidos, sem segundo gatilho no modal.
                                     
                                     setIsOrderEditModalOpen(false);
                                     alert("Pedido atualizado com sucesso!");
