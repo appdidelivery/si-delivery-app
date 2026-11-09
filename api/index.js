@@ -18,6 +18,7 @@ import { normalizeWhatsAppReplyRecipient } from '../lib/whatsappReplyRecipient.j
 import { hasAuthorizedCsiMarketingConsent } from '../lib/csiMarketingEligibility.js';
 import { buildCsiConsentInvite, CSI_CONSENT_BUTTON_YES, CSI_CONSENT_BUTTON_NO } from '../lib/csiMarketingConsentInvite.js';
 import { analyzeCsiMarketingReadiness } from '../lib/csiMarketingReadiness.js';
+import { analyzeCsiConsentReconciliation } from '../lib/csiConsentReconciliation.js';
 import { summarizeCsiConsentReceipts, CSI_CONSENT_INVITE_SOURCES } from '../lib/csiConsentReceiptSummary.js';
 import { hasValidCsiMarketingRecord } from '../lib/whatsappConsentCapture.js';
 import { handleOccasionLifecycle } from '../server/lifecycleDispatch.js';
@@ -726,6 +727,54 @@ export default async function handler(req, res) {
 
     // Read-only marketing diagnostic. Uses the Firebase identity verified by the
     // global auth middleware; intentionally never calls Meta or queues messages.
+    // Auditoria sob demanda da correspondência consentimento ↔ pedidos/carrinhos.
+    // Executa SOMENTE leitura e retorna totais agregados (sem dados pessoais).
+    if (path === '/api/csi-consent-reconciliation') {
+        res.setHeader('Cache-Control', 'private, no-store');
+        if (req.method !== 'GET') return res.status(405).json({success:false,error:'Método não permitido.'});
+        await assertStoreAccess(req.user, 'csi');
+        const deadlineMs = Date.now() + 40_000;
+        const scanCsiReconciliationCollection = async (name, max, fields) => {
+            const rows = [];
+            let cursor = null, partial = false;
+            while (rows.length < max) {
+                if (Date.now() > deadlineMs) { partial = true; break; }
+                const count = Math.min(750, max - rows.length);
+                let query = db.collection(name).where('storeId', '==', 'csi')
+                    .orderBy(admin.firestore.FieldPath.documentId()).limit(count)
+                    .select(...fields);
+                if (cursor) query = query.startAfter(cursor);
+                const snap = await query.get();
+                rows.push(...snap.docs.map(doc => doc.data()));
+                if (snap.size < count) break;
+                if (rows.length >= max) { partial = true; break; }
+                cursor = snap.docs[snap.docs.length - 1];
+            }
+            return { rows, partial };
+        };
+        try {
+            const specs = [
+                ['orders', 25_000, ['customerPhone','customer.phone','status']],
+                ['whatsapp_marketing_consents', 3_000, ['phone','optedIn','adultConfirmed','source','consentVersion','sourceMessageId']],
+                ['abandoned_carts', 6_000, ['customerPhone']],
+                ['blocked_contacts', 2_000, ['phone']],
+                ['whatsapp_marketing_optouts', 2_000, ['phone']]
+            ];
+            const results = await Promise.all(specs.map(([name,max,fields]) =>
+                scanCsiReconciliationCollection(name,max,fields)));
+            const partial = Object.fromEntries(specs.map(([name],i)=>[name,results[i].partial]));
+            const scanned = Object.fromEntries(specs.map(([name],i)=>[name,results[i].rows.length]));
+            const report = analyzeCsiConsentReconciliation({
+                orders:results[0].rows,consents:results[1].rows,carts:results[2].rows,
+                blocked:results[3].rows,optouts:results[4].rows,partial,scanned
+            });
+            return res.status(200).json({success:true,storeId:'csi',readOnly:true,report});
+        } catch (error) {
+            console.warn('[CSI consent reconciliation] Falha de consulta',error?.message);
+            return res.status(503).json({success:false,error:'Não foi possível conciliar os registros. Nenhuma mensagem foi enviada.'});
+        }
+    }
+
     if (path === '/api/marketing-automation-status') {
         res.setHeader('Cache-Control', 'private, no-store');
         if (req.method !== 'GET') return res.status(405).json({ error: 'Método não permitido.' });
