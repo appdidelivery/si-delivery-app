@@ -244,7 +244,7 @@ export default function MarketingAutomationStatus() {
                 Examinados: {data.examined} · Sem telefone válido: {data.missingPhone} · Sem autorização/18+: {data.missingConsentOrAdult} ·
                 Bloqueados: {data.blocked} · Já tratados: {data.alreadySent} · Ainda fora da janela: {data.notDue}
               </p>
-              {typeof data.unidentifiedPhone === 'number' && (
+              {name.startsWith('Carrinhos abandonados') && typeof data.unidentifiedPhone === 'number' && (
                 <p className="mt-2 text-xs text-slate-500">
                   Desses carrinhos: sem WhatsApp informado: {data.unidentifiedPhone} ·
                   Número inválido ou incompleto: {data.invalidPhone}. Um carrinho anônimo
@@ -254,6 +254,17 @@ export default function MarketingAutomationStatus() {
             </div>)}
             <div className="text-sm text-slate-700">
               <p>Consentimentos expressos válidos recebidos no WhatsApp: <strong>{status.readiness.validWhatsAppConsents}</strong></p>
+              {status.readiness.consentCoverage && <div className="mt-3 rounded-lg border border-slate-200 bg-slate-50 p-3 space-y-1">
+                <p className="font-bold text-slate-800">Onde estão os contatos que aceitaram ofertas?</p>
+                <p>Com pedido recente (menos de 30 dias): <strong>{status.readiness.consentCoverage.recentOrderUnder30Days}</strong></p>
+                <p>Com último pedido há 30 dias ou mais: <strong>{status.readiness.consentCoverage.inactiveOrder30PlusDays}</strong></p>
+                <p>Sem pedido localizado na amostra: <strong>{status.readiness.consentCoverage.withoutOrderInSample}</strong></p>
+                <p>Bloqueados/descadastrados entre esses consentimentos: <strong>{status.readiness.consentCoverage.blockedOrOptedOut}</strong></p>
+                <p className="text-xs text-slate-500">
+                  Esta divisão é apenas informativa. Consentimento não equivale a elegibilidade: cada jornada também considera
+                  histórico, prazo, frequência, limites e bloqueios. Não envia mensagens.
+                </p>
+              </div>}
               <p>Contatos bloqueados ou descadastrados: <strong>{status.readiness.blockedOrOptoutPhones}</strong></p>
               {status.readiness.partialScan && <p className="font-semibold text-amber-800">
                 A amostra atingiu o limite de consulta. Os totais podem estar incompletos.
@@ -310,7 +321,8 @@ export default function MarketingAutomationStatus() {
                 className="flex flex-wrap justify-between gap-3 border-b border-slate-100 py-2 text-sm">
                 <code className="break-all text-slate-800">{t.name}</code>
                 <strong className={t.status === 'APPROVED' ? 'text-green-700' : 'text-amber-700'}>
-                  {t.status}
+                  {t.status}{t.name === 'velo_pos_venda_bebidas' && t.status === 'NOT_FOUND'
+                    ? ' (alternativo, não obrigatório)' : ''}
                 </strong>
               </div>)}
             </div>

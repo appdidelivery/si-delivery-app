@@ -82,3 +82,22 @@ test('anonymous carts are distinguished from invalid or incomplete phone data',(
   assert.equal(r.abandoned.invalidPhone,1);
   assert.equal(r.abandoned.eligibleNow,1);
 });
+
+test('diagnostic separates 18+ WhatsApp consents into disjoint order cohorts without exposing phones', () => {
+  const p0='51991110000', p1='51992220000', p2='51993330000', p3='51994440000';
+  const valid = p => ({...consent, phone:p, sourceMessageId:'wamid.'+p});
+  const orders = [
+    {status:'completed', customerPhone:p1, createdAt:minutesAgo(10*24*60)},
+    {status:'completed', customerPhone:p2, createdAt:minutesAgo(45*24*60)},
+    {status:'completed', customerPhone:p3, createdAt:minutesAgo(80*24*60), marketingOptOut:true}
+  ];
+  const r=analyzeCsiMarketingReadiness({
+    orders, consents:[valid(p0),valid(p1),valid(p2),valid(p3)], nowMs:now
+  });
+  assert.deepEqual(r.consentCoverage,{
+    withoutOrderInSample:1, recentOrderUnder30Days:1,
+    inactiveOrder30PlusDays:1, blockedOrOptedOut:1
+  });
+  assert.equal(Object.values(r.consentCoverage).reduce((a,b)=>a+b,0),r.validWhatsAppConsents);
+  for (const p of [p0,p1,p2,p3]) assert.equal(JSON.stringify(r).includes(p),false);
+});
