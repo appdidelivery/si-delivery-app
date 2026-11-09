@@ -7,7 +7,7 @@ import WhatsAppConnectionChoice from '../components/WhatsAppConnectionChoice';
 import { db, auth } from '../../src/services/firebase';
 import {
     collection, onSnapshot, doc, updateDoc, deleteDoc,
-    addDoc, query, orderBy, serverTimestamp, setDoc, getDoc, getDocs, where, increment, writeBatch, limit
+    addDoc, query, orderBy, serverTimestamp, setDoc, getDoc, getDocs, where, increment, writeBatch, limit, runTransaction
 } from 'firebase/firestore';
 import {
     Store, ShoppingCart, LayoutDashboard, Clock, ShoppingBag, Package, Users, Plus, Trash2, Edit3,
@@ -53,6 +53,7 @@ import VeloSupportWidget from "../components/VeloSupportWidget";
 import { MissionTracker } from '../components/MissionTracker';
 import PromotionScheduleFields from '../components/PromotionScheduleFields';
 import { promotionStatus, effectivePromoPrice, effectiveUnitPrice, validatePromotion } from '../lib/promotions';
+import { assessPrintedOrderTotal } from '../lib/orderReceiptAudit';
 
 // Esses componentes só serão baixados pelo navegador QUANDO o lojista clicar na aba deles
 const AdminChat = lazy(() => import('../components/AdminChat'));
@@ -2521,17 +2522,47 @@ const [vipMissions, setVipMissions] = useState([]);
                     }
 
                     if (shouldPrint) {
-                        // Verifica no cache da sessão se esse ticket já foi impresso na máquina atual
-                        if (!sessionStorage.getItem(`printed_${newOrderData.id}`)) {
-                            sessionStorage.setItem(`printed_${newOrderData.id}`, 'true');
-                            
-                            // Cria a trava global no banco para avisar as outras máquinas que este pedido já foi impresso
-                            // Fazemos isso sem 'await' para não travar o loop de renderização do Snapshot
-                            if (!isPosOrder) {
-                                updateDoc(doc(db, "orders", newOrderData.id), { globalPrintLock: true }).catch(err => console.warn("Erro ao travar impressão global:", err));
+                        const printCacheKey = `printed_${newOrderData.id}`;
+                        if (!sessionStorage.getItem(printCacheKey)) {
+                            // Reserva local enquanto o banco decide qual terminal pode imprimir.
+                            sessionStorage.setItem(printCacheKey, 'pending');
+                            try {
+                                const orderRef = doc(db, 'orders', newOrderData.id);
+                                // Transacao atomica: dois terminais nao imprimem o mesmo pedido.
+                                const claimed = await runTransaction(db, async (tx) => {
+                                    const latestSnap = await tx.get(orderRef);
+                                    if (!latestSnap.exists() || latestSnap.data().globalPrintLock === true) return null;
+                                    const latestOrder = { id: latestSnap.id, ...latestSnap.data() };
+                                    const latestIsPos = ['manual', 'manual_pdv', 'whatsapp_pdv'].includes(latestOrder.source);
+                                    const latestIsOnline = ['stripe', 'cartao', 'pix', 'velopay_pix', 'velopay_credit', 'online', 'link_mp', 'mercadopago_link', 'mercado_pago', 'mp_transparent', 'misto'].includes(latestOrder.paymentMethod);
+                                    const latestIsPaid = ['paid', 'approved', 'concluida', 'CONCLUIDA'].includes(latestOrder.paymentStatus);
+                                    const stillEligible = latestIsPos
+                                        ? autoPrintPosOrders && change.type === 'added' && latestOrder.sellerEmail === (auth.currentUser?.email || 'owner')
+                                        : autoPrintTrigger !== 'none' && latestOrder.status === autoPrintTrigger && (!latestIsOnline || latestIsPaid);
+                                    if (!stillEligible) return null;
+                                    const validation = assessPrintedOrderTotal(latestOrder);
+                                    if (!validation.ok) return { printError: validation.reason };
+                                    tx.update(orderRef, {
+                                        globalPrintLock: true,
+                                        autoPrintedTotal: Number(latestOrder.total),
+                                        autoPrintClaimedAt: serverTimestamp()
+                                    });
+                                    return latestOrder;
+                                });
+                                if (claimed?.printError) {
+                                    alert('Impressao interrompida: ' + claimed.printError + ' Confira o pedido no painel antes de imprimir.');
+                                    sessionStorage.removeItem(printCacheKey);
+                                } else if (claimed) {
+                                    printLabel(claimed, stSnap.exists() ? stSnap.data() : null);
+                                    sessionStorage.setItem(printCacheKey, 'true');
+                                } else {
+                                    sessionStorage.removeItem(printCacheKey);
+                                }
+                            } catch (error) {
+                                sessionStorage.removeItem(printCacheKey);
+                                console.error('[Impressao automatica] Falha ao reservar o pedido:', error);
+                                alert('A impressao automatica falhou. Confira o pedido e utilize a opcao de imprimir no painel.');
                             }
-                            
-                            printLabel(newOrderData);
                         }
                     }
                 });
@@ -3508,7 +3539,18 @@ const handleGenerateProductCopy = async () => {
         }
     };
 
-    const printLabel = (o) => {
+    const printLabel = (o, freshStoreData = null) => {
+        const validation = assessPrintedOrderTotal(o);
+        if (!validation.ok) {
+            alert('Nao e seguro imprimir: ' + validation.reason + ' Confira o pedido no painel.');
+            return false;
+        }
+        const originalPrintedValue = o.autoPrintedTotal === undefined ? null : Number(o.autoPrintedTotal);
+        if (o.globalPrintLock === true && originalPrintedValue !== null &&
+            Number.isFinite(originalPrintedValue) && Math.abs(originalPrintedValue - Number(o.total)) > 0.01 &&
+            !window.confirm('ATENCAO: este pedido ja teve uma impressao com outro valor. Confira a alteracao antes de reimprimir. Continuar?')) {
+            return false;
+        }
         // Roteador de Impressão (NFC-e vs Comanda Interna)
         if (o.fiscalStatus === 'authorized' && o.nfeUrl && !o.nfeUrl.endsWith('/relatorios/danfe.pdf')) {
             window.open(o.nfeUrl, '_blank');
@@ -3524,7 +3566,15 @@ const handleGenerateProductCopy = async () => {
         }
         
         // 🖨️ BLINDAGEM DE CACHE (SÍNCRONA): Puxa da memória da UI, evitando perdas de documento (promises) 
-        const currentStoreStatus = storeStatus;
+        const currentStoreStatus = {
+            ...storeStatus,
+            ...(freshStoreData || {}),
+            name: freshStoreData?.name && freshStoreData.name !== 'Carregando...'
+                ? freshStoreData.name
+                : storeStatus?.name && storeStatus.name !== 'Carregando...'
+                    ? storeStatus.name
+                    : store?.name || 'DELIVERY'
+        };
 
         // Contador de Pedidos do Cliente
         const telefoneLimpo = String(o.customerPhone || '').replace(/\D/g, '');
@@ -3562,7 +3612,9 @@ const handleGenerateProductCopy = async () => {
             mercado_pago: 'MERCADO PAGO (ONLINE)', 
             velopay_pix: 'PIX (ONLINE)', 
             velopay_credit: 'CARTÃO (ONLINE)', 
-            link_mp: 'LINK MERCADO PAGO' 
+            link_mp: 'LINK MERCADO PAGO',
+            offline_credit_card: 'CARTAO DE CREDITO (NA ENTREGA)',
+            offline_debit_card: 'CARTAO DE DEBITO (NA ENTREGA)' 
         }[o.paymentMethod] || o.paymentMethod || 'PIX';
 
         // Tradução do Status do Pagamento para o Ticket
@@ -3591,6 +3643,7 @@ const handleGenerateProductCopy = async () => {
                 <hr>
                 <div style="font-size: 16px; line-height: 1.4;">
                     <strong>PEDIDO:</strong> #${o.id?.slice(-5).toUpperCase()}<br>
+                    ${o.globalPrintLock === true ? '<strong>REIMPRESSAO - CONFERIR VALORES</strong><br>' : ''}
                     <strong>CLIENTE:</strong> ${o.customerName}<br>
                     ${o.tipo === 'local' ? `<strong>MESA:</strong> ${o.mesa}<br><strong>GARÇOM:</strong> ${o.waiterName || 'Não identificado'}<br>` : `<strong>TEL:</strong> ${o.customerPhone || o.phone || ''}<br><strong>ENDEREÇO:</strong> ${o.address || o.customerAddress || 'Retirada'}<br>`}
                     <strong>PAGTO:</strong> ${pagto}<br>
@@ -3606,6 +3659,7 @@ const handleGenerateProductCopy = async () => {
                 <div style="text-align:right; font-size:20px; margin-top: 15px;">
                     <small style="font-size: 14px;">Frete: R$ ${Number(o.shippingFee || 0).toFixed(2)}</small><br>
                     ${o.discountAmount > 0 ? `<small style="font-size: 14px;">Desconto: - R$ ${Number(o.discountAmount).toFixed(2)}</small><br>` : ''}
+                    ${Number(o.usedCashback || 0) > 0 ? `<small style="font-size: 14px;">Cashback: - R$ ${Number(o.usedCashback).toFixed(2)}</small><br>` : ''}
                     <strong style="font-size: 24px; display: block; margin-top: 8px;">TOTAL: R$ ${Number(o.total || 0).toFixed(2)}</strong>
                 </div>
                 ${temCorte ? '<center><br>✂--- CORTE AQUI ---✂</center>' : ''}
