@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { productShareSlug, matchesChatProductSearch, chatProductImageUrl, buildChatProductShare, MAX_CHAT_PRODUCTS } from '../src/lib/chatProductShare.js';
+import { productShareSlug, matchesChatProductSearch, isChatCatalogProductVisible, chatProductImageUrl, buildChatProductShare, MAX_CHAT_PRODUCTS } from '../src/lib/chatProductShare.js';
 
 test('gera o link real da vitrine com slug idêntico à página de produtos', () => {
   const item = { id: 'p123', name: 'Água Tônica 350ml', price: 5.9, imageUrl: 'https://cdn.example.com/agua.jpg' };
@@ -90,4 +90,28 @@ test('cliente confirma quantidade e subtotal antes de aparecer como escolha do v
   assert.match(flow, /expectedPhone !== normalizedPhone/);
   assert.match(ui, /msg\.selectedProduct\?\.quantity/);
   assert.match(ui, /Nenhum pedido é criado automaticamente/);
+});
+
+test('chat oferece produtos legados ativos e respeita desativacao explicita', () => {
+  const legacy = { name: 'Vodka Intencion - Entrega Rapida', stock: 4 };
+  assert.equal(isChatCatalogProductVisible(legacy), true);
+  assert.equal(isChatCatalogProductVisible({ ...legacy, isActive: true }), true);
+  assert.equal(isChatCatalogProductVisible({ ...legacy, isActive: false }), false);
+  assert.equal(isChatCatalogProductVisible({ ...legacy, active: false }), false);
+  assert.equal(matchesChatProductSearch(legacy, 'vodka i'), true);
+  assert.equal(matchesChatProductSearch({ name: 'Água Tônica' }, 'agua'), true);
+  assert.equal(matchesChatProductSearch({ sku: 'CSI-090' }, 'csi-090'), true);
+});
+
+test('chat carrega produtos pelo storeId, sem exigir campo isActive existente', () => {
+  const ui = readFileSync(new URL('../src/components/AdminChat.jsx', import.meta.url), 'utf8');
+  const first = ui.indexOf("const q = query(collection(db, 'products')");
+  const last = ui.indexOf('return () => unsub();', first);
+  assert.ok(first >= 0 && last > first);
+  const subscription = ui.slice(first, last);
+  assert.match(subscription, /where\('storeId', '==', storeId\)/);
+  assert.doesNotMatch(subscription, /where\('isActive', '==', true\)/);
+  assert.match(subscription, /filter\(isChatCatalogProductVisible\)/);
+  assert.match(subscription, /setCatalogError/);
+  assert.match(ui, /matchesChatProductSearch\(p, miniPdvSearch\)/);
 });
