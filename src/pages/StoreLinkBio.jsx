@@ -133,7 +133,7 @@ export default function StoreLinkBio() {
     [data]
   );
   const address = addressText(data?.address || data?.endereco || data?.location);
-  const logo = safeImage(data?.storeLogoUrl || data?.logoUrl || data?.logo || data?.profileImage || '');
+  const logo = safeImage(data?.storeLogoUrl || data?.logoUrl || data?.logo || data?.profileImage || '') || (slug === 'xisdale' ? '/brand/xis-da-le-original-avatar.jpg' : '');
   const cover = safeImage(data?.storeBannerUrl || data?.bannerUrl || '');
   const url = typeof window !== 'undefined' ? window.location.origin : '';
   const orderUrl = `${url}/?utm_source=instagram&utm_medium=link_bio&utm_campaign=${slug}`;
