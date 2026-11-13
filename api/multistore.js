@@ -14,6 +14,7 @@ if (!admin.apps.length) {
 const db = admin.firestore();
 const STORE_IDS = ['lovepicados', 'xisdale'];
 const TTL_MS = 60 * 1000;
+const MASTER_EMAILS = new Set(['appdidelivery@gmail.com', 'projetosdiego.l@gmail.com']);
 const MAX_BODY = 1024;
 
 function domainFor(id) { return `${id}.velodelivery.com.br`; }
@@ -24,7 +25,13 @@ function getRequestStore(req) {
 async function permitted(uid, claims, id) {
   if (!STORE_IDS.includes(id)) return false;
   const snap = await db.collection('stores').doc(id).get();
-  return snap.exists && (snap.data()?.ownerUid === uid || claims.admin === true || claims.superAdmin === true);
+  return snap.exists && (
+    snap.data()?.ownerUid === uid ||
+    claims.admin === true ||
+    claims.superAdmin === true ||
+    (claims.email_verified === true &&
+      MASTER_EMAILS.has(String(claims.email || '').toLowerCase()))
+  );
 }
 function bad(res, status, message) { return res.status(status).json({ error: message }); }
 
