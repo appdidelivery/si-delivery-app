@@ -27,6 +27,10 @@ async function permitted(uid, claims, id) {
   const snap = await db.collection('stores').doc(id).get();
   return snap.exists && (
     snap.data()?.ownerUid === uid ||
+    (!snap.data()?.ownerUid &&
+     String(snap.data()?.ownerEmail || '').trim().toLowerCase() ===
+       String(claims.email || '').trim().toLowerCase() &&
+     Boolean(claims.email)) ||
     claims.admin === true ||
     claims.superAdmin === true ||
     (claims.email_verified === true &&
