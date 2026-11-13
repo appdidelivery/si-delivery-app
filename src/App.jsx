@@ -7,7 +7,8 @@ import { App as CapacitorApp } from '@capacitor/app'; // <-- NOVO: Plugin para c
 import VeloLeanEngine from './pages/VeloLeanEngine';
 import MarketMVSelector from './pages/MarketMVSelector';
 import AggregatorStore from './pages/AggregatorStore'; // <-- ADICIONE AQUI
-import WifiPortal from './pages/WifiPortal'; // <-- NOVO: Rota de Captura Wi-Fi Gamificado
+import WifiPortal from './pages/WifiPortal';
+import StoreLinkBio from './pages/StoreLinkBio'; // <-- NOVO: Rota de Captura Wi-Fi Gamificado
 
 // Seus componentes de página
 import Home from './pages/Home';
@@ -184,6 +185,8 @@ function App() {
             <Route path="/" element={<AppRouter />} />
             <Route path="/driver-login" element={<div className="p-10 text-center mt-20 font-bold text-slate-500">Faça login com seu link de Motoboy enviado pelo lojista 🛵...</div>} />
             <Route path="/p/:productSlug" element={<Home />} />
+            <Route path="/bio" element={<StoreLinkBio />} />
+            <Route path="/links" element={<Navigate to="/bio" replace />} />
             <Route path="/loja/:slug" element={<AggregatorStore />} />
             <Route path="/:loja/wifi" element={<WifiPortal />} /> {/* <-- NOVO: Rota PLG de Wi-Fi */}
             <Route path="/wpp/:slug" element={<WppWebview />} /> {/* <-- NOVO: Rota da Webview Slim */}
