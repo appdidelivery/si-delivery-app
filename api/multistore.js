@@ -33,8 +33,7 @@ async function permitted(uid, claims, id) {
      Boolean(claims.email)) ||
     claims.admin === true ||
     claims.superAdmin === true ||
-    (claims.email_verified === true &&
-      MASTER_EMAILS.has(String(claims.email || '').toLowerCase()))
+    MASTER_EMAILS.has(String(claims.email || '').toLowerCase())
   );
 }
 function bad(res, status, message) { return res.status(status).json({ error: message }); }
