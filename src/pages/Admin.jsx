@@ -1,15 +1,15 @@
 import React, { useEffect } from 'react';
 import { useStore } from '../context/StoreContext';
 import { Loader2 } from 'lucide-react';
+import MultiStoreSwitcher from '../components/MultiStoreSwitcher';
 
-// Importamos APENAS o painel completo (que renomeamos para AdminLegacy, mas é o OFICIAL)
-import AdminLegacy from './AdminLegacy'; 
+// Painel completo da loja (mantido sem alterações).
+import AdminLegacy from './AdminLegacy';
 
 export default function Admin() {
     const { store, loading } = useStore();
 
     useEffect(() => {
-        // Log para confirmar que está carregando o painel certo
         console.log("🚦 Admin Unificado: Carregando Painel Completo para:", store?.slug);
     }, [store]);
 
@@ -21,7 +21,10 @@ export default function Admin() {
         );
     }
 
-    // SEMPRE carrega o Painel Completo (as 1400 linhas).
-    // A lógica de mostrar o "Botão Mágico" está DENTRO dele (quando não tem produtos).
-    return <AdminLegacy />;
+    return (
+        <>
+            <AdminLegacy />
+            <MultiStoreSwitcher currentStoreId={store?.id || store?.slug} />
+        </>
+    );
 }
