@@ -1,5 +1,6 @@
 import { useStore } from '../../src/context/StoreContext';
 import React, { useState, useEffect } from 'react';
+import MultiStoreSwitcher from '../components/MultiStoreSwitcher';
 import ProductSalesReport from '../components/ProductSalesReport';
 import ProductCatalogImportExport from '../components/ProductCatalogImportExport';
 import InsightsProductSalesReport from '../components/InsightsProductSalesReport';
@@ -5102,6 +5103,13 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                     <p className="text-[10px] font-bold text-blue-600 uppercase text-center">{storeStatus.name}</p>
                     {storeStatus.slogan && <p className="text-[9px] text-slate-400 font-medium text-center mt-1">{storeStatus.slogan}</p>}
                 </div>
+
+                {/* Seletor abaixo da identidade da loja; preserva os demais tenants. */}
+                {['lovepicados', 'xisdale'].includes(window.location.hostname.toLowerCase().split('.')[0]) && (
+                    <div className="mb-5 w-full">
+                        <MultiStoreSwitcher currentStoreId={storeId} />
+                    </div>
+                )}
 
                 {/* --- BARRA DE BUSCA GLOBAL (MENU LATERAL) --- */}
                 <div className="relative mb-6 z-100">
@@ -13951,6 +13959,19 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                             </div>
 
                             <div className="overflow-y-auto p-4 custom-scrollbar flex-1 mb-20 space-y-2">
+                                {/* Marca e alternância dentro do menu mobile. */}
+                                {['lovepicados', 'xisdale'].includes(window.location.hostname.toLowerCase().split('.')[0]) && (
+                                    <div className="mb-4 rounded-2xl border border-slate-100 bg-slate-50 p-3">
+                                        <div className="mb-3 flex items-center gap-3">
+                                            <img src={storeStatus.storeLogoUrl} alt="" className="h-11 w-11 rounded-full border-2 border-white object-cover shadow-sm" />
+                                            <div className="min-w-0">
+                                                <p className="text-[9px] font-black uppercase tracking-wider text-slate-400">Loja atual</p>
+                                                <p className="truncate text-sm font-black text-slate-900">{storeStatus.name}</p>
+                                            </div>
+                                        </div>
+                                        <MultiStoreSwitcher currentStoreId={storeId} />
+                                    </div>
+                                )}
                                 {allNavItems
                                     .filter(item => item.id !== 'ingredients' || settings?.enableIngredientsControl)
                                     .filter(item => hasPermission(item.id))

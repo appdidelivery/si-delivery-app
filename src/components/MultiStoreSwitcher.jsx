@@ -1,6 +1,6 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useId, useState } from 'react';
 import { onAuthStateChanged } from 'firebase/auth';
-import { Building2, ChevronDown, Loader2 } from 'lucide-react';
+import { Building2, Check, ChevronDown, Loader2 } from 'lucide-react';
 import { auth } from '../services/firebase';
 
 const STORES = {
@@ -20,6 +20,7 @@ async function invoke(action, token, target) {
 }
 
 export default function MultiStoreSwitcher({ currentStoreId }) {
+  const menuId = useId();
   const [stores, setStores] = useState([]);
   const [expanded, setExpanded] = useState(false);
   const [switching, setSwitching] = useState(false);
@@ -73,33 +74,59 @@ export default function MultiStoreSwitcher({ currentStoreId }) {
 
   if (!isPilot || !authReady) return null;
 
+
   return (
-    <div className="fixed z-[100] top-3 right-3 max-w-[calc(100vw-1.5rem)]" data-testid="velo-multiloja">
-      <div className="rounded-xl border border-slate-200 bg-white/95 shadow-xl backdrop-blur-md overflow-hidden w-56">
-        <button type="button" aria-expanded={expanded} aria-controls="velo-store-menu"
-          onClick={() => setExpanded(value => !value)}
-          className="flex items-center w-full gap-2 px-3 py-2.5 text-sm font-semibold text-slate-800 hover:bg-slate-50">
-          <Building2 size={17} className="text-blue-600 shrink-0" />
-          <span className="truncate flex-1 text-left">Minhas lojas</span>
-          {switching ? <Loader2 size={16} className="animate-spin" /> : <ChevronDown size={16} className={expanded ? 'rotate-180' : ''} />}
-        </button>
-        {expanded && <div id="velo-store-menu" className="border-t border-slate-100 py-1">
+    <section className="w-full" data-testid="velo-multiloja" aria-label="Gestão de lojas">
+      <div className="mb-2 flex items-center justify-between px-1">
+        <span className="text-[9px] uppercase tracking-[0.15em] font-black text-slate-400">Gestão multiloja</span>
+        <span className="text-[9px] font-bold text-blue-600">{stores.length} {stores.length === 1 ? 'loja' : 'lojas'}</span>
+      </div>
+
+      <button
+        type="button"
+        aria-expanded={expanded}
+        aria-controls={menuId}
+        onClick={() => setExpanded(value => !value)}
+        className="group w-full flex items-center gap-2.5 rounded-2xl border border-blue-200 bg-blue-50 px-3 py-3 text-left shadow-sm transition-colors hover:bg-blue-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500"
+      >
+        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-blue-600 text-white shadow-sm">
+          <Building2 size={19} />
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block text-[9px] font-black uppercase tracking-wider text-blue-600">Alternar loja</span>
+          <span className="block truncate text-[12px] font-black text-slate-900">{STORES[activeStoreId]}</span>
+        </span>
+        {switching ? <Loader2 size={17} className="shrink-0 animate-spin text-blue-600" /> : (
+          <ChevronDown size={17} className={`shrink-0 text-blue-600 transition-transform ${expanded ? 'rotate-180' : ''}`} />
+        )}
+      </button>
+
+      {expanded && (
+        <div id={menuId} className="mt-2 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+          <p className="border-b border-slate-100 px-3 py-2 text-[9px] font-black uppercase tracking-wider text-slate-400">
+            Escolha a unidade
+          </p>
           {stores.length < 2 && (
-            <p className="px-3 py-2 text-xs text-slate-600">
-              Vínculo multiloja em verificação. A conta precisa de acesso autorizado às duas lojas.
+            <p role="status" className="px-3 py-3 text-[11px] leading-relaxed text-slate-600">
+              Vínculo multiloja em verificação. A conta precisa de permissão para as duas lojas.
             </p>
           )}
           {stores.map(id => (
-            <button type="button" key={id} disabled={switching} onClick={() => navigateTo(id)}
+            <button
+              type="button"
+              key={id}
+              disabled={switching || id === activeStoreId}
+              onClick={() => navigateTo(id)}
               aria-current={id === activeStoreId ? 'page' : undefined}
-              className={`flex items-center gap-2 w-full text-sm text-left px-3 py-2 hover:bg-blue-50 disabled:opacity-60 ${id === currentStoreId ? 'text-blue-700 bg-blue-50 font-bold' : 'text-slate-700'}`}>
-              <span className="flex-1">{STORES[id]}</span>
-              {id === currentStoreId && <span className="text-xs">Atual</span>}
+              className={`flex w-full items-center gap-2 border-b border-slate-50 px-3 py-3 text-left text-[12px] font-bold transition-colors last:border-b-0 hover:bg-blue-50 disabled:cursor-default ${id === activeStoreId ? 'bg-blue-50 text-blue-700' : 'text-slate-700'}`}
+            >
+              <span className="min-w-0 flex-1 truncate">{STORES[id]}</span>
+              {id === activeStoreId && <Check size={16} className="shrink-0 text-blue-600" />}
             </button>
           ))}
-          {error && <p role="alert" className="px-3 py-2 text-xs text-red-600">{error}</p>}
-        </div>}
-      </div>
-    </div>
+          {error && <p role="alert" className="border-t border-red-100 px-3 py-2 text-[11px] text-red-600">{error}</p>}
+        </div>
+      )}
+    </section>
   );
 }
