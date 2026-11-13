@@ -25,7 +25,7 @@ import ProspeccaoKanban from './pages/ProspeccaoKanban';
 
 // Firebase e Contexto
 import { auth } from './services/firebase';
-import { onAuthStateChanged } from 'firebase/auth';
+import { onAuthStateChanged, signInWithCustomToken, signOut } from 'firebase/auth';
 
 const VELO_BUILD_VERSION = typeof __VELO_BUILD_VERSION__ !== 'undefined'
   ? __VELO_BUILD_VERSION__
@@ -77,6 +77,38 @@ function DeepLinkListener() {
 function App() {
   const [currentUser, setCurrentUser] = useState(null);
   const [loadingAuth, setLoadingAuth] = useState(true);
+  const [restoringMultiStore, setRestoringMultiStore] = useState(() =>
+    window.location.hash.startsWith('#multistore-ticket=')
+  );
+
+  // Resgata o ticket de uso único no próprio domínio de destino antes de renderizar o painel.
+  useEffect(() => {
+    if (!window.location.hash.startsWith('#multistore-ticket=')) return;
+    const ticket = window.location.hash.slice('#multistore-ticket='.length);
+    window.history.replaceState(window.history.state, '', window.location.pathname + window.location.search);
+    let mounted = true;
+    (async () => {
+      try {
+        if (!/^[0-9a-f]{64}$/.test(ticket)) throw new Error('Ticket inválido');
+        const response = await fetch('/api/multistore', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'redeem', ticket }),
+          cache: 'no-store'
+        });
+        if (!response.ok) throw new Error('Ticket expirado');
+        const result = await response.json();
+        await signInWithCustomToken(auth, result.customToken);
+      } catch {
+        // Nunca preservar uma sessão anterior no destino quando o ticket falha.
+        await signOut(auth);
+      } finally {
+        if (mounted) setRestoringMultiStore(false);
+      }
+    })();
+    return () => { mounted = false; };
+  }, []);
+
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, user => {
@@ -139,7 +171,7 @@ function App() {
     };
   }, []);
 
-  if (loadingAuth) {
+  if (loadingAuth || restoringMultiStore) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-slate-50">
         Verificando sessão...
