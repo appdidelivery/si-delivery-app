@@ -24,13 +24,22 @@ export default function MultiStoreSwitcher({ currentStoreId }) {
   const [expanded, setExpanded] = useState(false);
   const [switching, setSwitching] = useState(false);
   const [error, setError] = useState('');
-  const isPilot = Object.hasOwn(STORES, currentStoreId);
+  // O storeId pode ser um ID legado diferente do slug. A origem visual
+  // usa o hostname; a autorização de acesso continua exclusivamente no servidor.
+  const hostSlug = window.location.hostname.toLowerCase().split('.')[0];
+  const activeStoreId = Object.hasOwn(STORES, hostSlug) ? hostSlug : currentStoreId;
+  const isPilot = Object.hasOwn(STORES, activeStoreId);
+  const [authReady, setAuthReady] = useState(false);
 
   useEffect(() => {
     if (!isPilot) return undefined;
     let active = true;
     const unsubscribe = onAuthStateChanged(auth, async user => {
-      if (!user) { if (active) setStores([]); return; }
+      if (!user) {
+        if (active) { setStores([]); setAuthReady(false); }
+        return;
+      }
+      if (active) setAuthReady(true);
       try {
         const token = await user.getIdToken();
         const response = await invoke('list', token);
@@ -40,10 +49,10 @@ export default function MultiStoreSwitcher({ currentStoreId }) {
       }
     });
     return () => { active = false; unsubscribe(); };
-  }, [currentStoreId, isPilot]);
+  }, [activeStoreId, isPilot]);
 
   const navigateTo = async target => {
-    if (target === currentStoreId || switching) return;
+    if (target === activeStoreId || switching) return;
     setError('');
     setSwitching(true);
     try {
@@ -62,7 +71,7 @@ export default function MultiStoreSwitcher({ currentStoreId }) {
     }
   };
 
-  if (!isPilot || stores.length < 2) return null;
+  if (!isPilot || !authReady) return null;
 
   return (
     <div className="fixed z-[100] top-3 right-3 max-w-[calc(100vw-1.5rem)]" data-testid="velo-multiloja">
@@ -75,9 +84,14 @@ export default function MultiStoreSwitcher({ currentStoreId }) {
           {switching ? <Loader2 size={16} className="animate-spin" /> : <ChevronDown size={16} className={expanded ? 'rotate-180' : ''} />}
         </button>
         {expanded && <div id="velo-store-menu" className="border-t border-slate-100 py-1">
+          {stores.length < 2 && (
+            <p className="px-3 py-2 text-xs text-slate-600">
+              Vínculo multiloja em verificação. A conta precisa de acesso autorizado às duas lojas.
+            </p>
+          )}
           {stores.map(id => (
             <button type="button" key={id} disabled={switching} onClick={() => navigateTo(id)}
-              aria-current={id === currentStoreId ? 'page' : undefined}
+              aria-current={id === activeStoreId ? 'page' : undefined}
               className={`flex items-center gap-2 w-full text-sm text-left px-3 py-2 hover:bg-blue-50 disabled:opacity-60 ${id === currentStoreId ? 'text-blue-700 bg-blue-50 font-bold' : 'text-slate-700'}`}>
               <span className="flex-1">{STORES[id]}</span>
               {id === currentStoreId && <span className="text-xs">Atual</span>}
