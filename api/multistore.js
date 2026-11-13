@@ -18,7 +18,7 @@ const MAX_BODY = 1024;
 
 function domainFor(id) { return `${id}.velodelivery.com.br`; }
 function getRequestStore(req) {
-  const host = String(req.headers['x-forwarded-host'] || req.headers.host || '').split(':')[0].toLowerCase();
+  const host = String(req.headers.host || '').split(':')[0].toLowerCase();
   return STORE_IDS.find(id => host === domainFor(id)) || null;
 }
 async function permitted(uid, claims, id) {
