@@ -86,7 +86,6 @@ function App() {
     if (!window.location.hash.startsWith('#multistore-ticket=')) return;
     const ticket = window.location.hash.slice('#multistore-ticket='.length);
     window.history.replaceState(window.history.state, '', window.location.pathname + window.location.search);
-    let mounted = true;
     (async () => {
       try {
         if (!/^[0-9a-f]{64}$/.test(ticket)) throw new Error('Ticket inválido');
@@ -103,10 +102,9 @@ function App() {
         // Nunca preservar uma sessão anterior no destino quando o ticket falha.
         await signOut(auth);
       } finally {
-        if (mounted) setRestoringMultiStore(false);
+        setRestoringMultiStore(false);
       }
     })();
-    return () => { mounted = false; };
   }, []);
 
 
