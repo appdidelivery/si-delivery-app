@@ -1,7 +1,6 @@
 import React, { useEffect } from 'react';
 import { useStore } from '../context/StoreContext';
 import { Loader2 } from 'lucide-react';
-import MultiStoreSwitcher from '../components/MultiStoreSwitcher';
 
 // Painel completo da loja (mantido sem alterações).
 import AdminLegacy from './AdminLegacy';
@@ -21,10 +20,5 @@ export default function Admin() {
         );
     }
 
-    return (
-        <>
-            <AdminLegacy />
-            <MultiStoreSwitcher currentStoreId={store?.id || store?.slug} />
-        </>
-    );
+    return <AdminLegacy />;
 }
