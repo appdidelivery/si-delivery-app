@@ -1,4 +1,6 @@
-import React, { useMemo } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
+import { doc, onSnapshot } from 'firebase/firestore';
+import { db } from '../services/firebase';
 import { Navigate } from 'react-router-dom';
 import { ArrowUpRight, Instagram, MapPin, MessageCircle, ShoppingBag, Share2, Heart, Sparkles } from 'lucide-react';
 import { useStore } from '../context/StoreContext';
@@ -98,21 +100,40 @@ function BioLink({ href, icon: Icon, title, subtitle, primary = false, color, ex
 }
 
 export default function StoreLinkBio() {
-  const { store, loading } = useStore();
+  const { store } = useStore();
   const slug = getStoreIdFromHostname();
   const brand = BRAND[slug];
-  const data = store?.id === slug || store?.slug === slug ? store : null;
+  const [directStore, setDirectStore] = useState(null);
+  const [readingStore, setReadingStore] = useState(true);
+
+  // Home lê stores/{storeId} diretamente. O StoreContext legado procura
+  // o campo slug; algumas lojas novas ainda não têm esse campo preenchido.
+  useEffect(() => {
+    if (!BRAND[slug]) { setReadingStore(false); return undefined; }
+    setReadingStore(true);
+    const stop = onSnapshot(doc(db, 'stores', slug), (snapshot) => {
+      setDirectStore(snapshot.exists() ? { ...snapshot.data(), id: snapshot.id } : null);
+      setReadingStore(false);
+    }, (error) => {
+      console.warn('[StoreLinkBio] Leitura pública da loja indisponível:', error?.code || error?.message);
+      setDirectStore(null);
+      setReadingStore(false);
+    });
+    return () => stop();
+  }, [slug]);
+
+  const data = directStore || (store?.id === slug || store?.slug === slug ? store : null);
 
   const whatsapp = useMemo(
-    () => whatsappLink(data?.whatsapp || data?.contactWhatsapp || data?.whatsappNumber || data?.phone || data?.telefone || brand?.fallbackWhatsapp),
+    () => whatsappLink(data?.whatsapp || data?.contactWhatsapp || data?.whatsappNumber || data?.contactPhone || data?.phone || data?.telefone || brand?.fallbackWhatsapp),
     [data, brand]
   );
   const instagram = useMemo(
-    () => instagramLink(data?.instagramUrl || data?.socialLinks?.instagram || data?.instagram || ''),
+    () => instagramLink(data?.instagramUrl || data?.socialLinks?.instagram || data?.socialMedia?.instagram || data?.instagram || ''),
     [data]
   );
   const address = addressText(data?.address || data?.endereco || data?.location);
-  const logo = safeImage(data?.storeLogoUrl || data?.logoUrl || data?.logo || '');
+  const logo = safeImage(data?.storeLogoUrl || data?.logoUrl || data?.logo || data?.profileImage || '');
   const cover = safeImage(data?.storeBannerUrl || data?.bannerUrl || '');
   const url = typeof window !== 'undefined' ? window.location.origin : '';
   const orderUrl = `${url}/?utm_source=instagram&utm_medium=link_bio&utm_campaign=${slug}`;
@@ -142,15 +163,8 @@ export default function StoreLinkBio() {
           <p className="mt-3 text-base font-semibold text-white/80">{subtitle}</p>
         </header>
 
-        {loading ? (
-          <div className="mt-12 rounded-3xl border border-white/15 bg-white/10 p-8 text-center text-sm text-white/75" role="status">Carregando informações da loja…</div>
-        ) : !data ? (
-          <div className="mt-12 rounded-3xl border border-white/15 bg-white/10 p-8 text-center">
-            <p className="text-lg font-bold">Estamos preparando nossos links.</p>
-            <p className="mt-2 text-sm text-white/70">O cadastro desta unidade ainda não está disponível.</p>
-          </div>
-        ) : (
-          <main className="mt-10 space-y-3.5" aria-label="Links da loja">
+        <main className="mt-9 space-y-3.5 pb-4" aria-label="Links da loja">
+          {readingStore && <div className="text-center text-xs font-semibold text-white/55" role="status">Atualizando contatos da unidade…</div>}
             <BioLink href={orderUrl} icon={ShoppingBag} title="Ver cardápio e fazer pedido" subtitle="Peça diretamente pela nossa loja online" primary color={brand.accent} external={false} />
             {whatsapp && <BioLink href={whatsapp} icon={MessageCircle} title="Falar no WhatsApp" subtitle="Dúvidas, atendimento e pedidos" />}
             {instagram && <BioLink href={instagram} icon={Instagram} title="Seguir no Instagram" subtitle="Novidades, fotos e bastidores" />}
@@ -171,8 +185,7 @@ export default function StoreLinkBio() {
               <Share2 size={17} aria-hidden="true" /> Compartilhar esta página
             </button>
           </main>
-        )}
-        <footer className="mt-auto pt-12 text-center">
+        <footer className="mt-auto pt-10 text-center">
           <Heart className="mx-auto mb-3" size={17} fill={brand.accent} color={brand.accent} aria-hidden="true" />
           <p className="text-xs font-semibold text-white/45">Peça direto com {storeName}.</p>
           <p className="mt-2 text-[10px] text-white/30">Tecnologia Velo Delivery</p>
