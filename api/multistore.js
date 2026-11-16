@@ -12,15 +12,28 @@ if (!admin.apps.length) {
 }
 
 const db = admin.firestore();
-const STORE_IDS = ['lovepicados', 'xisdale'];
+const STORE_GROUPS = Object.freeze({
+  lanches: Object.freeze(['lovepicados', 'xisdale']),
+  mercadoMV: Object.freeze(['mercadomonteverde', 'mercadomonteverdesacogrande']),
+});
+const STORE_IDS = Object.values(STORE_GROUPS).flat();
+const STORE_HOSTS = Object.freeze({
+  lovepicados: 'lovepicados.velodelivery.com.br',
+  xisdale: 'xisdale.velodelivery.com.br',
+  mercadomonteverde: 'monteverde.mercadomv.com.br',
+  mercadomonteverdesacogrande: 'sacogrande.mercadomv.com.br',
+});
 const TTL_MS = 60 * 1000;
 const MASTER_EMAILS = new Set(['appdidelivery@gmail.com', 'projetosdiego.l@gmail.com']);
 const MAX_BODY = 1024;
 
-function domainFor(id) { return `${id}.velodelivery.com.br`; }
+function domainFor(id) { return STORE_HOSTS[id] || `${id}.velodelivery.com.br`; }
+function groupStores(id) {
+  return Object.values(STORE_GROUPS).find(ids => ids.includes(id)) || [];
+}
 function getRequestStore(req) {
   const host = String(req.headers.host || '').split(':')[0].toLowerCase();
-  return STORE_IDS.find(id => host === domainFor(id)) || null;
+  return STORE_IDS.find(id => host === domainFor(id) || host === `${id}.velodelivery.com.br`) || null;
 }
 async function permitted(uid, claims, id) {
   if (!STORE_IDS.includes(id)) return false;
@@ -73,7 +86,7 @@ export default async function handler(req, res) {
     if (!(await permitted(claims.uid, claims, currentStore))) return bad(res, 403, 'Acesso não autorizado');
 
     if (action === 'list') {
-      const allowed = await Promise.all(STORE_IDS.map(async id => (
+      const allowed = await Promise.all(groupStores(currentStore).map(async id => (
         (await permitted(claims.uid, claims, id)) ? id : null
       )));
       return res.status(200).json({ stores: allowed.filter(Boolean) });
@@ -81,7 +94,7 @@ export default async function handler(req, res) {
 
     if (action === 'issue') {
       const target = String(req.body?.target || '');
-      if (target === currentStore || !(await permitted(claims.uid, claims, target))) {
+      if (target === currentStore || !groupStores(currentStore).includes(target) || !(await permitted(claims.uid, claims, target))) {
         return bad(res, 403, 'Destino não autorizado');
       }
       const ticket = randomBytes(32).toString('hex');

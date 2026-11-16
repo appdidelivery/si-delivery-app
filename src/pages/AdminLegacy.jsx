@@ -5105,7 +5105,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                 </div>
 
                 {/* Seletor abaixo da identidade da loja; preserva os demais tenants. */}
-                {['lovepicados', 'xisdale'].includes(window.location.hostname.toLowerCase().split('.')[0]) && (
+                {(['lovepicados', 'xisdale'].includes(window.location.hostname.toLowerCase().split('.')[0]) || ['monteverde.mercadomv.com.br', 'sacogrande.mercadomv.com.br'].includes(window.location.hostname.toLowerCase())) && (
                     <div className="mb-5 w-full">
                         <MultiStoreSwitcher currentStoreId={storeId} />
                     </div>
@@ -13960,7 +13960,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
 
                             <div className="overflow-y-auto p-4 custom-scrollbar flex-1 mb-20 space-y-2">
                                 {/* Marca e alternância dentro do menu mobile. */}
-                                {['lovepicados', 'xisdale'].includes(window.location.hostname.toLowerCase().split('.')[0]) && (
+                                {(['lovepicados', 'xisdale'].includes(window.location.hostname.toLowerCase().split('.')[0]) || ['monteverde.mercadomv.com.br', 'sacogrande.mercadomv.com.br'].includes(window.location.hostname.toLowerCase())) && (
                                     <div className="mb-4 rounded-2xl border border-slate-100 bg-slate-50 p-3">
                                         <div className="mb-3 flex items-center gap-3">
                                             <img src={storeStatus.storeLogoUrl} alt="" className="h-11 w-11 rounded-full border-2 border-white object-cover shadow-sm" />
