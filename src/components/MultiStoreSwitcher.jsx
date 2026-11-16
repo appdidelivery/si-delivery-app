@@ -4,8 +4,10 @@ import { Building2, Check, ChevronDown, Loader2 } from 'lucide-react';
 import { auth } from '../services/firebase';
 
 const STORES = {
-  lovepicados: 'Love Picados',
-  xisdale: 'Xis da Lê',
+  lovepicados: { name: 'Love Picados', host: 'lovepicados.velodelivery.com.br' },
+  xisdale: { name: 'Xis da Lê', host: 'xisdale.velodelivery.com.br' },
+  mercadomonteverde: { name: 'Unidade Monte Verde', host: 'monteverde.mercadomv.com.br' },
+  mercadomonteverdesacogrande: { name: 'Unidade Saco Grande', host: 'sacogrande.mercadomv.com.br' },
 };
 
 async function invoke(action, token, target) {
@@ -27,8 +29,10 @@ export default function MultiStoreSwitcher({ currentStoreId }) {
   const [error, setError] = useState('');
   // O storeId pode ser um ID legado diferente do slug. A origem visual
   // usa o hostname; a autorização de acesso continua exclusivamente no servidor.
-  const hostSlug = window.location.hostname.toLowerCase().split('.')[0];
-  const activeStoreId = Object.hasOwn(STORES, hostSlug) ? hostSlug : currentStoreId;
+  const hostname = window.location.hostname.toLowerCase();
+  const storeFromHostname = Object.keys(STORES).find(id => STORES[id].host === hostname);
+  const hostSlug = hostname.split('.')[0];
+  const activeStoreId = storeFromHostname || (Object.hasOwn(STORES, hostSlug) ? hostSlug : currentStoreId);
   const isPilot = Object.hasOwn(STORES, activeStoreId);
   const [authReady, setAuthReady] = useState(false);
 
@@ -61,7 +65,7 @@ export default function MultiStoreSwitcher({ currentStoreId }) {
       if (!user) throw new Error('Entre novamente na sua conta para alternar de loja.');
       const response = await invoke('issue', await user.getIdToken(), target);
       const destination = new URL(response.url);
-      if (destination.protocol !== 'https:' || destination.hostname !== `${target}.velodelivery.com.br` ||
+      if (destination.protocol !== 'https:' || destination.hostname !== STORES[target]?.host ||
           destination.pathname !== '/admin' || !destination.hash.startsWith('#multistore-ticket=')) {
         throw new Error('Destino inválido');
       }
@@ -94,7 +98,7 @@ export default function MultiStoreSwitcher({ currentStoreId }) {
         </span>
         <span className="min-w-0 flex-1">
           <span className="block text-[9px] font-black uppercase tracking-wider text-blue-600">Alternar loja</span>
-          <span className="block truncate text-[12px] font-black text-slate-900">{STORES[activeStoreId]}</span>
+          <span className="block truncate text-[12px] font-black text-slate-900">{STORES[activeStoreId]?.name}</span>
         </span>
         {switching ? <Loader2 size={17} className="shrink-0 animate-spin text-blue-600" /> : (
           <ChevronDown size={17} className={`shrink-0 text-blue-600 transition-transform ${expanded ? 'rotate-180' : ''}`} />
@@ -120,7 +124,7 @@ export default function MultiStoreSwitcher({ currentStoreId }) {
               aria-current={id === activeStoreId ? 'page' : undefined}
               className={`flex w-full items-center gap-2 border-b border-slate-50 px-3 py-3 text-left text-[12px] font-bold transition-colors last:border-b-0 hover:bg-blue-50 disabled:cursor-default ${id === activeStoreId ? 'bg-blue-50 text-blue-700' : 'text-slate-700'}`}
             >
-              <span className="min-w-0 flex-1 truncate">{STORES[id]}</span>
+              <span className="min-w-0 flex-1 truncate">{STORES[id].name}</span>
               {id === activeStoreId && <Check size={16} className="shrink-0 text-blue-600" />}
             </button>
           ))}
