@@ -5,10 +5,11 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
+    "build": "vite build && node --test tests/storefront-banner-layout.test.mjs",
     "lint": "eslint .",
     "test:linvix": "node --test tests/linvix-stock.test.mjs tests/linvix-orders.test.mjs",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test:banners": "node --test tests/storefront-banner-layout.test.mjs"
   },
   "dependencies": {
     "@capacitor-community/background-geolocation": "^1.2.26",
