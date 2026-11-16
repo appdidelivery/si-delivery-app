@@ -3590,7 +3590,7 @@ alert("Pagamento recusado pelo Mercado Pago. Tente outro cartão ou entre em con
    {!isCatalogReady ? (
        <div className="w-full min-h-[80vh] flex flex-col px-6 mt-6 gap-6 animate-pulse z-20 relative">
            {/* Skeleton do Banner */}
-           <div className="w-full aspect-2/1 bg-slate-200 rounded-4xl"></div>
+           <div className="w-[calc(100%+3rem)] -mx-6 aspect-[2/1] bg-slate-200 rounded-none"></div>
            {/* Skeleton da Pesquisa */}
            <div className="w-full h-14 bg-slate-200 rounded-2xl"></div>
            {/* Skeleton das Categorias */}
@@ -3642,6 +3642,8 @@ alert("Pagamento recusado pelo Mercado Pago. Tente outro cartão ou entre em con
             )}
           </AnimatePresence>
 
+          {/* Banners da vitrine: full-bleed mobile, cantos retos e proporção natural.
+              Nunca recortar a arte cadastrada no painel; applies to every tenant. */}
           <AnimatePresence mode="popLayout">
             {marketingSettings?.promoActive && 
              marketingSettings?.promoBannerUrls && 
@@ -3649,11 +3651,11 @@ alert("Pagamento recusado pelo Mercado Pago. Tente outro cartão ou entre em con
              (!marketingSettings.promoStartsAt || new Date() >= new Date(marketingSettings.promoStartsAt)) && 
              (!marketingSettings.promoExpiresAt || new Date() < new Date(marketingSettings.promoExpiresAt)) && 
              isWithinRecurringSchedule(marketingSettings.promoRecurringDay, marketingSettings.promoRecurringStart, marketingSettings.promoRecurringEnd) && (
-              <motion.div initial={{ opacity:0 }} animate={{ opacity:1 }} exit={{ opacity:0 }} className="overflow-hidden p-6 w-full aspect-2/1 bg-slate-50">
+              <motion.div initial={{ opacity:0 }} animate={{ opacity:1 }} exit={{ opacity:0 }} className="w-full overflow-hidden bg-slate-50">
                 <Carousel showThumbs={false} infiniteLoop={true} autoPlay={true} interval={3000} showStatus={false} renderIndicator={renderAccessibleIndicator}>
                   {marketingSettings.promoBannerUrls.map((url, index) => (
-                    <div key={index} className="w-full aspect-2/1 bg-slate-200 animate-pulse rounded-4xl">
-                      <img src={optimizeCloudinary(url, 800)} alt={`Banner Promocional ${index + 1}`} width="800" height="400" loading={index === 0 ? "eager" : "lazy"} fetchpriority={index === 0 ? "high" : "low"} decoding={index === 0 ? "sync" : "async"} className="w-full h-full object-cover rounded-4xl shadow-xl border-4 border-white" />
+                    <div key={index} className="w-full bg-slate-50">
+                      <img src={optimizeCloudinary(url, 800)} alt={`Banner Promocional ${index + 1}`} width="800" height="400" loading={index === 0 ? "eager" : "lazy"} fetchpriority={index === 0 ? "high" : "low"} decoding={index === 0 ? "sync" : "async"} className="block w-full h-auto object-contain rounded-none" />
                     </div>
                   ))}
                 </Carousel>
@@ -3663,12 +3665,12 @@ alert("Pagamento recusado pelo Mercado Pago. Tente outro cartão ou entre em con
 
           <AnimatePresence mode="popLayout">
             {generalBanners.length > 0 && (
-              <motion.div initial={{ opacity:0 }} animate={{ opacity:1 }} exit={{ opacity:0 }} className="overflow-hidden p-6 pt-0 w-full aspect-2/1 bg-slate-50">
+              <motion.div initial={{ opacity:0 }} animate={{ opacity:1 }} exit={{ opacity:0 }} className="w-full overflow-hidden bg-slate-50">
                 <Carousel showThumbs={false} infiniteLoop={true} autoPlay={true} interval={5000} showStatus={false} renderIndicator={renderAccessibleIndicator}>
                   {generalBanners.map((banner, index) => (
-                    <div key={banner.id}>
+                    <div key={banner.id} className="w-full">
                         <a href={banner.linkTo} target="_blank" rel="noopener noreferrer">
-                            <img src={optimizeCloudinary(banner.imageUrl, 800)} alt={banner.linkTo || "Banner da Loja"} width="800" height="400" loading={index === 0 ? "eager" : "lazy"} fetchpriority={index === 0 ? "high" : "auto"} decoding="async" className="w-full aspect-2/1 object-cover rounded-4xl shadow-xl border-4 border-white" />
+                            <img src={optimizeCloudinary(banner.imageUrl, 800)} alt={banner.linkTo || "Banner da Loja"} width="800" height="400" loading={index === 0 ? "eager" : "lazy"} fetchpriority={index === 0 ? "high" : "auto"} decoding="async" className="block w-full h-auto object-contain rounded-none" />
                         </a>
                     </div>
                   ))}
