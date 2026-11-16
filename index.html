@@ -1,6 +1,32 @@
 <!doctype html>
 <html lang="pt-BR">
   <head>
+    <!-- GTM por tenant: somente nas duas lojas autorizadas, sem compartilhar dados. -->
+    <script>
+      (function () {
+        const containersByHostname = {
+          'lovepicados.velodelivery.com.br': 'GTM-WZS3HG4D',
+          'xisdale.velodelivery.com.br': 'GTM-55THPMSD'
+        };
+        const hostname = window.location.hostname.toLowerCase();
+        const containerId = containersByHostname[hostname];
+        if (!containerId) return;
+
+        // Admin, login e painéis internos não são páginas do funil de compras.
+        if (/^\/(?:admin(?:\/|$)|admin-saas(?:\/|$)|login(?:\/|$)|driver(?:\/|$)|driver-login(?:\/|$)|parceiro(?:\/|$))/.test(window.location.pathname)) return;
+
+        window.dataLayer = window.dataLayer || [];
+        window.gtag = window.gtag || function () { window.dataLayer.push(arguments); };
+        window.gtag('js', new Date());
+        window.dataLayer.push({ event: 'velo_store_context', velo_store_id: hostname.split('.')[0] });
+
+        const script = document.createElement('script');
+        script.id = 'velo-tenant-gtm';
+        script.async = true;
+        script.src = 'https://www.googletagmanager.com/gtm.js?id=' + encodeURIComponent(containerId);
+        document.head.appendChild(script);
+      })();
+    </script>
     <link rel="preconnect" href="https://res.cloudinary.com">
   <link rel="dns-prefetch" href="https://res.cloudinary.com">
     
