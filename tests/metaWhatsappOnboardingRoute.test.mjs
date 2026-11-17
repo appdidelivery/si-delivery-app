@@ -34,10 +34,10 @@ test('a missing Meta phone session cannot silently activate a number', () => {
 });
 
 test('Love Picados and Xis da Lê preserve the tenant when opening standalone Meta signup', () => {
-  assert.match(standalone, /lovepicados\\.velodelivery\\.com\\.br/);
-  assert.match(standalone, /xisdale\\.velodelivery\\.com\\.br/);
-  assert.match(standalone, /hostBoundStoreId \\|\\| store\\?\\.id/);
-  assert.match(standalone, /Object\\.prototype\\.hasOwnProperty\\.call\\(knownStoreByHost, host\\)/);
+  assert.match(standalone, /lovepicados\.velodelivery\.com\.br/);
+  assert.match(standalone, /xisdale\.velodelivery\.com\.br/);
+  assert.match(standalone, /hostBoundStoreId \|\| store\?\.id/);
+  assert.match(standalone, /Object\.prototype\.hasOwnProperty\.call\(knownStoreByHost, host\)/);
   assert.doesNotMatch(standalone, /URLSearchParams|localStorage|sessionStorage/);
-  assert.match(backend, /await requireStore\\(req, db, storeId\\)/);
+  assert.match(backend, /await requireStore\(req, db, storeId\)/);
 });
