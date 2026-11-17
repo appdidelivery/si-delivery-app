@@ -182,6 +182,7 @@ export default function WhatsAppConnectionChoice({ storeId, metaConnected, authe
           </div>
           <button type="button" disabled={busy || (standalone && (!config.ready || !sdkReady))} onClick={connect} className="bg-green-600 text-white rounded-xl p-4 font-black disabled:opacity-50">{busy?'Autorizando...':standalone?'Conectar oficialmente com a Meta':'Abrir conexão oficial da Meta'}</button>
           {!config.ready && <p className="text-sm bg-amber-50 border border-amber-200 p-4 rounded-xl text-amber-900 flex items-start gap-2"><AlertTriangle size={20}/> Falta configurar: {(config.missing || []).join('; ')}. <a className="underline" href="https://developers.facebook.com/apps/" target="_blank" rel="noopener noreferrer">Meta Developers</a></p>}
+          {config.pilot && <p role="status" className="text-sm bg-amber-50 border border-amber-200 p-4 rounded-xl text-amber-900 flex items-start gap-2"><AlertTriangle size={20}/> Homologação restrita à Love Picados: a autorização Meta está liberada para administrador, mas o webhook legado ainda exige auditoria. Não ative automações antes de confirmar o recebimento das mensagens.</p>}
           <p className="text-xs text-slate-500">O cadastro abre uma janela oficial da Meta. Não usa QR Code do WhatsApp Web.</p>
         </div>
       )}
