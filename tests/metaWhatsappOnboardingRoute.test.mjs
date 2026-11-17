@@ -41,3 +41,13 @@ test('Love Picados and Xis da Lê preserve the tenant when opening standalone Me
   assert.doesNotMatch(standalone, /URLSearchParams|localStorage|sessionStorage/);
   assert.match(backend, /await requireStore\(req, db, storeId\)/);
 });
+
+test('Love Picados pilot is restricted to an authenticated internal administrator', () => {
+  assert.ok(backend.includes("storeId !== 'lovepicados'"));
+  assert.ok(backend.includes('META_LOVEPICADOS_ONBOARDING_PILOT'));
+  assert.ok(backend.includes('req.user.admin === true'));
+  assert.ok(backend.includes('const signupReady = appReady()'));
+  assert.ok(backend.includes('if (!signupReady)'));
+  assert.ok(backend.includes('if (active) return res.status(409)'));
+  assert.ok(connector.includes('config.pilot &&'));
+});

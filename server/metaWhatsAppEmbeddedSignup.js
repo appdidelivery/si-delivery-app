@@ -5,6 +5,14 @@ const digits = v => String(v || '').replace(/\D/g, '');
 export const isWhatsAppId = v => /^\d{6,30}$/.test(String(v || ''));
 export const validatePin = v => /^\d{6}$/.test(String(v || ''));
 const appReady = () => Boolean(process.env.META_WHATSAPP_APP_ID && process.env.META_WHATSAPP_APP_SECRET && process.env.META_WHATSAPP_CONFIG_ID);
+// Pilot: authorize only Velo's authenticated internal admins on Love Picados.
+// Existing CSI webhook and all other stores remain unchanged.
+const allowLovePicadosPilot = (req, storeId) => {
+  if (storeId !== 'lovepicados' || process.env.META_LOVEPICADOS_ONBOARDING_PILOT !== 'true') return false;
+  const email = String(req.user?.email || '').toLowerCase();
+  return Boolean(req.user) && (req.user.admin === true || req.user.superAdmin === true ||
+    ['appdidelivery@gmail.com', 'appdedelivery@gmail.com', 'projetosdiego.l@gmail.com'].includes(email));
+};
 const requireStore = async (req, db, storeId) => {
   if (!/^[a-zA-Z0-9_-]{1,70}$/.test(String(storeId || ''))) {
     const e = new Error('Loja inválida.'); e.statusCode = 400; throw e;
@@ -78,17 +86,21 @@ export async function handleMetaWhatsAppSignup(req, res, { db, admin }) {
     const whatsapp = integration.whatsapp || {};
     const active = Boolean(whatsapp.phoneNumberId && whatsapp.apiToken);
     const pending = integration.whatsappPending || null;
+    const pilot = allowLovePicadosPilot(req, storeId) && !process.env.META_WEBHOOK_VERIFY_TOKEN;
+    const signupReady = appReady() && (Boolean(process.env.META_WEBHOOK_VERIFY_TOKEN) || pilot);
     if (action === 'status') {
       return res.json({
         success: true,
-        ready: appReady() && Boolean(process.env.META_WEBHOOK_VERIFY_TOKEN),
+        ready: signupReady,
+        pilot,
+        webhookNeedsAudit: pilot,
         appId: String(process.env.META_WHATSAPP_APP_ID || ''),
         configId: String(process.env.META_WHATSAPP_CONFIG_ID || ''),
         missing: [
            ...(!process.env.META_WHATSAPP_APP_ID ? ['ID do aplicativo WhatsApp'] : []),
           ...(!process.env.META_WHATSAPP_APP_SECRET ? ['Chave secreta do aplicativo Velo Delivery (Meta)'] : []),
           ...(!process.env.META_WHATSAPP_CONFIG_ID ? ['Configuração Embedded Signup no Meta Developers'] : []),
-          ...(!process.env.META_WEBHOOK_VERIFY_TOKEN ? ['Token de verificação do webhook oficial'] : [])
+          ...(!process.env.META_WEBHOOK_VERIFY_TOKEN && !pilot ? ['Token de verificação do webhook oficial'] : [])
         ],
         active, pending: !active && Boolean(pending?.phoneNumberId),
         provider: active ? 'meta' : null,
@@ -99,7 +111,7 @@ export async function handleMetaWhatsAppSignup(req, res, { db, admin }) {
     }
     if (!['complete', 'register'].includes(action)) return res.status(400).json({ error: 'Ação inválida.' });
     if (active) return res.status(409).json({ error: 'Esta loja já tem WhatsApp oficial ativo. A conexão existente foi preservada.' });
-    if (!appReady() || !process.env.META_WEBHOOK_VERIFY_TOKEN)
+    if (!signupReady)
       return res.status(503).json({ error: 'A integração oficial ainda não foi configurada no painel Meta e na Vercel.' });
     if (action === 'register') {
       if (!pending?.apiToken || !isWhatsAppId(pending.phoneNumberId))
