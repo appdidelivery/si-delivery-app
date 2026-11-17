@@ -51,3 +51,13 @@ test('Love Picados pilot is restricted to an authenticated internal administrato
   assert.ok(backend.includes('if (active) return res.status(409)'));
   assert.ok(connector.includes('config.pilot &&'));
 });
+
+test('team integration permission requires an authenticated verified email', () => {
+  assert.ok(backend.includes("db.collection('team')"));
+  assert.ok(backend.includes("where('storeId', '==', storeId).where('email', '==', email)"));
+  assert.ok(backend.includes('permissions?.integrations === true'));
+  assert.ok(backend.includes('req.user.email_verified !== true'));
+  assert.ok(backend.includes("email_verification_required"));
+  assert.ok(connector.includes('sendEmailVerification(user)'));
+  assert.ok(connector.includes('await user.getIdToken(true)'));
+});

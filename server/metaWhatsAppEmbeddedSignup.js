@@ -25,7 +25,22 @@ const requireStore = async (req, db, storeId) => {
   if (!doc.exists) { const e = new Error('Loja não encontrada.'); e.statusCode = 404; throw e; }
   const store = doc.data() || {};
   if (store.ownerUid === req.user.uid || (email && email === String(store.ownerEmail || store.email || '').toLowerCase())) return;
-  const e = new Error('Apenas o titular da loja pode autorizar a conta WhatsApp.'); e.statusCode = 403; throw e;
+  // Team members with integrations permission are allowed, but their email
+  // must first be verified in Firebase Auth to prevent unverified-email takeover.
+  if (email) {
+    const team = await db.collection('team')
+      .where('storeId', '==', storeId).where('email', '==', email).limit(5).get();
+    const canConnect = team.docs.some(doc => doc.data()?.permissions?.integrations === true);
+    if (canConnect) {
+      if (req.user.email_verified !== true) {
+        const e = new Error('Confirme seu e-mail de acesso à Velo para conectar o WhatsApp oficial.');
+        e.statusCode = 403; e.code = 'email_verification_required'; throw e;
+      }
+      return;
+    }
+  }
+  const e = new Error('Apenas o titular da loja ou um membro autorizado para integrações pode conectar o WhatsApp.');
+  e.statusCode = 403; throw e;
 };
 
 const parseGraph = async response => {
@@ -183,6 +198,6 @@ export async function handleMetaWhatsAppSignup(req, res, { db, admin }) {
     return res.json({ success: true, active: false, registration: 'pin_required', phone: phoneMeta.displayPhoneNumber });
   } catch (err) {
     console.error('[Meta Embedded Signup]', { storeId, action, status: err.statusCode || 500, message: err.message });
-    return res.status(err.statusCode || 502).json({ success: false, error: err.message || 'Erro ao vincular WhatsApp oficial.' });
+    return res.status(err.statusCode || 502).json({ success: false, error: err.message || 'Erro ao vincular WhatsApp oficial.', ...(err.code ? { code: err.code } : {}) });
   }
 }

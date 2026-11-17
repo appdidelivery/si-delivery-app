@@ -1,4 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { sendEmailVerification, reload } from 'firebase/auth';
+import { auth } from '../services/firebase';
 import { CheckCircle2, ShieldCheck, Smartphone, Loader2, AlertTriangle } from 'lucide-react';
 
 export default function WhatsAppConnectionChoice({ storeId, metaConnected, authenticatedFetch, standalone = false }) {
@@ -16,6 +18,8 @@ export default function WhatsAppConnectionChoice({ storeId, metaConnected, authe
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
   const [sdkReady, setSdkReady] = useState(false);
+  const [needsEmailVerification, setNeedsEmailVerification] = useState(false);
+  const [verificationBusy, setVerificationBusy] = useState(false);
 
   const api = useCallback(async (action, values = {}) => {
     const response = await fetchRef.current('/api/whatsapp-embedded-signup', {
@@ -23,7 +27,11 @@ export default function WhatsAppConnectionChoice({ storeId, metaConnected, authe
       body: JSON.stringify({ storeId, action, ...values })
     });
     const data = await response.json();
-    if (!response.ok || !data.success) throw new Error(data.error || 'Falha na conexão Meta.');
+    if (!response.ok || !data.success) {
+      const error = new Error(data.error || 'Falha na conexão Meta.');
+      error.code = data.code || '';
+      throw error;
+    }
     return data;
   }, [storeId]);
 
@@ -35,9 +43,39 @@ export default function WhatsAppConnectionChoice({ storeId, metaConnected, authe
     let current = true;
     setConfig(null); setError(''); setMessage('');
     api('status').then(s => { if (current) setConfig(s); })
-      .catch(e => { if (current) setError(e.message); });
+      .catch(e => { if (current) { setError(e.message); setNeedsEmailVerification(e.code === 'email_verification_required'); } });
     return () => { current = false; if (timer.current) clearTimeout(timer.current); };
   }, [api]);
+
+  const requestEmailVerification = async () => {
+    setVerificationBusy(true); setMessage(''); setError('');
+    try {
+      const user = auth.currentUser;
+      if (!user) throw new Error('Entre novamente na Velo para verificar seu e-mail.');
+      await sendEmailVerification(user);
+      setMessage('Enviamos um link de confirmação para o e-mail deste login. Abra-o e volte aqui.');
+    } catch (e) {
+      setError(e.code === 'auth/too-many-requests'
+        ? 'Muitas solicitações de verificação. Tente novamente mais tarde.'
+        : 'Não foi possível enviar o link de verificação. Confira o login e tente novamente.');
+    } finally { setVerificationBusy(false); }
+  };
+  const confirmEmailVerification = async () => {
+    setVerificationBusy(true); setError(''); setMessage('');
+    try {
+      const user = auth.currentUser;
+      if (!user) throw new Error('Entre novamente na Velo.');
+      await reload(user);
+      await user.getIdToken(true);
+      if (!user.emailVerified) throw new Error('O e-mail ainda não foi confirmado. Abra o link recebido antes de continuar.');
+      setNeedsEmailVerification(false);
+      await refresh();
+      setMessage('E-mail verificado. Você já pode continuar a autorização oficial da Meta.');
+    } catch (e) {
+      setNeedsEmailVerification(true);
+      setError(e.message || 'Não foi possível confirmar o e-mail.');
+    } finally { setVerificationBusy(false); }
+  };
 
   // The legacy admin loads a different Facebook app. Only initialize the
   // WhatsApp Meta app in the standalone route to prevent app-ID collisions.
@@ -184,6 +222,15 @@ export default function WhatsAppConnectionChoice({ storeId, metaConnected, authe
           {!config.ready && <p className="text-sm bg-amber-50 border border-amber-200 p-4 rounded-xl text-amber-900 flex items-start gap-2"><AlertTriangle size={20}/> Falta configurar: {(config.missing || []).join('; ')}. <a className="underline" href="https://developers.facebook.com/apps/" target="_blank" rel="noopener noreferrer">Meta Developers</a></p>}
           {config.pilot && <p role="status" className="text-sm bg-amber-50 border border-amber-200 p-4 rounded-xl text-amber-900 flex items-start gap-2"><AlertTriangle size={20}/> Homologação restrita à Love Picados: a autorização Meta está liberada para administrador, mas o webhook legado ainda exige auditoria. Não ative automações antes de confirmar o recebimento das mensagens.</p>}
           <p className="text-xs text-slate-500">O cadastro abre uma janela oficial da Meta. Não usa QR Code do WhatsApp Web.</p>
+        </div>
+      )}
+      {needsEmailVerification && (
+        <div className="rounded-xl bg-amber-50 border border-amber-200 p-4 space-y-3">
+          <p className="text-sm text-amber-900">Para proteger a conexão do WhatsApp, confirme o e-mail do usuário que já tem permissão de integrações na Velo.</p>
+          <div className="flex flex-wrap gap-2">
+            <button type="button" onClick={requestEmailVerification} disabled={verificationBusy} className="bg-amber-700 text-white rounded-lg px-4 py-2 text-sm font-bold disabled:opacity-50">Enviar verificação por e-mail</button>
+            <button type="button" onClick={confirmEmailVerification} disabled={verificationBusy} className="border border-amber-700 text-amber-900 rounded-lg px-4 py-2 text-sm font-bold disabled:opacity-50">Já confirmei meu e-mail</button>
+          </div>
         </div>
       )}
       {error && <p role="alert" className="text-red-700 bg-red-50 rounded-xl p-3 text-sm">{error}</p>}
