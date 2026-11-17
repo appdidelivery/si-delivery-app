@@ -10,7 +10,19 @@ import WhatsAppConnectionChoice from '../components/WhatsAppConnectionChoice';
 // WhatsApp-specific app ID in a fresh, dedicated page.
 export default function WhatsAppMetaConnect() {
   const { store, loading } = useStore();
-  const storeId = store?.id;
+
+  // A loja do painel multiloja é determinada pelo domínio canônico.
+  // O backend continuará validando a sessão Firebase e a autorização para esse ID.
+  // Não aceitar o tenant por query string, storage ou parâmetros informados pelo navegador.
+  const knownStoreByHost = {
+    'lovepicados.velodelivery.com.br': 'lovepicados',
+    'xisdale.velodelivery.com.br': 'xisdale'
+  };
+  const host = window.location.hostname.toLowerCase();
+  const hostBoundStoreId = Object.prototype.hasOwnProperty.call(knownStoreByHost, host)
+    ? knownStoreByHost[host]
+    : null;
+  const storeId = hostBoundStoreId || store?.id;
 
   return (
     <main className="min-h-screen bg-slate-50 px-4 py-10">
