@@ -9617,7 +9617,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                     await addDoc(collection(db, "orders"), {
                         ...manualCustomer,
                         customerCpf: cpfLimpo,
-                        fiscalStatus: defaultFiscalStatus,
+                        ...(storeId !== 'csi' ? { fiscalStatus: defaultFiscalStatus } : {}), // CSI: sem bloqueio prévio; o Firebase/Focus determina o status fiscal após o pagamento
                         customerName: finalName, 
                         customerAddress: finalAddress, 
                         customerPhone: manualCustomer.phone || '', 
