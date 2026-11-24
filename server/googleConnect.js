@@ -5,7 +5,12 @@ const scopes = {
   gtm: 'https://www.googleapis.com/auth/tagmanager.readonly',
   gads: 'https://www.googleapis.com/auth/adwords'
 };
-const redirectUri = 'https://app.velodelivery.com.br/api/google-callback';
+const productionCallback = 'https://app.velodelivery.com.br/api/google-callback';
+function callbackUri() {
+  const uri = process.env.GOOGLE_CONNECT_REDIRECT_URI || (process.env.VERCEL_ENV === 'production' ? productionCallback : '');
+  if (!uri || !uri.startsWith('https://') || new URL(uri).pathname !== '/api/google-callback') throw fail('Callback Google Connect ainda não configurado para este ambiente.', 503);
+  return uri;
+}
 const ttl = 10 * 60 * 1000;
 const sessions = 'google_connect_sessions';
 const credentials = 'google_connect_credentials';
@@ -128,11 +133,14 @@ export async function handleGoogleConnect(req, res, { db, assertStoreAccess }) {
     await assertStoreAccess(req.user, storeId);
     if (action === 'start') {
       key();
+      const pilotStores = (process.env.GOOGLE_CONNECT_PILOT_STORES || '').split(',').map(x => x.trim()).filter(Boolean);
+      if (!pilotStores.includes('*') && !pilotStores.includes(storeId)) throw fail('Google Connect ainda não está disponível para esta loja. Use a configuração avançada.', 503);
+      const redirectUri = callbackUri();
       if (!process.env.GOOGLE_CLIENT_ID || !process.env.GOOGLE_CLIENT_SECRET) throw fail('OAuth Google não configurado na Velo.', 503);
       if (service === 'gads' && !process.env.GOOGLE_ADS_DEVELOPER_TOKEN) throw fail('Google Ads API ainda não foi habilitada pela Velo.', 503);
       const state = 'velo_gc_' + crypto.randomBytes(32).toString('hex');
       const verifier = crypto.randomBytes(48).toString('base64url');
-      const data = { uid: req.user.uid, storeId, service, verifier, expiresAt: Date.now() + ttl, status: 'pending' };
+      const data = { uid: req.user.uid, storeId, service, verifier, redirectUri, expiresAt: Date.now() + ttl, status: 'pending' };
       await refFor(db, state).create({ payload: seal(data, state), expiresAt: new Date(data.expiresAt) });
       const params = new URLSearchParams({ client_id: process.env.GOOGLE_CLIENT_ID, redirect_uri: redirectUri, response_type: 'code', scope: scopes[service], access_type: 'offline', prompt: 'consent select_account', state, code_challenge: crypto.createHash('sha256').update(verifier).digest('base64url'), code_challenge_method: 'S256' });
       return res.status(200).json({ state, url: 'https://accounts.google.com/o/oauth2/v2/auth?' + params });
@@ -182,7 +190,7 @@ export async function handleGoogleConnectCallback(req, res, db) {
       return current;
     });
     if (error || !code) throw fail('Autorização cancelada ou recusada.');
-    const tokenRes = await fetch('https://oauth2.googleapis.com/token', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams({ client_id: process.env.GOOGLE_CLIENT_ID, client_secret: process.env.GOOGLE_CLIENT_SECRET, redirect_uri: redirectUri, code, code_verifier: data.verifier, grant_type: 'authorization_code' }), signal: AbortSignal.timeout(12000) });
+    const tokenRes = await fetch('https://oauth2.googleapis.com/token', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams({ client_id: process.env.GOOGLE_CLIENT_ID, client_secret: process.env.GOOGLE_CLIENT_SECRET, redirect_uri: data.redirectUri, code, code_verifier: data.verifier, grant_type: 'authorization_code' }), signal: AbortSignal.timeout(12000) });
     if (!tokenRes.ok) throw fail('O Google não concluiu a autorização.');
     const token = await tokenRes.json();
     if (!token.access_token || !String(token.scope || '').split(' ').includes(scopes[data.service])) throw fail('Permissão necessária não concedida.');
