@@ -5,6 +5,7 @@ import ProductSalesReport from '../components/ProductSalesReport';
 import ProductCatalogImportExport from '../components/ProductCatalogImportExport';
 import InsightsProductSalesReport from '../components/InsightsProductSalesReport';
 import WhatsAppConnectionChoice from '../components/WhatsAppConnectionChoice';
+import GoogleConnectPanel from '../components/GoogleConnectPanel';
 import { db, auth } from '../../src/services/firebase';
 import {
     collection, onSnapshot, doc, updateDoc, deleteDoc,
@@ -1356,6 +1357,9 @@ const educationalBanners = [
     const[isIntegrationModalOpen, setIsIntegrationModalOpen] = useState(false);
     const[selectedIntegration, setSelectedIntegration] = useState(null);
     const [integrationForm, setIntegrationForm] = useState({});
+    const [googleAdvanced, setGoogleAdvanced] = useState(false);
+    const isGoogleConnect = ['ga4', 'gtm', 'gads'].includes(selectedIntegration?.id);
+    useEffect(() => { setGoogleAdvanced(false); }, [selectedIntegration?.id, isIntegrationModalOpen]);
     const [isMetaSdkLoaded, setIsMetaSdkLoaded] = useState(false);
 
     // INJEÇÃO ASSÍNCRONA DO META SDK (LAZY LOAD PARA PERFORMANCE)
@@ -13817,7 +13821,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                                 }}
                                                 className={`w-full py-4 rounded-2xl font-black text-xs uppercase tracking-widest transition-all active:scale-95 ${isConnected ? 'bg-slate-50 text-slate-600 hover:bg-slate-100' : 'bg-blue-600 text-white shadow-lg hover:bg-blue-700'}`}
                                             >
-                                                {isConnected ? '⚙️ Configurar' : '+ Conectar API'}
+                                                {isConnected ? '⚙️ Configurar' : ['ga4', 'gtm', 'gads'].includes(app.id) ? 'Conectar com Google' : '+ Conectar API'}
                                             </button>
                                             )}
                                         </div>
@@ -16017,6 +16021,8 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                 </div>
                             </div>
 
+                            {isGoogleConnect && <GoogleConnectPanel key={storeId + ':' + selectedIntegration.id} storeId={storeId} service={selectedIntegration.id} saved={settings?.integrations?.[selectedIntegration.id]} onComplete={() => setIsIntegrationModalOpen(false)} advanced={googleAdvanced} onAdvanced={() => setGoogleAdvanced(v => !v)} />}
+                            {(!isGoogleConnect || googleAdvanced) && <>
                             {/* --- BOTÃO MÁGICO DE DIRECIONAMENTO (HÍBRIDO) --- */}
                             {selectedIntegration.helpUrl && (
                                 <div className="mb-6">
@@ -16055,7 +16061,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                         await setDoc(doc(db, "settings", storeId), {
                                             integrations: {
                                                 ...currentIntegrations,
-                                                [selectedIntegration.id]: integrationForm 
+                                                [selectedIntegration.id]: isGoogleConnect ? { ...integrationForm, authMode: 'manual', resourceName: null } : integrationForm 
                                             }
                                         }, { merge: true });
                                     
@@ -16425,6 +16431,7 @@ Esta ação registrará o prêmio como "pago" e não pode ser desfeita.`;
                                     </button>
                                 </div>
                             </form>
+                            </>}
                             
                         </motion.div>
                     </motion.div>
