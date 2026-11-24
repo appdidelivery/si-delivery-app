@@ -7,6 +7,8 @@ export default function GoogleConnectPanel({ storeId, service, saved, onComplete
   const [error, setError] = useState('');
   const [options, setOptions] = useState([]);
   const [selected, setSelected] = useState('');
+  const [dryRun, setDryRun] = useState(false);
+  const [notice, setNotice] = useState('');
   const session = useRef(null);
   const generation = useRef(0);
   const timeout = useRef(null);
@@ -40,6 +42,7 @@ export default function GoogleConnectPanel({ storeId, service, saved, onComplete
     clearTimeout(timeout.current);
     if (advanced) onAdvanced();
     setError('');
+    setNotice('');
     setOptions([]);
     setSelected('');
     const attempt = ++generation.current;
@@ -55,6 +58,7 @@ export default function GoogleConnectPanel({ storeId, service, saved, onComplete
       const data = await request('start');
       if (attempt !== generation.current) return;
       session.current = data.state;
+      setDryRun(data.dryRun === true);
       win.location.href = data.url;
       const deadline = Date.now() + 10 * 60 * 1000;
       const poll = async () => {
@@ -95,8 +99,14 @@ export default function GoogleConnectPanel({ storeId, service, saved, onComplete
     setPhase('saving');
     setError('');
     try {
-      await request('select', { state: session.current, optionId: selected });
+      const result = await request('select', { state: session.current, optionId: selected });
       if (attempt !== generation.current) return;
+      if (result.dryRun) {
+        setNotice('Homologação concluída. Nenhuma configuração da loja foi alterada.');
+        setPhase('idle');
+        session.current = null;
+        return;
+      }
       onComplete();
     } catch (err) {
       if (attempt !== generation.current) return;
@@ -128,10 +138,11 @@ export default function GoogleConnectPanel({ storeId, service, saved, onComplete
           {options.map(option => <option key={option.id} value={option.id}>{option.label}</option>)}
         </select>
         <button type="button" onClick={activate} disabled={!selected || phase === 'saving'} className="w-full bg-slate-900 text-white p-4 rounded-2xl font-bold disabled:opacity-50">
-          {phase === 'saving' ? 'Ativando...' : 'Confirmar e ativar'}
+          {phase === 'saving' ? 'Validando...' : dryRun ? 'Validar seleção (teste)' : 'Confirmar e ativar'}
         </button>
         {phase !== 'saving' && <button type="button" onClick={cancel} className="text-sm underline text-slate-500">Cancelar</button>}
       </div>}
+      {notice && <p role="status" className="p-3 bg-green-50 text-green-800 rounded-xl text-sm">{notice}</p>}
       {error && <p role="alert" className="p-3 bg-red-50 text-red-800 rounded-xl text-sm">{error}</p>}
       {service === 'gtm' && <p className="text-xs text-slate-500">A conexão instala o container selecionado. Tags e publicação são gerenciadas separadamente.</p>}
       {service === 'gads' && <p className="text-xs text-slate-500">Selecione uma ação de conversão de compra já configurada no Google Ads.</p>}
