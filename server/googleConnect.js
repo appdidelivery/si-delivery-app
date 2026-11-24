@@ -12,6 +12,7 @@ function callbackUri() {
   return uri;
 }
 const ttl = 10 * 60 * 1000;
+const isDryRun = () => process.env.VERCEL_ENV !== 'production' || process.env.GOOGLE_CONNECT_DRY_RUN === 'true';
 const sessions = 'google_connect_sessions';
 const credentials = 'google_connect_credentials';
 const statePattern = /^velo_gc_[a-f0-9]{64}$/;
@@ -143,7 +144,7 @@ export async function handleGoogleConnect(req, res, { db, assertStoreAccess }) {
       const data = { uid: req.user.uid, storeId, service, verifier, redirectUri, expiresAt: Date.now() + ttl, status: 'pending' };
       await refFor(db, state).create({ payload: seal(data, state), expiresAt: new Date(data.expiresAt) });
       const params = new URLSearchParams({ client_id: process.env.GOOGLE_CLIENT_ID, redirect_uri: redirectUri, response_type: 'code', scope: scopes[service], access_type: 'offline', prompt: 'consent select_account', state, code_challenge: crypto.createHash('sha256').update(verifier).digest('base64url'), code_challenge_method: 'S256' });
-      return res.status(200).json({ state, url: 'https://accounts.google.com/o/oauth2/v2/auth?' + params });
+      return res.status(200).json({ state, dryRun: isDryRun(), url: 'https://accounts.google.com/o/oauth2/v2/auth?' + params });
     }
     const ref = refFor(db, state);
     const authorize = snap => {
@@ -161,6 +162,11 @@ export async function handleGoogleConnect(req, res, { db, assertStoreAccess }) {
         if (data.status !== 'ready') throw fail('Autenticação não concluída.');
         const option = data.options.find(x => x.id === optionId);
         if (!option) throw fail('Seleção inválida.');
+        // Homologação nunca altera rastreamento ou credenciais da loja real.
+        if (isDryRun()) {
+          transaction.delete(ref);
+          return;
+        }
         const settingsRef = db.collection('settings').doc(storeId);
         transaction.set(settingsRef, { integrations: { [service]: { ...option.config, authMode: 'oauth', resourceName: option.label, connectedAt: new Date() } } }, { merge: true });
         if (service === 'ga4') {
@@ -169,7 +175,7 @@ export async function handleGoogleConnect(req, res, { db, assertStoreAccess }) {
         }
         transaction.delete(ref);
       });
-      return res.status(200).json({ success: true });
+      return res.status(200).json({ success: true, dryRun: isDryRun() });
     }
     throw fail('Ação inválida.');
   } catch (error) {
