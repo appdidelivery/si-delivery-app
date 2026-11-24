@@ -1,3 +1,4 @@
+import { handleGoogleConnect, handleGoogleConnectCallback, getConnectedAnalyticsToken } from '../server/googleConnect.js';
 import robotsHandler from '../server/apiHandlers/robots.js';
 import sitemapHandler from '../server/apiHandlers/sitemap.js';
 import llmsHandler from '../server/apiHandlers/llms.js';
@@ -573,6 +574,11 @@ export default async function handler(req, res) {
    // ------------------------------------------------------------------------
     // CAMPANHAS POR OCASIÃO — usa a API monolítica para não criar Functions extras.
     // ------------------------------------------------------------------------
+    if (path === '/api/google-connect') return handleGoogleConnect(req, res, { db, assertStoreAccess });
+    if (path === '/api/google-callback' && typeof req.query.state === 'string' && req.query.state.startsWith('velo_gc_')) {
+        if (req.method !== 'GET') return res.status(405).end();
+        return handleGoogleConnectCallback(req, res, db);
+    }
     const occasionRoutes = {
         '/api/whatsapp-retention-wed': 'wed',
         '/api/whatsapp-retention-fri': 'fri',
@@ -8320,8 +8326,9 @@ Retorne APENAS um JSON válido com 3 chaves:
             const periodDays = days ? Number(days) : 30;
             const startDateStr = `${periodDays}daysAgo`;
 
-            // 1. Pega o Token OAuth Seguro do Lojista
-            const activeToken = await getGoogleAuthToken(storeId);
+            await assertStoreAccess(req.user, storeId);
+            if (!/^\d+$/.test(String(measurementId))) return res.status(400).json({ error: 'Propriedade GA4 inválida.' });
+            const activeToken = await getConnectedAnalyticsToken(db, storeId, measurementId) || await getGoogleAuthToken(storeId);
 
             // 2. Faz a requisição nativa para a API REST do GA4 (SEM PACOTES EXTERNOS!)
             const ga4Response = await fetch(`https://analyticsdata.googleapis.com/v1beta/properties/${measurementId}:runReport`, {
