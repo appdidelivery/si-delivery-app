@@ -58,7 +58,7 @@ export function containerOption(account, container) {
   return { id: container.path, label: [account.name, container.name, container.domainName?.join(', ')].filter(Boolean).join(' · '), config: { containerId: container.publicId } };
 }
 export function adsOption(customer, action) {
-  if (action.type !== 'WEBPAGE' || action.status !== 'ENABLED' || !action.resourceName) return null;
+  if (action.type !== 'WEBPAGE' || action.category !== 'PURCHASE' || action.status !== 'ENABLED' || !action.resourceName) return null;
   const snippet = (action.tagSnippets || []).map(x => x.eventSnippet || '').join('\n');
   const match = snippet.match(/['"]send_to['"]\s*:\s*['"](AW-\d+)\/([A-Za-z0-9_-]+)['"]/);
   if (!match) return null;
@@ -100,7 +100,7 @@ async function discover(service, token) {
       const clients = account.manager ? (await search(id, 'SELECT customer_client.id, customer_client.descriptive_name, customer_client.manager FROM customer_client WHERE customer_client.manager = FALSE AND customer_client.status = ENABLED')).map(r => ({ id: String(r.customerClient.id), descriptiveName: r.customerClient.descriptiveName, manager: id })) : [{ ...account, id }];
       for (const client of clients) {
         if (!/^\d+$/.test(client.id) || seen.has(client.id)) continue;
-        const rows = await search(client.id, 'SELECT conversion_action.resource_name, conversion_action.name, conversion_action.type, conversion_action.status, conversion_action.category, conversion_action.tag_snippets FROM conversion_action WHERE conversion_action.status = ENABLED AND conversion_action.type = WEBPAGE', client.manager);
+        const rows = await search(client.id, 'SELECT conversion_action.resource_name, conversion_action.name, conversion_action.type, conversion_action.status, conversion_action.category, conversion_action.tag_snippets FROM conversion_action WHERE conversion_action.status = ENABLED AND conversion_action.type = WEBPAGE AND conversion_action.category = PURCHASE', client.manager);
         options.push(...rows.map(r => adsOption(client, r.conversionAction)).filter(Boolean));
         seen.add(client.id);
       }
@@ -115,7 +115,7 @@ function refFor(db, state) {
 function readSession(snapshot, state) {
   if (!snapshot.exists) throw fail('Sessão expirada. Conecte novamente.', 410);
   const data = unseal(snapshot.data().payload, state);
-  if (data.expiresAt < Date.now()) throw fail('Sessão expirada. Conecte novamente.', 410);
+  if (!Number.isFinite(data.expiresAt) || data.expiresAt < Date.now()) throw fail('Sessão expirada. Conecte novamente.', 410);
   return data;
 }
 export async function handleGoogleConnect(req, res, { db, assertStoreAccess }) {
@@ -123,6 +123,7 @@ export async function handleGoogleConnect(req, res, { db, assertStoreAccess }) {
   try {
     if (req.method !== 'POST') throw fail('Método não permitido.', 405);
     const { action, storeId, service, state, optionId } = req.body || {};
+    if (!req.user?.uid) throw fail('Acesso negado.', 401);
     if (!/^[a-z0-9][a-z0-9-]{0,100}$/.test(storeId || '') || !Object.hasOwn(scopes, service || '')) throw fail('Loja ou serviço inválido.');
     await assertStoreAccess(req.user, storeId);
     if (action === 'start') {
