@@ -1,4 +1,4 @@
-import { handleGoogleConnect, handleGoogleConnectCallback, getConnectedAnalyticsToken } from '../server/googleConnect.js';
+import { handleGoogleConnect, handleGoogleConnectCallback, getConnectedAnalyticsToken, assertGoogleIntegrationAccess } from '../server/googleConnect.js';
 import robotsHandler from '../server/apiHandlers/robots.js';
 import sitemapHandler from '../server/apiHandlers/sitemap.js';
 import llmsHandler from '../server/apiHandlers/llms.js';
@@ -574,7 +574,7 @@ export default async function handler(req, res) {
    // ------------------------------------------------------------------------
     // CAMPANHAS POR OCASIÃO — usa a API monolítica para não criar Functions extras.
     // ------------------------------------------------------------------------
-    if (path === '/api/google-connect') return handleGoogleConnect(req, res, { db, assertStoreAccess });
+    if (path === '/api/google-connect') return handleGoogleConnect(req, res, { db, assertStoreAccess: (user, id) => assertGoogleIntegrationAccess(db, user, id) });
     if (path === '/api/google-callback' && typeof req.query.state === 'string' && req.query.state.startsWith('velo_gc_')) {
         if (req.method !== 'GET') return res.status(405).end();
         return handleGoogleConnectCallback(req, res, db);
