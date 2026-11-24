@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { analyticsOption, containerOption, adsOption, handleGoogleConnect } from '../server/googleConnect.js';
+import { analyticsOption, containerOption, adsOption, handleGoogleConnect, assertGoogleIntegrationAccess, handleGoogleConnectCallback } from '../server/googleConnect.js';
 
 test('GA4 preserva o ID da propriedade e o ID do fluxo web', () => {
   const account = { displayName: 'Empresa' };
@@ -71,6 +71,81 @@ test('OAuth limita escopos, usa PKCE, criptografa sessão e isola usuário e loj
     await handleGoogleConnect({ ...request, body: { ...request.body, storeId: 'outra-loja' } }, nonPilot, dependencies);
     assert.equal(nonPilot.code, 503);
   } finally {
+    for (const [k, v] of Object.entries(original)) { if (v === undefined) delete process.env[k]; else process.env[k] = v; }
+  }
+});
+
+test('Somente titular e equipe ativa com permissão de integrações podem conectar', async () => {
+  const store = { ownerUid: 'owner', ownerEmail: 'owner@example.com' };
+  let team = { permissions: { integrations: true }, active: true };
+  const db = {
+    collection(name) {
+      if (name === 'stores') return { doc: () => ({ get: async () => ({ exists: true, data: () => store }) }) };
+      const q = { where: () => q, get: async () => ({ docs: [{ data: () => team }] }) };
+      return q;
+    }
+  };
+  await assertGoogleIntegrationAccess(db, { uid: 'owner' }, 'loja');
+  await assertGoogleIntegrationAccess(db, { uid: 'staff', email: 'staff@example.com', email_verified: true }, 'loja');
+  await assert.rejects(() => assertGoogleIntegrationAccess(db, { uid: 'staff', email: 'staff@example.com', email_verified: false }, 'loja'), { statusCode: 403 });
+  team = { permissions: { integrations: false }, active: true };
+  await assert.rejects(() => assertGoogleIntegrationAccess(db, { uid: 'staff', email: 'staff@example.com', email_verified: true }, 'loja'), { statusCode: 403 });
+  team = { permissions: { integrations: true }, active: false };
+  await assert.rejects(() => assertGoogleIntegrationAccess(db, { uid: 'staff', email: 'staff@example.com', email_verified: true }, 'loja'), { statusCode: 403 });
+});
+
+test('Homologação conclui seleção sem escrever configuração ou credencial da loja', async () => {
+  const values = { VERCEL_ENV: 'preview', GOOGLE_CONNECT_ENCRYPTION_KEY: 'ab'.repeat(32), GOOGLE_CONNECT_PILOT_STORES: 'mercadomonteverde', GOOGLE_CONNECT_REDIRECT_URI: 'https://preview.example/api/google-callback', GOOGLE_CLIENT_ID: 'fake-client-id', GOOGLE_CLIENT_SECRET: 'fake-client-secret' };
+  const original = Object.fromEntries(Object.keys(values).map(k => [k, process.env[k]]));
+  const originalFetch = globalThis.fetch;
+  Object.assign(process.env, values);
+  const docs = new Map();
+  const touched = [];
+  const db = {
+    collection(name) {
+      touched.push(name);
+      return { doc(id) {
+        const k = name + '/' + id;
+        return { k, async create(data) { docs.set(k, data); }, async update(data) { docs.set(k, { ...docs.get(k), ...data }); }, async get() { return { exists: docs.has(k), data: () => docs.get(k) }; } };
+      } };
+    },
+    async runTransaction(fn) {
+      return fn({ get: ref => ref.get(), update: (ref, data) => docs.set(ref.k, { ...docs.get(ref.k), ...data }), delete: ref => docs.delete(ref.k), set: () => assert.fail('Homologação não pode persistir configuração') });
+    }
+  };
+  globalThis.fetch = async url => {
+    const u = String(url);
+    const response = data => ({ ok: true, json: async () => data });
+    if (u.includes('oauth2.googleapis.com/token')) return response({ access_token: 'test', refresh_token: 'test-refresh', scope: 'https://www.googleapis.com/auth/analytics.readonly' });
+    if (u.includes('accountSummaries')) return response({ accountSummaries: [{ displayName: 'Empresa', propertySummaries: [{ property: 'properties/123', displayName: 'Loja' }] }] });
+    if (u.includes('/dataStreams')) return response({ dataStreams: [{ name: 'properties/123/dataStreams/1', displayName: 'Web', type: 'WEB_DATA_STREAM', webStreamData: { measurementId: 'G-TEST123' } }] });
+    throw Error('URL inesperada no teste: ' + u);
+  };
+  try {
+    const req = { method: 'POST', user: { uid: 'owner' }, body: { action: 'start', storeId: 'mercadomonteverde', service: 'ga4' } };
+    const deps = { db, assertStoreAccess: async () => {} };
+    const start = response();
+    await handleGoogleConnect(req, start, deps);
+    assert.equal(start.data.dryRun, true);
+    const callback = response();
+    callback.send = function(data) { this.data = data; return this; };
+    await handleGoogleConnectCallback({ query: { state: start.data.state, code: 'test-code' } }, callback, db);
+    assert.equal(callback.code, 200);
+    const status = response();
+    await handleGoogleConnect({ ...req, body: { ...req.body, action: 'status', state: start.data.state } }, status, deps);
+    assert.equal(status.data.status, 'ready');
+    const replay = response();
+    replay.send = callback.send;
+    await handleGoogleConnectCallback({ query: { state: start.data.state, code: 'test-code' } }, replay, db);
+    assert.equal(replay.code, 400);
+    const selected = response();
+    await handleGoogleConnect({ ...req, body: { ...req.body, action: 'select', state: start.data.state, optionId: status.data.options[0].id } }, selected, deps);
+    assert.deepEqual(selected.data, { success: true, dryRun: true });
+    assert.equal(docs.size, 0);
+    assert.equal(touched.includes('settings'), false);
+    assert.equal(touched.includes('google_connect_credentials'), false);
+  } finally {
+    globalThis.fetch = originalFetch;
     for (const [k, v] of Object.entries(original)) { if (v === undefined) delete process.env[k]; else process.env[k] = v; }
   }
 });
