@@ -222,5 +222,8 @@
         }
       ]
     }
+  },
+  "git": {
+    "deploymentEnabled": false
   }
 }
