@@ -38,6 +38,7 @@ export default function GoogleConnectPanel({ storeId, service, saved, onComplete
 
   async function start() {
     clearTimeout(timeout.current);
+    if (advanced) onAdvanced();
     setError('');
     setOptions([]);
     setSelected('');
