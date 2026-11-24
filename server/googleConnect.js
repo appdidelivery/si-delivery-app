@@ -124,6 +124,26 @@ function readSession(snapshot, state) {
   if (!Number.isFinite(data.expiresAt) || data.expiresAt < Date.now()) throw fail('Sessão expirada. Conecte novamente.', 410);
   return data;
 }
+export async function assertGoogleIntegrationAccess(db, user, storeId) {
+  if (!user?.uid) throw fail('Login necessário.', 401);
+  const email = String(user.email || '').trim().toLowerCase();
+  if (user.admin === true || user.superAdmin === true) return;
+  if (user.email_verified === true && ['appdedelivery@gmail.com', 'appdidelivery@gmail.com', 'projetosdiego.l@gmail.com'].includes(email)) return;
+  const snapshot = await db.collection('stores').doc(storeId).get();
+  if (!snapshot.exists) throw fail('Loja não encontrada.', 404);
+  const store = snapshot.data() || {};
+  if (store.ownerUid === user.uid) return;
+  if (user.email_verified === true && email && email === String(store.ownerEmail || store.email || '').trim().toLowerCase()) return;
+  if (user.email_verified === true && email) {
+    const team = await db.collection('team').where('storeId', '==', storeId).where('email', '==', email).get();
+    if (team.docs.some(doc => {
+      const member = doc.data() || {};
+      return member.permissions?.integrations === true && member.active !== false && member.disabled !== true &&
+        !['inactive', 'inativo', 'disabled', 'bloqueado'].includes(String(member.status || '').toLowerCase());
+    })) return;
+  }
+  throw fail('Apenas o titular da loja ou um membro autorizado para integrações pode conectar o Google.', 403);
+}
 export async function handleGoogleConnect(req, res, { db, assertStoreAccess }) {
   res.setHeader('Cache-Control', 'no-store');
   try {
