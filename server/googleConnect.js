@@ -89,9 +89,10 @@ async function discover(service, token) {
     }
   } else {
     const version = process.env.GOOGLE_ADS_API_VERSION || 'v25';
-    if (!/^v\d+$/.test(version) || !process.env.GOOGLE_ADS_DEVELOPER_TOKEN) throw fail('Google Ads API ainda não foi habilitada pela Velo.', 503);
+    if (!/^v\d+$/.test(version)) throw fail('Versão da Google Ads API inválida.', 503);
     const base = 'https://googleads.googleapis.com/' + version + '/';
-    const headers = { 'developer-token': process.env.GOOGLE_ADS_DEVELOPER_TOKEN, 'Content-Type': 'application/json' };
+    // Google Ads API access is managed by the OAuth Google Cloud project since Sep 2026.
+    const headers = { 'Content-Type': 'application/json' };
     const accessible = await google(base + 'customers:listAccessibleCustomers', token, { headers });
     const search = async (customer, query, manager) => {
       const response = await google(base + 'customers/' + customer + '/googleAds:searchStream', token, { method: 'POST', headers: { ...headers, ...(manager ? { 'login-customer-id': manager } : {}) }, body: JSON.stringify({ query }) });
@@ -179,7 +180,6 @@ export async function handleGoogleConnect(req, res, { db, assertStoreAccess }) {
       if (!pilotStores.includes('*') && !pilotStores.includes(storeId)) throw fail('Google Connect ainda não está disponível para esta loja. Use a configuração avançada.', 503);
       const redirectUri = callbackUri();
       if (!process.env.GOOGLE_CLIENT_ID || !process.env.GOOGLE_CLIENT_SECRET) throw fail('OAuth Google não configurado na Velo.', 503);
-      if (service === 'gads' && !process.env.GOOGLE_ADS_DEVELOPER_TOKEN) throw fail('Google Ads API ainda não foi habilitada pela Velo.', 503);
       const state = 'velo_gc_' + crypto.randomBytes(32).toString('hex');
       const verifier = crypto.randomBytes(48).toString('base64url');
       const data = { uid: req.user.uid, storeId, service, verifier, redirectUri, expiresAt: Date.now() + ttl, status: 'pending' };
@@ -280,9 +280,9 @@ export async function handleGoogleConnectCallback(req, res, db) {
 export async function getConnectedAnalyticsToken(db, storeId, propertyId, user) {
   const settings = await db.collection('settings').doc(storeId).get();
   const ga4 = settings.data()?.integrations?.ga4;
-  if (ga4?.authMode !== 'oauth') return null;
+  if (!ga4?.measurementId || String(ga4.measurementId) !== String(propertyId)) throw fail('Propriedade não autorizada para esta loja.', 403);
+  if (ga4.authMode !== 'oauth') return null;
   await assertGoogleIntegrationAccess(user, storeId);
-  if (String(ga4.measurementId) !== String(propertyId)) throw fail('Propriedade não autorizada para esta loja.', 403);
   const id = storeId + '_ga4';
   const credential = await db.collection(credentials).doc(id).get();
   if (!credential.exists) throw fail('Reconecte o Google Analytics.', 401);
