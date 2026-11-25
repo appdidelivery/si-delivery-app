@@ -574,7 +574,7 @@ export default async function handler(req, res) {
    // ------------------------------------------------------------------------
     // CAMPANHAS POR OCASIÃO — usa a API monolítica para não criar Functions extras.
     // ------------------------------------------------------------------------
-    if (path === '/api/google-connect') return handleGoogleConnect(req, res, { db, assertStoreAccess: (user, id) => assertGoogleIntegrationAccess(db, user, id) });
+    if (path === '/api/google-connect') return handleGoogleConnect(req, res, { db, assertStoreAccess: assertGoogleIntegrationAccess });
     if (path === '/api/google-callback' && typeof req.query.state === 'string' && req.query.state.startsWith('velo_gc_')) {
         if (req.method !== 'GET') return res.status(405).end();
         return handleGoogleConnectCallback(req, res, db);
@@ -8328,7 +8328,7 @@ Retorne APENAS um JSON válido com 3 chaves:
 
             await assertStoreAccess(req.user, storeId);
             if (!/^\d+$/.test(String(measurementId))) return res.status(400).json({ error: 'Propriedade GA4 inválida.' });
-            const activeToken = await getConnectedAnalyticsToken(db, storeId, measurementId) || await getGoogleAuthToken(storeId);
+            const activeToken = await getConnectedAnalyticsToken(db, storeId, measurementId, req.user) || await getGoogleAuthToken(storeId);
 
             // 2. Faz a requisição nativa para a API REST do GA4 (SEM PACOTES EXTERNOS!)
             const ga4Response = await fetch(`https://analyticsdata.googleapis.com/v1beta/properties/${measurementId}:runReport`, {

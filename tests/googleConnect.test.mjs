@@ -75,23 +75,19 @@ test('OAuth limita escopos, usa PKCE, criptografa sessão e isola usuário e loj
   }
 });
 
-test('Somente titular e equipe ativa com permissão de integrações podem conectar', async () => {
-  const store = { ownerUid: 'owner', ownerEmail: 'owner@example.com' };
-  let team = { permissions: { integrations: true }, active: true };
-  const db = {
-    collection(name) {
-      if (name === 'stores') return { doc: () => ({ get: async () => ({ exists: true, data: () => store }) }) };
-      const q = { where: () => q, get: async () => ({ docs: [{ data: () => team }] }) };
-      return q;
-    }
-  };
-  await assertGoogleIntegrationAccess(db, { uid: 'owner' }, 'loja');
-  await assertGoogleIntegrationAccess(db, { uid: 'staff', email: 'staff@example.com', email_verified: true }, 'loja');
-  await assert.rejects(() => assertGoogleIntegrationAccess(db, { uid: 'staff', email: 'staff@example.com', email_verified: false }, 'loja'), { statusCode: 403 });
-  team = { permissions: { integrations: false }, active: true };
-  await assert.rejects(() => assertGoogleIntegrationAccess(db, { uid: 'staff', email: 'staff@example.com', email_verified: true }, 'loja'), { statusCode: 403 });
-  team = { permissions: { integrations: true }, active: false };
-  await assert.rejects(() => assertGoogleIntegrationAccess(db, { uid: 'staff', email: 'staff@example.com', email_verified: true }, 'loja'), { statusCode: 403 });
+test('Google Connect autoriza o UID cadastrado apenas na loja concedida', async () => {
+  const previous = process.env.GOOGLE_CONNECT_STORE_UIDS;
+  process.env.GOOGLE_CONNECT_STORE_UIDS = JSON.stringify({ piloto: ['titular', 'equipe-ativa'] });
+  try {
+    await assertGoogleIntegrationAccess({ uid: 'titular' }, 'piloto');
+    await assertGoogleIntegrationAccess({ uid: 'equipe-ativa' }, 'piloto');
+    await assert.rejects(() => assertGoogleIntegrationAccess({ uid: 'titular' }, 'outra'), { statusCode: 403 });
+    await assert.rejects(() => assertGoogleIntegrationAccess({ uid: 'sem-acesso', email_verified: true }, 'piloto'), { statusCode: 403 });
+    await assert.rejects(() => assertGoogleIntegrationAccess(null, 'piloto'), { statusCode: 401 });
+  } finally {
+    if (previous === undefined) delete process.env.GOOGLE_CONNECT_STORE_UIDS;
+    else process.env.GOOGLE_CONNECT_STORE_UIDS = previous;
+  }
 });
 
 test('Homologação conclui seleção sem escrever configuração ou credencial da loja', async () => {
