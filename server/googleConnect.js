@@ -168,13 +168,30 @@ export async function handleGoogleConnect(req, res, { db, assertStoreAccess }) {
       return res.status(200).json({ status: data.status, error: data.error, options: data.options?.map(({ id, label }) => ({ id, label })) });
     }
     if (action === 'select') {
+      // The preview must prove that the selected GA4 property can actually
+      // return metrics, not merely appear in Analytics Admin discovery.
+      const dryRun = isDryRun();
+      let verified = false;
+      if (dryRun && service === 'ga4') {
+        const data = authorize(await ref.get());
+        if (data.status !== 'ready') throw fail('Autenticação não concluída.');
+        const option = data.options.find(x => x.id === optionId);
+        const propertyId = String(option?.config?.measurementId || '');
+        if (!/^\d+$/.test(propertyId) || !data.refreshToken) throw fail('Seleção inválida.');
+        const tokenResponse = await fetch('https://oauth2.googleapis.com/token', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams({ client_id: process.env.GOOGLE_CLIENT_ID, client_secret: process.env.GOOGLE_CLIENT_SECRET, refresh_token: data.refreshToken, grant_type: 'refresh_token' }), signal: AbortSignal.timeout(12000) });
+        if (!tokenResponse.ok) throw fail('Não foi possível renovar a autorização do GA4.', 502);
+        const token = await tokenResponse.json();
+        if (!token.access_token) throw fail('Não foi possível renovar a autorização do GA4.', 502);
+        await google('https://analyticsdata.googleapis.com/v1beta/properties/' + propertyId + ':runReport', token.access_token, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ dateRanges: [{ startDate: '7daysAgo', endDate: 'yesterday' }], metrics: [{ name: 'sessions' }], limit: '1' }) });
+        verified = true;
+      }
       await db.runTransaction(async transaction => {
         const data = authorize(await transaction.get(ref));
         if (data.status !== 'ready') throw fail('Autenticação não concluída.');
         const option = data.options.find(x => x.id === optionId);
         if (!option) throw fail('Seleção inválida.');
         // Homologação nunca altera rastreamento ou credenciais da loja real.
-        if (isDryRun()) {
+        if (dryRun) {
           transaction.delete(ref);
           return;
         }
@@ -186,7 +203,7 @@ export async function handleGoogleConnect(req, res, { db, assertStoreAccess }) {
         }
         transaction.delete(ref);
       });
-      return res.status(200).json({ success: true, dryRun: isDryRun() });
+      return res.status(200).json({ success: true, dryRun, ...(verified ? { verification: 'ga4-data-api' } : {}) });
     }
     throw fail('Ação inválida.');
   } catch (error) {

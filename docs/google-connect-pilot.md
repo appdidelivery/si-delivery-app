@@ -12,7 +12,7 @@ OAuth por serviço para GA4 (propriedades/fluxos web), GTM (containers web) e Ad
 ## QA antes de merge
 1. Executar node --test tests/googleConnect.test.mjs tests/googlePurchase.test.mjs e npm run build.
 2. Validar preview com usuário da loja autorizada, outra loja e cancelamento/reconexão.
-3. Autorizar cada serviço no Google e conferir a lista de recursos; conferir propriedade/fluxo, container e conversão selecionados.
+3. Autorizar cada serviço no Google e conferir a lista de recursos; conferir propriedade/fluxo, container e conversão selecionados. No preview, a seleção de GA4 deve renovar o token e realizar uma consulta de sessões pela Analytics Data API, sem persistir credenciais ou alterar a loja. Uma consulta sem linhas também é válida; uma falha de API impede a conclusão.
 4. Conferir Data Fuel, instalação de tags e um pedido controlado, sem duplicar eventos. Não ativar tags nem criar campanhas automaticamente.
 5. Conferir que os três formulários legados continuam funcionando e que demais integrações permanecem intactas.
 6. Só depois liberar a primeira loja em produção e avaliar expansão. Não alterar o OAuth GMB legado nesta entrega; auditar seu state separadamente.

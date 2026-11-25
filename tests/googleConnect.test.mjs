@@ -109,12 +109,21 @@ test('Homologação conclui seleção sem escrever configuração ou credencial 
       return fn({ get: ref => ref.get(), update: (ref, data) => docs.set(ref.k, { ...docs.get(ref.k), ...data }), delete: ref => docs.delete(ref.k), set: () => assert.fail('Homologação não pode persistir configuração') });
     }
   };
-  globalThis.fetch = async url => {
+  let reportAllowed = false;
+  let reportCalls = 0;
+  globalThis.fetch = async (url, options) => {
     const u = String(url);
     const response = data => ({ ok: true, json: async () => data });
     if (u.includes('oauth2.googleapis.com/token')) return response({ access_token: 'test', refresh_token: 'test-refresh', scope: 'https://www.googleapis.com/auth/analytics.readonly' });
     if (u.includes('accountSummaries')) return response({ accountSummaries: [{ displayName: 'Empresa', propertySummaries: [{ property: 'properties/123', displayName: 'Loja' }] }] });
     if (u.includes('/dataStreams')) return response({ dataStreams: [{ name: 'properties/123/dataStreams/1', displayName: 'Web', type: 'WEB_DATA_STREAM', webStreamData: { measurementId: 'G-TEST123' } }] });
+    if (u === 'https://analyticsdata.googleapis.com/v1beta/properties/123:runReport') {
+      reportCalls++;
+      assert.equal(options.method, 'POST');
+      assert.equal(options.headers.Authorization, 'Bearer test');
+      assert.deepEqual(JSON.parse(options.body).metrics, [{ name: 'sessions' }]);
+      return reportAllowed ? response({ rows: [] }) : { ok: false, status: 403 };
+    }
     throw Error('URL inesperada no teste: ' + u);
   };
   try {
@@ -134,9 +143,16 @@ test('Homologação conclui seleção sem escrever configuração ou credencial 
     replay.send = callback.send;
     await handleGoogleConnectCallback({ query: { state: start.data.state, code: 'test-code' } }, replay, db);
     assert.equal(replay.code, 400);
+    const selection = { ...req, body: { ...req.body, action: 'select', state: start.data.state, optionId: status.data.options[0].id } };
+    const denied = response();
+    await handleGoogleConnect(selection, denied, deps);
+    assert.equal(denied.code, 502);
+    assert.equal(docs.size, 1);
+    reportAllowed = true;
     const selected = response();
-    await handleGoogleConnect({ ...req, body: { ...req.body, action: 'select', state: start.data.state, optionId: status.data.options[0].id } }, selected, deps);
-    assert.deepEqual(selected.data, { success: true, dryRun: true });
+    await handleGoogleConnect(selection, selected, deps);
+    assert.deepEqual(selected.data, { success: true, dryRun: true, verification: 'ga4-data-api' });
+    assert.equal(reportCalls, 2);
     assert.equal(docs.size, 0);
     assert.equal(touched.includes('settings'), false);
     assert.equal(touched.includes('google_connect_credentials'), false);

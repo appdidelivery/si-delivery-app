@@ -102,7 +102,7 @@ export default function GoogleConnectPanel({ storeId, service, saved, onComplete
       const result = await request('select', { state: session.current, optionId: selected });
       if (attempt !== generation.current) return;
       if (result.dryRun) {
-        setNotice('Homologação concluída. Nenhuma configuração da loja foi alterada.');
+        setNotice(result.verification === 'ga4-data-api' ? 'Homologação concluída: leitura GA4 validada pela Analytics Data API. Nenhuma configuração da loja foi alterada.' : 'Homologação concluída. Nenhuma configuração da loja foi alterada.');
         setPhase('idle');
         session.current = null;
         return;
