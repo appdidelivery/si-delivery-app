@@ -78,6 +78,8 @@ function DeepLinkListener() {
 function App() {
   const [currentUser, setCurrentUser] = useState(null);
   const [loadingAuth, setLoadingAuth] = useState(true);
+  const [pendingBuild, setPendingBuild] = useState(null);
+  const [applyingBuild, setApplyingBuild] = useState(false);
   const [restoringMultiStore, setRestoringMultiStore] = useState(() =>
     window.location.hash.startsWith('#multistore-ticket=')
   );
@@ -137,6 +139,12 @@ function App() {
         const remoteVersion = data?.version;
         if (!remoteVersion || remoteVersion === VELO_BUILD_VERSION) return;
 
+        // Do not interrupt a merchant editing orders or integrations.
+        if (/^\/admin(?:[/-]|$)/.test(window.location.pathname)) {
+          setPendingBuild(previous => previous?.version === remoteVersion ? previous : data);
+          return;
+        }
+
         isReloading = true;
 
         if ('serviceWorker' in navigator) {
@@ -169,6 +177,27 @@ function App() {
       document.removeEventListener('visibilitychange', handleVisibility);
     };
   }, []);
+
+  async function applyPanelUpdate() {
+    if (applyingBuild) return;
+    setApplyingBuild(true);
+    try {
+      if ('serviceWorker' in navigator) {
+        const registrations = await navigator.serviceWorker.getRegistrations();
+        await Promise.allSettled(registrations.map(registration => registration.unregister()));
+      }
+      if ('caches' in window) {
+        const cacheNames = await caches.keys();
+        await Promise.allSettled(cacheNames.map(cacheName => caches.delete(cacheName)));
+      }
+    } catch (error) {
+      console.warn('[Velo Update] Limpeza parcial de cache:', error?.message || error);
+    } finally {
+      const url = new URL(window.location.href);
+      url.searchParams.set('force_update', String(Date.now()));
+      window.location.replace(url.toString());
+    }
+  }
 
   if (loadingAuth || restoringMultiStore) {
     return (
@@ -242,6 +271,14 @@ function App() {
               }
             />
           </Routes>
+          {currentUser && pendingBuild && /^\/admin(?:[/-]|$)/.test(window.location.pathname) && (
+            <aside role="status" aria-live="polite" className="fixed bottom-5 right-5 z-[120] max-w-[calc(100vw-2.5rem)] w-96 rounded-2xl border border-blue-100 bg-white p-5 shadow-2xl text-slate-900">
+              <div className="text-sm font-black text-blue-700">NOVA VERSÃO DISPONÍVEL</div>
+              <p className="mt-2 text-sm font-semibold">Há melhorias disponíveis no painel da Velo Delivery.</p>
+              <p className="mt-1 text-xs text-slate-500">Finalize suas operações e aplique a atualização quando for conveniente. Versão {pendingBuild.displayVersion || ''}</p>
+              <button type="button" disabled={applyingBuild} onClick={applyPanelUpdate} className="mt-4 w-full rounded-xl bg-blue-600 py-3 text-sm font-bold text-white disabled:opacity-50">{applyingBuild ? 'Atualizando...' : 'Aplicar atualização'}</button>
+            </aside>
+          )}
     </BrowserRouter>
   );
 }

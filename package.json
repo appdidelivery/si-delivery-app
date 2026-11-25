@@ -5,11 +5,12 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build && node --test tests/storefront-banner-layout.test.mjs",
+    "build": "vite build && node --test tests/storefront-banner-layout.test.mjs && npm run test:google-connect",
     "lint": "eslint .",
     "test:linvix": "node --test tests/linvix-stock.test.mjs tests/linvix-orders.test.mjs",
     "preview": "vite preview",
-    "test:banners": "node --test tests/storefront-banner-layout.test.mjs"
+    "test:banners": "node --test tests/storefront-banner-layout.test.mjs",
+    "test:google-connect": "node --test tests/googleConnect.test.mjs tests/googlePurchase.test.mjs"
   },
   "dependencies": {
     "@capacitor-community/background-geolocation": "^1.2.26",
