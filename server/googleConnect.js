@@ -143,6 +143,36 @@ export async function handleGoogleConnect(req, res, { db, assertStoreAccess }) {
     if (!req.user?.uid) throw fail('Acesso negado.', 401);
     if (!/^[a-z0-9][a-z0-9-]{0,100}$/.test(storeId || '') || !Object.hasOwn(scopes, service || '')) throw fail('Loja ou serviço inválido.');
     await assertStoreAccess(req.user, storeId);
+    if (action === 'connection') {
+      const snapshot = await db.collection('settings').doc(storeId).get();
+      const saved = snapshot.data()?.integrations?.[service];
+      if (saved?.authMode !== 'oauth') return res.status(200).json({ status: 'disconnected' });
+      if (service !== 'ga4') return res.status(200).json({ status: 'configured' });
+      try {
+        const propertyId = String(saved.measurementId || '');
+        if (!/^\d+$/.test(propertyId)) throw fail('Propriedade inválida.');
+        const token = await getConnectedAnalyticsToken(db, storeId, propertyId, req.user);
+        if (!token) throw fail('Autorização ausente.');
+        await google('https://analyticsdata.googleapis.com/v1beta/properties/' + propertyId + ':runReport', token, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ dateRanges: [{ startDate: '7daysAgo', endDate: 'yesterday' }], metrics: [{ name: 'sessions' }], limit: '1' }) });
+        return res.status(200).json({ status: 'healthy' });
+      } catch {
+        return res.status(200).json({ status: 'needs_attention' });
+      }
+    }
+    if (action === 'disconnect') {
+      if (isDryRun()) throw fail('A desconexão permanente não está disponível durante a homologação.', 409);
+      const settingsRef = db.collection('settings').doc(storeId);
+      await db.runTransaction(async transaction => {
+        const snapshot = await transaction.get(settingsRef);
+        const saved = snapshot.data()?.integrations?.[service];
+        if (saved?.authMode !== 'oauth') return;
+        // Remove only this store's OAuth link; preserve existing tracking IDs.
+        // Do not revoke at Google: an agency may use the same grant for other stores.
+        transaction.update(settingsRef, { ['integrations.' + service + '.authMode']: 'manual', ['integrations.' + service + '.resourceName']: null, ['integrations.' + service + '.connectedAt']: null });
+        if (service === 'ga4') transaction.delete(db.collection(credentials).doc(storeId + '_ga4'));
+      });
+      return res.status(200).json({ success: true });
+    }
     if (action === 'start') {
       key();
       const pilotStores = (process.env.GOOGLE_CONNECT_PILOT_STORES || '').split(',').map(x => x.trim()).filter(Boolean);
@@ -168,11 +198,11 @@ export async function handleGoogleConnect(req, res, { db, assertStoreAccess }) {
       return res.status(200).json({ status: data.status, error: data.error, options: data.options?.map(({ id, label }) => ({ id, label })) });
     }
     if (action === 'select') {
-      // The preview must prove that the selected GA4 property can actually
-      // return metrics, not merely appear in Analytics Admin discovery.
+      // Every GA4 activation must prove the selected property returns metrics.
+      // Discovery alone does not establish Analytics Data API access.
       const dryRun = isDryRun();
       let verified = false;
-      if (dryRun && service === 'ga4') {
+      if (service === 'ga4') {
         const data = authorize(await ref.get());
         if (data.status !== 'ready') throw fail('Autenticação não concluída.');
         const option = data.options.find(x => x.id === optionId);
