@@ -238,20 +238,24 @@ test('OAuth Ads inicia sem exigir token de desenvolvedor descontinuado', async (
 });
 
 test('Ativação GA4 em produção grava apenas a loja autorizada após verificar a Data API', async () => {
-  const values = { VERCEL_ENV: 'production', GOOGLE_CONNECT_DRY_RUN: 'false', GOOGLE_CONNECT_ENCRYPTION_KEY: 'ab'.repeat(32), GOOGLE_CONNECT_PILOT_STORES: 'mercadomonteverde', GOOGLE_CONNECT_REDIRECT_URI: 'https://preview.example/api/google-callback', GOOGLE_CLIENT_ID: 'fake-client-id', GOOGLE_CLIENT_SECRET: 'fake-client-secret' };
+  const values = { VERCEL_ENV: 'production', GOOGLE_CONNECT_DRY_RUN: 'false', BLOB_READ_WRITE_TOKEN: 'vercel_blob_rw_TestStore_fake', GOOGLE_CONNECT_ENCRYPTION_KEY: 'ab'.repeat(32), GOOGLE_CONNECT_PILOT_STORES: 'mercadomonteverde', GOOGLE_CONNECT_REDIRECT_URI: 'https://preview.example/api/google-callback', GOOGLE_CLIENT_ID: 'fake-client-id', GOOGLE_CLIENT_SECRET: 'fake-client-secret' };
   const original = Object.fromEntries(Object.keys(values).map(k => [k, process.env[k]]));
   const originalFetch = globalThis.fetch;
   Object.assign(process.env, values);
   const docs = new Map();
   const writes = [];
+  const blobs = new Map();
+  docs.set('settings/mercadomonteverde',{integrations:{}});
   const db = {
     collection(name) { return { doc(id) { const k = name + '/' + id; return { k, async create(data) { docs.set(k, data); }, async update(data) { docs.set(k, { ...docs.get(k), ...data }); }, async get() { return { exists: docs.has(k), data: () => docs.get(k) }; } }; } }; },
     async runTransaction(fn) { return fn({ get: ref => ref.get(), update: (ref, data) => docs.set(ref.k, { ...docs.get(ref.k), ...data }), delete: ref => docs.delete(ref.k), set: (ref, data, opts) => { writes.push({ key: ref.k, data, opts }); docs.set(ref.k, data); } }); }
   };
   let verified = false;
-  globalThis.fetch = async (url) => {
+  globalThis.fetch = async (url, options={}) => {
     const u = String(url);
     const result = data => ({ ok: true, json: async () => data });
+    if(u.startsWith('https://vercel.com/api/blob/')){const p=new URL(u).searchParams.get('pathname');assert.equal(options.headers['x-vercel-blob-access'],'private');assert.equal(options.headers['x-allow-overwrite'],'0');if(blobs.has(p))return {ok:false,status:409};blobs.set(p,JSON.parse(options.body));return result({});}
+    if(u.startsWith('https://TestStore.private.blob.vercel-storage.com/')){const p=new URL(u).pathname.slice(1);return blobs.has(p)?result(blobs.get(p)):{ok:false,status:404};}
     if (u.includes('oauth2.googleapis.com/token')) return result({ access_token: 'test', refresh_token: 'secret-refresh-test', scope: 'https://www.googleapis.com/auth/analytics.readonly' });
     if (u.includes('accountSummaries')) return result({ accountSummaries: [{ displayName: 'Empresa', propertySummaries: [{ property: 'properties/123', displayName: 'Loja' }] }] });
     if (u.includes('/dataStreams')) return result({ dataStreams: [{ name: 'properties/123/dataStreams/1', displayName: 'Web', type: 'WEB_DATA_STREAM', webStreamData: { measurementId: 'G-TEST123' } }] });
@@ -280,12 +284,16 @@ test('Ativação GA4 em produção grava apenas a loja autorizada após verifica
     verified = true;
     const success = response();
     await handleGoogleConnect(selection, success, deps);
-    assert.deepEqual(success.data, { success: true, dryRun: false, verification: 'ga4-data-api' });
-    assert.deepEqual(writes.map(w => w.key), ['settings/mercadomonteverde', 'google_connect_credentials/mercadomonteverde_ga4']);
+    assert.deepEqual(success.data, { success: true, dryRun: false, persisted: true, verification: 'ga4-data-api' });
+    assert.deepEqual(writes.map(w => w.key), ['settings/mercadomonteverde']);
     assert.equal(writes[0].opts.merge, true);
     assert.equal(writes[0].data.integrations.ga4.authMode, 'oauth');
     assert.equal(writes[0].data.integrations.ga4.measurementId, '123');
     assert.equal(JSON.stringify(writes).includes('secret-refresh-test'), false);
+    assert.equal(JSON.stringify([...blobs.values()]).includes('secret-refresh-test'),false);
+    assert.equal([...docs.keys()].some(k=>k.startsWith('google_connect_')),false);
+    const again=response();await handleGoogleConnect(selection,again,deps);assert.equal(again.data.persisted,true);assert.equal(writes.length,1);
+    assert.equal([...blobs.keys()].filter(k=>k.includes('/credentials/')).length,1);
   } finally {
     globalThis.fetch = originalFetch;
     for (const [k, v] of Object.entries(original)) { if (v === undefined) delete process.env[k]; else process.env[k] = v; }

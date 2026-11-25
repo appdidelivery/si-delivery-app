@@ -110,7 +110,11 @@ export default function GoogleConnectPanel({ storeId, service, saved, onComplete
         session.current = null;
         return;
       }
-      onComplete();
+      if (!result.persisted) throw new Error('A integração não foi confirmada no cadastro da loja.');
+      session.current = null;
+      setPhase('idle');
+      setNotice('Integração salva e confirmada na loja.');
+      await onComplete();
     } catch (err) {
       if (attempt !== generation.current) return;
       setError(err.message);
@@ -169,6 +173,7 @@ export default function GoogleConnectPanel({ storeId, service, saved, onComplete
       </div>}
       {(phase === 'choose' || (phase === 'saving' && session.current)) && <div className="space-y-3">
         {dryRun && <p role="status" className="rounded-xl bg-amber-50 p-3 text-sm text-amber-800">Modo de teste: a autorização será validada, mas nenhuma configuração da loja será alterada.</p>}
+        <p role="status" className="rounded-xl bg-blue-50 p-3 text-sm text-blue-800">Google autorizado. Falta escolher o recurso desta unidade e confirmar a ativação.</p>
         <label htmlFor="velo-google-resource" className="block text-sm font-bold text-slate-700">Escolha o recurso da sua loja</label>
         <select id="velo-google-resource" value={selected} disabled={phase === 'saving'} onChange={e => setSelected(e.target.value)} className="w-full p-3 rounded-xl border border-slate-200 text-sm">
           <option value="">Selecione uma opção</option>

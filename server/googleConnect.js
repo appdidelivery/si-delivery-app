@@ -1,4 +1,5 @@
 import crypto from 'node:crypto';
+import { assertPrivateGoogleStorage, readGooglePrivate, createGooglePrivate } from './googleConnectPrivate.js';
 
 const scopes = {
   ga4: 'https://www.googleapis.com/auth/analytics.readonly',
@@ -12,7 +13,7 @@ function callbackUri() {
   return uri;
 }
 const ttl = 10 * 60 * 1000;
-const isDryRun = () => process.env.VERCEL_ENV !== 'production' || process.env.GOOGLE_CONNECT_DRY_RUN === 'true';
+const isDryRun = () => process.env.VERCEL_ENV !== 'production' || process.env.GOOGLE_CONNECT_DRY_RUN !== 'false';
 const sessions = 'google_connect_sessions';
 const credentials = 'google_connect_credentials';
 const statePattern = /^velo_gc_[a-f0-9]{64}$/;
@@ -125,6 +126,92 @@ function readSession(snapshot, state) {
   if (!Number.isFinite(data.expiresAt) || data.expiresAt < Date.now()) throw fail('Sessão expirada. Conecte novamente.', 410);
   return data;
 }
+
+function privateSessionPath(state,stage) {
+  if (!statePattern.test(state || '')) throw fail('Sessão inválida.');
+  return 'sessions/' + crypto.createHash('sha256').update(state).digest('hex') + '/' + stage + '.json';
+}
+async function privateStage(state,stage) {
+  const path=privateSessionPath(state,stage);
+  const payload=await readGooglePrivate(path);
+  if(!payload)return null;
+  const data=unseal(payload,state+':'+stage);
+  if(!Number.isFinite(data.expiresAt)||data.expiresAt<Date.now())throw fail('Sessão expirada. Conecte novamente.',410);
+  return data;
+}
+async function writeStage(state,stage,data) {
+  await createGooglePrivate(privateSessionPath(state,stage),seal(data,state+':'+stage),{temporary:true});
+}
+async function currentPrivateSession(state) {
+  const pending=await privateStage(state,'pending');
+  if(!pending)throw fail('Sessão expirada. Conecte novamente.',410);
+  const [ready,error,processing]=await Promise.all(['ready','error','processing'].map(stage=>privateStage(state,stage)));
+  return ready||error||processing||pending;
+}
+function assertSessionOwner(data,user,storeId,service) {
+  if(data.uid!==user.uid||data.storeId!==storeId||data.service!==service)throw fail('Acesso negado.',403);
+}
+function privateCredentialPath(storeId,service,activationId) {
+  if(!/^[a-f0-9]{64}$/.test(activationId||''))throw fail('Autorização inválida. Reconecte o Google.',401);
+  const storeHash=crypto.createHash('sha256').update(storeId).digest('hex');
+  return 'credentials/'+storeHash+'/'+service+'/'+activationId+'.json';
+}
+async function activatePrivate(req,res,db,data) {
+  const {storeId,service,state,optionId}=req.body;
+  assertSessionOwner(data,req.user,storeId,service);
+  if(data.status!=='ready')throw fail('Autenticação não concluída.');
+  const option=data.options.find(x=>x.id===optionId);
+  if(!option)throw fail('Seleção inválida.');
+  const activationId=crypto.createHash('sha256').update(state).digest('hex');
+  const settingsRef=db.collection('settings').doc(storeId);
+  const saved=()=>settingsRef.get().then(s=>s.data()?.integrations?.[service]);
+  const matches=s=>s?.authMode==='oauth'&&s.oauthActivationId===activationId&&s.oauthResourceId===optionId&&Object.entries(option.config).every(([k,v])=>String(s[k])===String(v));
+  if(matches(await saved()))return res.status(200).json({success:true,dryRun:false,persisted:true,...(service==='ga4'?{verification:'ga4-data-api'}:{})});
+  if(service==='ga4'){
+    const propertyId=String(option.config.measurementId||'');
+    if(!/^\d+$/.test(propertyId)||!data.refreshToken)throw fail('Seleção inválida.');
+    const tr=await fetch('https://oauth2.googleapis.com/token',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:new URLSearchParams({client_id:process.env.GOOGLE_CLIENT_ID,client_secret:process.env.GOOGLE_CLIENT_SECRET,refresh_token:data.refreshToken,grant_type:'refresh_token'}),signal:AbortSignal.timeout(12000)});
+    if(!tr.ok)throw fail('Não foi possível renovar a autorização do GA4.',502);
+    const token=await tr.json();if(!token.access_token)throw fail('Não foi possível renovar a autorização do GA4.',502);
+    await google('https://analyticsdata.googleapis.com/v1beta/properties/'+propertyId+':runReport',token.access_token,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({dateRanges:[{startDate:'7daysAgo',endDate:'yesterday'}],metrics:[{name:'sessions'}],limit:'1'})});
+  }
+  // Claim once, after the Google check; duplicate callbacks/selections cannot overwrite.
+  await writeStage(state,'selected',{uid:data.uid,storeId,service,optionId,expiresAt:data.expiresAt,status:'selected'});
+  if(service==='ga4'){
+    const path=privateCredentialPath(storeId,service,activationId);
+    await createGooglePrivate(path,seal({refreshToken:data.refreshToken,propertyId:option.config.measurementId},path));
+  }
+  await db.runTransaction(async transaction=>{
+    const current=await transaction.get(settingsRef);
+    if(!current.exists)throw fail('Loja não encontrada. Nenhuma integração foi alterada.',404);
+    transaction.set(settingsRef,{integrations:{[service]:{...option.config,authMode:'oauth',resourceName:option.label,connectedAt:new Date(),oauthActivationId:activationId,oauthResourceId:optionId}}},{merge:true});
+  });
+  if(!matches(await saved()))throw fail('A integração ainda não foi confirmada no cadastro da loja.',503);
+  return res.status(200).json({success:true,dryRun:false,persisted:true,...(service==='ga4'?{verification:'ga4-data-api'}:{})});
+}
+async function privateCallback(req,res) {
+  const {state,code,error}=req.query||{};
+  let data,claimed=false;
+  try{
+    data=await privateStage(state,'pending');
+    if(!data)throw fail('Sessão expirada.');
+    await writeStage(state,'processing',{...data,verifier:null,status:'processing'});claimed=true;
+    if(error||!code)throw fail('Autorização cancelada ou recusada.');
+    const tokenRes=await fetch('https://oauth2.googleapis.com/token',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:new URLSearchParams({client_id:process.env.GOOGLE_CLIENT_ID,client_secret:process.env.GOOGLE_CLIENT_SECRET,redirect_uri:data.redirectUri,code,code_verifier:data.verifier,grant_type:'authorization_code'}),signal:AbortSignal.timeout(12000)});
+    if(!tokenRes.ok)throw fail('O Google não concluiu a autorização.');
+    const token=await tokenRes.json();
+    if(!token.access_token||!String(token.scope||'').split(' ').includes(scopes[data.service]))throw fail('Permissão necessária não concedida.');
+    if(data.service==='ga4'&&!token.refresh_token)throw fail('Não recebemos autorização permanente. Conecte novamente.');
+    const options=await discover(data.service,token.access_token);
+    if(!options.length)throw fail('Nenhum recurso compatível encontrado nessa conta Google.');
+    await writeStage(state,'ready',{...data,verifier:null,status:'ready',options,refreshToken:data.service==='ga4'?token.refresh_token:null});
+    return callbackPage(res,true);
+  }catch(err){
+    if(claimed&&data)await writeStage(state,'error',{...data,verifier:null,status:'error',error:err.statusCode?err.message:'Falha ao consultar os recursos Google.'}).catch(()=>{});
+    return callbackPage(res,false);
+  }
+}
+
 // req.user is the Firebase ID token verified by the API. Grants are set by
 // the operator in Vercel and are scoped to one store and Firebase UID.
 export async function assertGoogleIntegrationAccess(user, storeId) {
@@ -170,7 +257,8 @@ export async function handleGoogleConnect(req, res, { db, assertStoreAccess }) {
         // Remove only this store's OAuth link; preserve existing tracking IDs.
         // Do not revoke at Google: an agency may use the same grant for other stores.
         transaction.update(settingsRef, { ['integrations.' + service + '.authMode']: 'manual', ['integrations.' + service + '.resourceName']: null, ['integrations.' + service + '.connectedAt']: null });
-        if (service === 'ga4') transaction.delete(db.collection(credentials).doc(storeId + '_ga4'));
+        if (saved.oauthActivationId) transaction.update(settingsRef, { ['integrations.' + service + '.oauthActivationId']: null, ['integrations.' + service + '.oauthResourceId']: null });
+        else if (service === 'ga4') transaction.delete(db.collection(credentials).doc(storeId + '_ga4'));
       });
       return res.status(200).json({ success: true });
     }
@@ -183,9 +271,18 @@ export async function handleGoogleConnect(req, res, { db, assertStoreAccess }) {
       const state = 'velo_gc_' + crypto.randomBytes(32).toString('hex');
       const verifier = crypto.randomBytes(48).toString('base64url');
       const data = { uid: req.user.uid, storeId, service, verifier, redirectUri, expiresAt: Date.now() + ttl, status: 'pending' };
-      await refFor(db, state).create({ payload: seal(data, state), expiresAt: new Date(data.expiresAt) });
+      if (isDryRun()) await refFor(db, state).create({ payload: seal(data, state), expiresAt: new Date(data.expiresAt) });
+      else { assertPrivateGoogleStorage(); await writeStage(state,'pending',data); }
       const params = new URLSearchParams({ client_id: process.env.GOOGLE_CLIENT_ID, redirect_uri: redirectUri, response_type: 'code', scope: scopes[service], access_type: 'offline', prompt: 'consent select_account', state, code_challenge: crypto.createHash('sha256').update(verifier).digest('base64url'), code_challenge_method: 'S256' });
       return res.status(200).json({ state, dryRun: isDryRun(), url: 'https://accounts.google.com/o/oauth2/v2/auth?' + params });
+    }
+    if (!isDryRun()) {
+      assertPrivateGoogleStorage();
+      const data=await currentPrivateSession(state);
+      assertSessionOwner(data,req.user,storeId,service);
+      if(action==='status')return res.status(200).json({status:data.status,error:data.error,options:data.options?.map(({id,label})=>({id,label}))});
+      if(action==='select')return await activatePrivate(req,res,db,data);
+      throw fail('Ação inválida.');
     }
     const ref = refFor(db, state);
     const authorize = snap => {
@@ -237,6 +334,7 @@ export async function handleGoogleConnect(req, res, { db, assertStoreAccess }) {
     }
     throw fail('Ação inválida.');
   } catch (error) {
+    console.warn('[google-connect] request failed', {action:req.body?.action,service:req.body?.service,status:error.statusCode||500});
     return res.status(error.statusCode || 500).json({ error: error.statusCode ? error.message : 'Não foi possível conectar ao Google. Tente novamente.' });
   }
 }
@@ -252,6 +350,7 @@ function callbackPage(res, success) {
 
 export async function handleGoogleConnectCallback(req, res, db) {
   res.setHeader('Cache-Control', 'no-store');
+  if (!isDryRun()) return privateCallback(req,res);
   const { state, code, error } = req.query || {};
   let ref, data;
   try {
@@ -284,9 +383,17 @@ export async function getConnectedAnalyticsToken(db, storeId, propertyId, user) 
   if (ga4.authMode !== 'oauth') return null;
   await assertGoogleIntegrationAccess(user, storeId);
   const id = storeId + '_ga4';
-  const credential = await db.collection(credentials).doc(id).get();
-  if (!credential.exists) throw fail('Reconecte o Google Analytics.', 401);
-  const data = unseal(credential.data().payload, id);
+  let data;
+  if(ga4.oauthActivationId){
+    const path=privateCredentialPath(storeId,'ga4',ga4.oauthActivationId);
+    const payload=await readGooglePrivate(path);
+    if(!payload)throw fail('Reconecte o Google Analytics.',401);
+    data=unseal(payload,path);
+  } else {
+    const credential=await db.collection(credentials).doc(id).get();
+    if(!credential.exists)throw fail('Reconecte o Google Analytics.',401);
+    data=unseal(credential.data().payload,id);
+  }
   if (String(data.propertyId) !== String(propertyId)) throw fail('Propriedade não autorizada.', 403);
   const response = await fetch('https://oauth2.googleapis.com/token', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams({ client_id: process.env.GOOGLE_CLIENT_ID, client_secret: process.env.GOOGLE_CLIENT_SECRET, refresh_token: data.refreshToken, grant_type: 'refresh_token' }), signal: AbortSignal.timeout(12000) });
   if (!response.ok) throw fail('Reconecte o Google Analytics.', 401);
