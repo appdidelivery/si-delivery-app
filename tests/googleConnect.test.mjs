@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { analyticsOption, containerOption, adsOption, handleGoogleConnect, assertGoogleIntegrationAccess, handleGoogleConnectCallback } from '../server/googleConnect.js';
+import { analyticsOption, containerOption, adsOption, handleGoogleConnect, assertGoogleIntegrationAccess, handleGoogleConnectCallback, getConnectedAnalyticsToken } from '../server/googleConnect.js';
 
 test('GA4 preserva o ID da propriedade e o ID do fluxo web', () => {
   const account = { displayName: 'Empresa' };
@@ -212,4 +212,82 @@ test('Diagnóstico não confunde container configurado com leitura GA4 saudável
   const disconnected = response();
   await handleGoogleConnect({ ...req, body: { ...req.body, service: 'ga4' } }, disconnected, deps);
   assert.deepEqual(disconnected.data, { status: 'disconnected' });
+});
+
+
+test('GA4 legado não permite consultar propriedade diferente da configuração da loja', async () => {
+  const db = { collection(name) { assert.equal(name, 'settings'); return { doc(id) { assert.equal(id, 'loja-a'); return { get: async () => ({ data: () => ({ integrations: { ga4: { measurementId: '123', authMode: 'manual' } } }) }) }; } }; } };
+  assert.equal(await getConnectedAnalyticsToken(db, 'loja-a', '123', { uid: 'owner' }), null);
+  await assert.rejects(() => getConnectedAnalyticsToken(db, 'loja-a', '456', { uid: 'owner' }), { statusCode: 403 });
+});
+
+test('OAuth Ads inicia sem exigir token de desenvolvedor descontinuado', async () => {
+  const values = { GOOGLE_CONNECT_ENCRYPTION_KEY: 'ab'.repeat(32), GOOGLE_CONNECT_PILOT_STORES: 'mercadomonteverde', GOOGLE_CONNECT_REDIRECT_URI: 'https://preview.example/api/google-callback', GOOGLE_CLIENT_ID: 'fake-client-id', GOOGLE_CLIENT_SECRET: 'fake-client-secret' };
+  const original = Object.fromEntries([...Object.keys(values), 'GOOGLE_ADS_DEVELOPER_TOKEN'].map(k => [k, process.env[k]]));
+  Object.assign(process.env, values);
+  delete process.env.GOOGLE_ADS_DEVELOPER_TOKEN;
+  try {
+    const db = { collection() { return { doc() { return { create: async () => {} }; } }; } };
+    const res = response();
+    await handleGoogleConnect({ method: 'POST', user: { uid: 'u1' }, body: { action: 'start', storeId: 'mercadomonteverde', service: 'gads' } }, res, { db, assertStoreAccess: async () => {} });
+    assert.equal(res.code, 200);
+    assert.equal(new URL(res.data.url).searchParams.get('scope'), 'https://www.googleapis.com/auth/adwords');
+  } finally {
+    for (const [k, v] of Object.entries(original)) { if (v === undefined) delete process.env[k]; else process.env[k] = v; }
+  }
+});
+
+test('Ativação GA4 em produção grava apenas a loja autorizada após verificar a Data API', async () => {
+  const values = { VERCEL_ENV: 'production', GOOGLE_CONNECT_DRY_RUN: 'false', GOOGLE_CONNECT_ENCRYPTION_KEY: 'ab'.repeat(32), GOOGLE_CONNECT_PILOT_STORES: 'mercadomonteverde', GOOGLE_CONNECT_REDIRECT_URI: 'https://preview.example/api/google-callback', GOOGLE_CLIENT_ID: 'fake-client-id', GOOGLE_CLIENT_SECRET: 'fake-client-secret' };
+  const original = Object.fromEntries(Object.keys(values).map(k => [k, process.env[k]]));
+  const originalFetch = globalThis.fetch;
+  Object.assign(process.env, values);
+  const docs = new Map();
+  const writes = [];
+  const db = {
+    collection(name) { return { doc(id) { const k = name + '/' + id; return { k, async create(data) { docs.set(k, data); }, async update(data) { docs.set(k, { ...docs.get(k), ...data }); }, async get() { return { exists: docs.has(k), data: () => docs.get(k) }; } }; } }; },
+    async runTransaction(fn) { return fn({ get: ref => ref.get(), update: (ref, data) => docs.set(ref.k, { ...docs.get(ref.k), ...data }), delete: ref => docs.delete(ref.k), set: (ref, data, opts) => { writes.push({ key: ref.k, data, opts }); docs.set(ref.k, data); } }); }
+  };
+  let verified = false;
+  globalThis.fetch = async (url) => {
+    const u = String(url);
+    const result = data => ({ ok: true, json: async () => data });
+    if (u.includes('oauth2.googleapis.com/token')) return result({ access_token: 'test', refresh_token: 'secret-refresh-test', scope: 'https://www.googleapis.com/auth/analytics.readonly' });
+    if (u.includes('accountSummaries')) return result({ accountSummaries: [{ displayName: 'Empresa', propertySummaries: [{ property: 'properties/123', displayName: 'Loja' }] }] });
+    if (u.includes('/dataStreams')) return result({ dataStreams: [{ name: 'properties/123/dataStreams/1', displayName: 'Web', type: 'WEB_DATA_STREAM', webStreamData: { measurementId: 'G-TEST123' } }] });
+    if (u.includes('analyticsdata.googleapis.com')) return verified ? result({ rows: [] }) : { ok: false, status: 403 };
+    throw Error('URL inesperada');
+  };
+  try {
+    const req = { method: 'POST', user: { uid: 'owner' }, body: { action: 'start', storeId: 'mercadomonteverde', service: 'ga4' } };
+    const deps = { db, assertStoreAccess: async () => {} };
+    const start = response();
+    await handleGoogleConnect(req, start, deps);
+    assert.equal(start.data.dryRun, false);
+    const callback = response();
+    callback.send = function(data) { this.data = data; return this; };
+    await handleGoogleConnectCallback({ query: { state: start.data.state, code: 'test-code' } }, callback, db);
+    assert.equal(callback.code, 200);
+    const selection = { ...req, body: { ...req.body, action: 'select', state: start.data.state, optionId: 'properties/123/dataStreams/1' } };
+    const denied = response();
+    await handleGoogleConnect(selection, denied, deps);
+    assert.equal(denied.code, 502);
+    assert.equal(writes.length, 0);
+    const wrongStore = response();
+    await handleGoogleConnect({ ...selection, body: { ...selection.body, storeId: 'outra-loja' } }, wrongStore, deps);
+    assert.equal(wrongStore.code, 403);
+    assert.equal(writes.length, 0);
+    verified = true;
+    const success = response();
+    await handleGoogleConnect(selection, success, deps);
+    assert.deepEqual(success.data, { success: true, dryRun: false, verification: 'ga4-data-api' });
+    assert.deepEqual(writes.map(w => w.key), ['settings/mercadomonteverde', 'google_connect_credentials/mercadomonteverde_ga4']);
+    assert.equal(writes[0].opts.merge, true);
+    assert.equal(writes[0].data.integrations.ga4.authMode, 'oauth');
+    assert.equal(writes[0].data.integrations.ga4.measurementId, '123');
+    assert.equal(JSON.stringify(writes).includes('secret-refresh-test'), false);
+  } finally {
+    globalThis.fetch = originalFetch;
+    for (const [k, v] of Object.entries(original)) { if (v === undefined) delete process.env[k]; else process.env[k] = v; }
+  }
 });
