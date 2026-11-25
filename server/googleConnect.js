@@ -210,9 +210,18 @@ export async function handleGoogleConnect(req, res, { db, assertStoreAccess }) {
     return res.status(error.statusCode || 500).json({ error: error.statusCode ? error.message : 'Não foi possível conectar ao Google. Tente novamente.' });
   }
 }
+function callbackPage(res, success) {
+  const nonce = crypto.randomBytes(18).toString('base64');
+  res.setHeader('Content-Type', 'text/html; charset=utf-8');
+  res.setHeader('Referrer-Policy', 'no-referrer');
+  res.setHeader('Content-Security-Policy', "default-src 'none'; style-src 'nonce-" + nonce + "'; script-src 'nonce-" + nonce + "'; base-uri 'none'; frame-ancestors 'none'");
+  const title = success ? 'Google autorizado' : 'Não foi possível conectar';
+  const message = success ? 'Volte à aba da Velo Delivery para escolher o recurso da sua loja.' : 'Volte à aba da Velo Delivery para tentar novamente.';
+  return res.status(success ? 200 : 400).send(`<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${title} | Velo Delivery</title><style nonce="${nonce}">*{box-sizing:border-box}body{margin:0;background:#f1f5f9;color:#0f172a;font:16px system-ui,sans-serif;min-height:100vh;display:grid;place-items:center;padding:24px}main{max-width:440px;width:100%;background:white;border-radius:24px;padding:32px;text-align:center;box-shadow:0 12px 40px #0f172a14}h1{font-size:24px;margin:16px 0}p{line-height:1.6;color:#475569}button{background:#155dfb;color:white;border:0;padding:14px 22px;border-radius:14px;font:600 15px system-ui;cursor:pointer}.mark{font-size:32px;color:${success?'#15803d':'#b45309'}}</style></head><body><main><div class="mark" aria-hidden="true">${success?'✓':'!'}</div><h1>${title}</h1><p>${message}</p><button id="close" type="button">Fechar janela</button><p>Se a janela não fechar, retorne manualmente ao painel.</p></main><script nonce="${nonce}">document.getElementById('close').addEventListener('click',()=>window.close());${success?'setTimeout(()=>window.close(),1800);':''}</script></body></html>`);
+}
+
 export async function handleGoogleConnectCallback(req, res, db) {
   res.setHeader('Cache-Control', 'no-store');
-  res.setHeader('Content-Type', 'text/plain; charset=utf-8');
   const { state, code, error } = req.query || {};
   let ref, data;
   try {
@@ -232,10 +241,10 @@ export async function handleGoogleConnectCallback(req, res, db) {
     const options = await discover(data.service, token.access_token);
     if (!options.length) throw fail('Nenhum recurso compatível encontrado nessa conta Google.');
     await ref.update({ payload: seal({ ...data, verifier: null, status: 'ready', options, refreshToken: data.service === 'ga4' ? token.refresh_token : null }, state) });
-    return res.status(200).send('Google autorizado. Volte para a aba da Velo Delivery e escolha o recurso. Pode fechar esta janela.');
+    return callbackPage(res, true);
   } catch (err) {
     if (ref && data) await ref.update({ payload: seal({ ...data, verifier: null, status: 'error', error: err.statusCode ? err.message : 'Falha ao consultar os recursos Google.' }, state) }).catch(() => {});
-    return res.status(400).send('Não foi possível concluir a autorização. Volte para a aba da Velo Delivery.');
+    return callbackPage(res, false);
   }
 }
 export async function getConnectedAnalyticsToken(db, storeId, propertyId, user) {
