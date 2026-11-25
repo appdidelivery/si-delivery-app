@@ -161,3 +161,55 @@ test('Homologação conclui seleção sem escrever configuração ou credencial 
     for (const [k, v] of Object.entries(original)) { if (v === undefined) delete process.env[k]; else process.env[k] = v; }
   }
 });
+
+
+test('Desconexão é bloqueada em homologação e preserva IDs e outras lojas em produção', async () => {
+  const original = { VERCEL_ENV: process.env.VERCEL_ENV, GOOGLE_CONNECT_DRY_RUN: process.env.GOOGLE_CONNECT_DRY_RUN };
+  const mutations = [];
+  const db = {
+    collection(name) { return { doc(id) { return { name, id }; } }; },
+    async runTransaction(fn) {
+      return fn({
+        get: async () => ({ data: () => ({ integrations: { ga4: { authMode: 'oauth', measurementId: '123', frontendMeasurementId: 'G-TEST123' } } }) }),
+        update: (ref, data) => mutations.push({ ref, data }),
+        delete: ref => mutations.push({ ref, deleted: true })
+      });
+    }
+  };
+  const req = { method: 'POST', user: { uid: 'owner' }, body: { action: 'disconnect', storeId: 'mercadomonteverde', service: 'ga4' } };
+  const deps = { db, assertStoreAccess: async (user, store) => { if (store !== 'mercadomonteverde') throw Object.assign(Error('negado'), { statusCode: 403 }); } };
+  try {
+    process.env.VERCEL_ENV = 'production';
+    process.env.GOOGLE_CONNECT_DRY_RUN = 'true';
+    const dry = response();
+    await handleGoogleConnect(req, dry, deps);
+    assert.equal(dry.code, 409);
+    assert.equal(mutations.length, 0);
+    process.env.GOOGLE_CONNECT_DRY_RUN = 'false';
+    const denied = response();
+    await handleGoogleConnect({ ...req, body: { ...req.body, storeId: 'outra-loja' } }, denied, deps);
+    assert.equal(denied.code, 403);
+    assert.equal(mutations.length, 0);
+    const ok = response();
+    await handleGoogleConnect(req, ok, deps);
+    assert.equal(ok.code, 200);
+    assert.deepEqual(mutations, [
+      { ref: { name: 'settings', id: 'mercadomonteverde' }, data: { 'integrations.ga4.authMode': 'manual', 'integrations.ga4.resourceName': null, 'integrations.ga4.connectedAt': null } },
+      { ref: { name: 'google_connect_credentials', id: 'mercadomonteverde_ga4' }, deleted: true }
+    ]);
+  } finally {
+    for (const [k, v] of Object.entries(original)) { if (v === undefined) delete process.env[k]; else process.env[k] = v; }
+  }
+});
+
+test('Diagnóstico não confunde container configurado com leitura GA4 saudável', async () => {
+  const db = { collection() { return { doc() { return { get: async () => ({ data: () => ({ integrations: { gtm: { authMode: 'oauth', containerId: 'GTM-TEST123' } } }) }) }; } }; } };
+  const deps = { db, assertStoreAccess: async () => {} };
+  const req = { method: 'POST', user: { uid: 'owner' }, body: { action: 'connection', storeId: 'mercadomonteverde', service: 'gtm' } };
+  const configured = response();
+  await handleGoogleConnect(req, configured, deps);
+  assert.deepEqual(configured.data, { status: 'configured' });
+  const disconnected = response();
+  await handleGoogleConnect({ ...req, body: { ...req.body, service: 'ga4' } }, disconnected, deps);
+  assert.deepEqual(disconnected.data, { status: 'disconnected' });
+});
